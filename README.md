@@ -50,4 +50,4 @@ _One diagram or 5 bullet points: data in -> processing -> model -> output._
 ## Pre-existing work
 
 This repository template (FastAPI skeleton, LLM client, test setup) was prepared before the event,
-commit `_<first commit hash>_`. Everything after that commit was built during the hackathon 6–8 Nov 2026.
+commit `6fe98b9`. Everything after that commit was built during the hackathon 6–8 Nov 2026.
