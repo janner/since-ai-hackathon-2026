@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Since AI 2026</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+  textarea { width: 100%; min-height: 6rem; }
+  pre { white-space: pre-wrap; background: #f4f4f4; padding: 1rem; }
+</style>
+<h1>Project name</h1>
+<form id="f">
+  <label for="q">Question</label>
+  <textarea id="q" required></textarea>
+  <button>Ask</button>
+</form>
+<pre id="out" aria-live="polite"></pre>
+<script>
+f.onsubmit = async (e) => {
+  e.preventDefault();
+  out.textContent = "…";
+  const r = await fetch("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({question: q.value})});
+  const j = await r.json();
+  out.textContent = r.ok ? j.answer : (j.detail || "error");
+};
+</script>
+</html>
