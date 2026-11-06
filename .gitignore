@@ -3,8 +3,3 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-# omat valmistelumuistiinpanot, ei palautusrepoon
-VALMISTELU.md
-IDEA.md
-LUMI.md
-HAASTEET.md
