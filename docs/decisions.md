@@ -420,9 +420,15 @@ Reopen if: the owner wants Finnish README content for a Finnish audience.
 
 `docs/features.md`, `docs/decisions.md` and `docs/demo.md`, all linked from the README. Three files
 rather than one long one, because the three questions are different: what exists, why it is like
-this, and how to see it working. The plan's file list (`docs/architecture.md`,
-`docs/checklist.md`) became features and demo; a separate checklist would duplicate the limits
-section of the README.
+this, and how to see it working. The plan's `docs/checklist.md` became the Final check section of
+`SUBMISSION.md`; a separate checklist file would duplicate both the limits section of the README and
+the form's own list.
+
+Reopened 6 Nov 2026 (F11, card `t_24772576`). Review `t_ffe3dcd3` finding R17 (P1) noted that the
+repository had no architecture diagram, and the plan lists `docs/architecture.md` in F11. The file
+is added after all: one page with the pipeline as a Mermaid flowchart and a table of the twelve
+modules, linked from the README documentation table. The checklist stays in `SUBMISSION.md`, as
+decided above.
 
 Reopen if: the repository grows other documentation that needs an index of its own.
 

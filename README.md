@@ -33,7 +33,10 @@ A side feature applies the same style to terrestrial land-mobile notices: it dif
 3076-style extracts, filters what is within 1 000 km of Finland and overlaps the register, and
 computes ITU-R P.1546-6 field strength at four Finnish test points.
 
-_Screenshot: funnel and one case card._
+![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
+
+The screenshot above is the demo slice after the run: the funnel, the queue of 18 cards and the
+selected card 124545403.
 
 ## Verified numbers
 
@@ -134,7 +137,11 @@ make fmt          # fix lint and formatting
 make test         # pytest -q; tests marked @pytest.mark.data skip when data/ is missing
 make test-data    # only the tests that need the real challenge data
 make run          # uvicorn on http://localhost:8000
+make submission-zip   # tracked files at HEAD into dist/kaista-submission.zip
 ```
+
+`make submission-zip` builds the source archive for the submission form from the files tracked at
+HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never enter it.
 
 | Environment | Result (6 Nov 2026) |
 |---|---|
@@ -193,9 +200,9 @@ row; the funnel endpoint carries their count.
 10. Nothing names a protection threshold for the terrestrial path, so
     `protection_threshold_dbuVm` stays `null` and the report says the criterion is to be confirmed.
     The tool claims neither a pass nor a fail.
-11. Not implemented: the labelled evaluation set (plan R16), OpenShift AI or LUMI deployment
-    (R19 and R20), the demo video, the screenshot, and the submission form fields. `SUBMISSION.md`
-    lists them as open checkboxes.
+11. Not implemented: the labelled evaluation set (plan R16) and OpenShift AI or LUMI deployment (R19
+    and R20). The demo video, the push and the rest of the submission form are the owner's steps;
+    `SUBMISSION.md` lists them under the final check.
 12. The queue cap of 20 comes from the spoken challenge brief. Everything is in the files; the
     overflow counts are reported and not filled with invented cases.
 13. The 26 protected bands are an artefact of the register, not a simplification: the demo slice
@@ -226,7 +233,7 @@ app/            one module per feature, each with tests/test_<feature>.py
 rules/          rr21_table21_4.csv, p1546_land.csv
 templates/      the two Finnish templates (card summary, correspondence)
 scripts/        fetch_data.py, demo.sh
-docs/           features.md, decisions.md, demo.md
+docs/           features.md, architecture.md, decisions.md, demo.md
 tests/          unit, component and data tests; tests/fixtures/ holds the small committed inputs
 data/  out/     local only, ignored by git
 ```
@@ -285,6 +292,7 @@ during the hackathon, 6 to 8 Nov 2026.
 | File | Contents |
 |---|---|
 | `docs/features.md` | Feature by feature: what it does, how it is built, which test file covers it |
+| `docs/architecture.md` | One-page architecture: the pipeline diagram and the module table |
 | `docs/decisions.md` | Decision log with reasons, including the choices made without user input |
 | `docs/demo.md` | The three-minute demo script and the exact commands, with the expected output |
 | `SUBMISSION.md` | Draft of the sinceai.app submission form and the Red Hat award checklist |
