@@ -10,6 +10,9 @@ __pycache__/
 data/
 out/
 
+# The built submission zip (make submission-zip).
+dist/
+
 # Prep notes live in since-ai-hackathon-prep, not in the submission repo.
 VALMISTELU.md
 IDEA.md

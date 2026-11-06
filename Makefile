@@ -1,4 +1,4 @@
-.PHONY: install lint fmt test test-data check run
+.PHONY: install lint fmt test test-data check run submission-zip
 
 install:
 	uv sync --locked
@@ -22,3 +22,8 @@ check: lint test
 
 run:
 	uv run uvicorn app.main:app --reload
+
+# Source zip for the submission form: tracked files at HEAD only.
+submission-zip:
+	mkdir -p dist
+	git archive --format=zip --prefix=kaista/ -o dist/kaista-submission.zip HEAD
