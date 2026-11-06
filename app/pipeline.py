@@ -3,8 +3,8 @@
     python -m app.pipeline --ific data/itu-ific-3074 --register data/frequencies_of_interest.csv \
         --m4 data/taajuusjakotaulukko.json --out out/
 
-The run never touches the network. The LLM is optional: without LLM_BASE_URL every card
-falls back to the deterministic template.
+The deterministic path never touches the network. The optional LLM prose step calls
+`LLM_BASE_URL` when it is set; without it every card falls back to the template.
 """
 
 from __future__ import annotations
