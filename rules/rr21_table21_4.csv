@@ -1,0 +1,14 @@
+freq_lo_mhz,freq_hi_mhz,orbit,a_db,k_db,ref_hz,offset,service,page,source
+3400,4200,GSO,-152,10,4000,,FSS (space-to-Earth),p. 287,ITU RR 2024 Art. 21 Table 21-4
+3400,4200,NGSO,-138,12,1000000,Y,FSS (space-to-Earth),p. 287,ITU RR 2024 Art. 21 Table 21-4
+7250,7900,any,-152,10,4000,,"FSS, MetSat, MSS, SR",p. 288,ITU RR 2024 Art. 21 Table 21-4
+8025,8500,any,-150,10,4000,,"EESS, SR",p. 288,ITU RR 2024 Art. 21 Table 21-4
+10700,11700,GSO,-150,10,4000,,FSS,p. 288,ITU RR 2024 Art. 21 Table 21-4
+10700,11700,NGSO,-126,10,1000000,,FSS (footnote 25),p. 288,ITU RR 2024 Art. 21 Table 21-4
+10700,11700,HEO,-129,15,1000000,,FSS (footnote 24),p. 288,ITU RR 2024 Art. 21 Table 21-4
+11700,12500,NGSO,-124,10,1000000,,FSS Region 1 (footnote 25),p. 289,ITU RR 2024 Art. 21 Table 21-4
+11700,12500,HEO,-129,15,1000000,,FSS Region 1 (footnote 24),p. 289,ITU RR 2024 Art. 21 Table 21-4
+17700,19300,GSO,-115,10,1000000,,"FSS, ISS, MetSat (footnote 14)",p. 289,ITU RR 2024 Art. 21 Table 21-4
+17700,19300,NGSO,-115,10,1000000,X,FSS (footnote 13),p. 289,ITU RR 2024 Art. 21 Table 21-4
+19300,19700,any,-115,10,1000000,,FSS (footnote 15),p. 290,ITU RR 2024 Art. 21 Table 21-4
+25250,27500,any,-115,10,1000000,,"EESS, SR, ISS",p. 290,ITU RR 2024 Art. 21 Table 21-4
