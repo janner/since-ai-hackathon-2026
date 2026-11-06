@@ -3,8 +3,11 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-# omat valmistelumuistiinpanot, ei palautusrepoon
+.DS_Store
+*.log
+
+# Prep notes live in since-ai-hackathon-prep, not in the submission repo.
 VALMISTELU.md
 IDEA.md
-LUMI.md
 HAASTEET.md
+LUMI.md

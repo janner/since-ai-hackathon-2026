@@ -1,18 +1,30 @@
 # sinceai.app submission draft
 
 Fill in while building. Deadline Sun 8 Nov 10:00 EET. Submit by 09:00.
+Platform is sinceai.app, not Devpost.
 
-- Challenge: (pre-filled)
-- Project name:
-- Submission URL (must work after the event):
-- About the project (max 5,000 chars):
-- Repository / demo link (test logged out):
-- Built with (comma-separated):
-- Technology feedback:
-- GenAI tools used:
-- Generative AI in your project (how and why, or N/A):
-- [ ] Challenge IP terms accepted
-- Optional: video URL, pitch deck (PDF), supporting docs. No ZIP files.
+## Required
+
+Official list, Builder Guide 4 Nov 2026.
+
+- Challenge: (pre-filled by the organiser, only they can change it)
+- Project name (max 80 characters):
+- Tagline (max 140, one sentence; voters read it first):
+- About the project (max 5,000 chars): problem, solution, how it was built, what we met on the way, what comes next
+- Built with (comma-separated; the first five become chips on the vote card):
+- Repository (public or private; if private, judges read the source zip):
+- Demo video (YouTube, public or unlisted, ideally under 2 min; no file uploads):
+- Source code .zip (one file, max 100 MB; leave out dependencies and data):
+- MLH questions: technology feedback, GenAI tools used (or "I did not use GenAI"), did you implement a generative AI model or API
+- Challenge terms: accepted by submitting; if the challenge transfers ownership, every member ticks personally
+- Public summary: confidential challenges only. Traficom is not confidential.
+
+## Optional
+
+- Demo URL (judges see it, voters do not)
+- Pitch deck (one PDF or PowerPoint)
+- Supporting documents (max two)
+- Partner technologies (Red Hat OpenShift AI or FIWARE also enters that award)
 
 ## Optional award: Red Hat OpenShift AI (1 000 €)
 
@@ -34,7 +46,10 @@ Sandbox facts (verified 6 Nov 2026, namespace `janner-1-dev`):
 
 ## Final check before 10:00
 
-- [ ] Repo public or reviewer-accessible (only if IP terms allow)
+- [ ] Repo accessible to judges (private is fine with the zip; public only if IP terms allow)
 - [ ] README run steps work in a clean clone
+- [ ] Demo video on YouTube, under 2 minutes, first 20 seconds shows the product
+- [ ] Source zip is the deadline state and under 100 MB
 - [ ] Demo URL opens logged out
+- [ ] Pre-existing work and outside assets stated in README and About
 - [ ] No secrets or challenge data committed
