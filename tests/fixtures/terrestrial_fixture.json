@@ -1,0 +1,330 @@
+{
+  "synthetic": true,
+  "note": "Synteettinen 3076-tyylinen land-mobile-extracti. Ei ITU/BR IFIC -dataa; issuet ja arvot on keksitty testausta varten ja merkitty synthetic: true.",
+  "issues": [
+    {
+      "issue": "SYNTH-3076-A",
+      "synthetic": true,
+      "notices": [
+        {
+          "ntc_id": "1090001",
+          "adm": "EST",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 59.43,
+          "lon": 24.75,
+          "p_erp_kw": 10,
+          "ant_h_m": 40,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090002",
+          "adm": "EST",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 59.3,
+          "lon": 24.6,
+          "p_erp_kw": 5,
+          "ant_h_m": 30,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090003",
+          "adm": "EST",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 58.38,
+          "lon": 24.5,
+          "p_erp_kw": 8,
+          "ant_h_m": 35,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090004",
+          "adm": "SVE",
+          "stn_cls": "LM",
+          "freq_min_mhz": 796.0,
+          "freq_max_mhz": 796.5,
+          "lat": 59.33,
+          "lon": 18.06,
+          "p_erp_kw": 20,
+          "ant_h_m": 60,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090005",
+          "adm": "SVE",
+          "stn_cls": "LM",
+          "freq_min_mhz": 890.0,
+          "freq_max_mhz": 895.0,
+          "lat": 57.7,
+          "lon": 11.97,
+          "p_erp_kw": 15,
+          "ant_h_m": 50,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090006",
+          "adm": "RUS",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 60.0,
+          "lon": 30.3,
+          "p_erp_kw": 12,
+          "ant_h_m": 45,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090007",
+          "adm": "RUS",
+          "stn_cls": "LM",
+          "freq_min_mhz": 900.0,
+          "freq_max_mhz": 905.0,
+          "lat": 60.72,
+          "lon": 28.75,
+          "p_erp_kw": 6,
+          "ant_h_m": 40,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090008",
+          "adm": "EST",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 59.0,
+          "lon": 25.0,
+          "p_erp_kw": 4,
+          "ant_h_m": 25,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090009",
+          "adm": "SVE",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 63.83,
+          "lon": 20.26,
+          "p_erp_kw": 7,
+          "ant_h_m": 30,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090010",
+          "adm": "RUS",
+          "stn_cls": "LM",
+          "freq_min_mhz": 800.0,
+          "freq_max_mhz": 805.0,
+          "lat": 61.79,
+          "lon": 30.11,
+          "p_erp_kw": 9,
+          "ant_h_m": 55,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090100",
+          "adm": "E",
+          "stn_cls": "BC",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 40.4,
+          "lon": -3.7,
+          "p_erp_kw": 50,
+          "ant_h_m": 80,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090101",
+          "adm": "RUS",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 43.12,
+          "lon": 131.89,
+          "p_erp_kw": 10,
+          "ant_h_m": 60,
+          "act_code": "ADD"
+        }
+      ]
+    },
+    {
+      "issue": "SYNTH-3076-B",
+      "synthetic": true,
+      "notices": [
+        {
+          "ntc_id": "1090001",
+          "adm": "EST",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 59.43,
+          "lon": 24.75,
+          "p_erp_kw": 10,
+          "ant_h_m": 40,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090002",
+          "adm": "EST",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 59.3,
+          "lon": 24.6,
+          "p_erp_kw": 5,
+          "ant_h_m": 30,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090003",
+          "adm": "EST",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 58.38,
+          "lon": 24.5,
+          "p_erp_kw": 8,
+          "ant_h_m": 35,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090004",
+          "adm": "SVE",
+          "stn_cls": "LM",
+          "freq_min_mhz": 796.0,
+          "freq_max_mhz": 796.5,
+          "lat": 59.33,
+          "lon": 18.06,
+          "p_erp_kw": 20,
+          "ant_h_m": 60,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090005",
+          "adm": "SVE",
+          "stn_cls": "LM",
+          "freq_min_mhz": 890.0,
+          "freq_max_mhz": 895.0,
+          "lat": 57.7,
+          "lon": 11.97,
+          "p_erp_kw": 15,
+          "ant_h_m": 50,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090006",
+          "adm": "RUS",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 60.0,
+          "lon": 30.3,
+          "p_erp_kw": 25,
+          "ant_h_m": 45,
+          "act_code": "MOD"
+        },
+        {
+          "ntc_id": "1090007",
+          "adm": "RUS",
+          "stn_cls": "LM",
+          "freq_min_mhz": 900.0,
+          "freq_max_mhz": 905.0,
+          "lat": 60.72,
+          "lon": 28.75,
+          "p_erp_kw": 6,
+          "ant_h_m": 40,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090008",
+          "adm": "EST",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 59.0,
+          "lon": 25.0,
+          "p_erp_kw": 4,
+          "ant_h_m": 25,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090009",
+          "adm": "SVE",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 63.83,
+          "lon": 20.26,
+          "p_erp_kw": 7,
+          "ant_h_m": 30,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090100",
+          "adm": "E",
+          "stn_cls": "BC",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 40.4,
+          "lon": -3.7,
+          "p_erp_kw": 50,
+          "ant_h_m": 80,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090101",
+          "adm": "RUS",
+          "stn_cls": "LM",
+          "freq_min_mhz": 453.9,
+          "freq_max_mhz": 454.1,
+          "lat": 43.12,
+          "lon": 131.89,
+          "p_erp_kw": 10,
+          "ant_h_m": 60,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090011",
+          "adm": "SVE",
+          "stn_cls": "LM",
+          "freq_min_mhz": 800.0,
+          "freq_max_mhz": 805.0,
+          "lat": 65.58,
+          "lon": 22.15,
+          "p_erp_kw": 12,
+          "ant_h_m": 45,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090012",
+          "adm": "SVE",
+          "stn_cls": "LM",
+          "freq_min_mhz": 800.0,
+          "freq_max_mhz": 805.0,
+          "lat": 63.83,
+          "lon": 20.26,
+          "p_erp_kw": 9,
+          "ant_h_m": 40,
+          "act_code": "ADD"
+        },
+        {
+          "ntc_id": "1090013",
+          "adm": "SVE",
+          "stn_cls": "LM",
+          "freq_min_mhz": 800.0,
+          "freq_max_mhz": 805.0,
+          "lat": 65.83,
+          "lon": 24.13,
+          "p_erp_kw": 6,
+          "ant_h_m": 35,
+          "act_code": "ADD"
+        }
+      ]
+    }
+  ]
+}
