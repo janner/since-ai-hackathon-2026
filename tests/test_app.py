@@ -18,6 +18,7 @@ def test_ask_uses_llm(monkeypatch):
 def test_ask_llm_down_is_502(monkeypatch):
     def boom(*a, **k):
         raise ConnectionError("down")
+
     monkeypatch.setattr(llm, "chat", boom)
     assert client.post("/api/ask", json={"question": "hi"}).status_code == 502
 

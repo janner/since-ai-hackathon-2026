@@ -1,4 +1,5 @@
 """Yksi OpenAI-yhteensopiva chat-kutsu. Palvelu vaihdetaan .env:llä, ei koodilla."""
+
 import json
 import os
 import urllib.request

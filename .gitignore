@@ -6,6 +6,10 @@ __pycache__/
 .DS_Store
 *.log
 
+# Challenge data and run output: fetched by scripts/fetch_data.py, never committed.
+data/
+out/
+
 # Prep notes live in since-ai-hackathon-prep, not in the submission repo.
 VALMISTELU.md
 IDEA.md

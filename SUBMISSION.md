@@ -30,16 +30,18 @@ Official list, Builder Guide 4 Nov 2026.
 
 Tick "Red Hat OpenShift AI" under Partner technologies in the form. A Red Hat reviewer checks the evidence, so it has to be real.
 
-- [ ] App runs on OpenShift, public Route answers logged out
-- [ ] Model served in-cluster, `/model` returns name, version, training data and R²
-- [ ] `/predict` returns a real inference, not a constant
-- [ ] `deploy/` in repo: build commands, manifests, namespace
-- [ ] Data Science Pipeline run in OpenShift AI that trains the same model (run id + screenshot of a successful run)
-- [ ] One About-text line: what runs in the cluster, what runs locally
+Rule (Field Guide): "meaningfully use Red Hat OpenShift AI, for example to build, serve or monitor the model your solution relies on". Weights: OpenShift AI use 35, business value 30, technical reliability 25, documentation 10.
+
+- [ ] The drafting LLM (Granite 3.3 2B Instruct modelcar) served by KServe + vLLM CPU runtime in OpenShift AI
+- [ ] The app calls it through the OpenAI-compatible endpoint; the numeric guard tests pass against its output
+- [ ] `deploy/openshift/` in repo: InferenceService YAML, build commands, namespace
+- [ ] Screenshot or short recording of a successful call; no keys or tokens in it
+- [ ] "How did you use it?" field, 40+ characters
+- [ ] One About-text line: what runs in the cluster, what runs locally (local run stays the primary demo; the sandbox expires after 30 days)
 
 Sandbox facts (verified 6 Nov 2026, namespace `janner-1-dev`):
 
-- No KServe: `InferenceService` and `ServingRuntime` are not API resources. Serve the model from your own container.
+- KServe is available: `oc auth can-i create inferenceservices` = yes. Runtime template `vllm-cpu-x86-runtime-template` in `redhat-ods-applications`. No GPU quota.
 - Build without PyPI: `oc new-build --binary --name=app --image-stream=python:3.12-ubi9`, `.s2i/bin/run` with `exec python app.py`, then `oc start-build app --from-dir=. -F`.
 - `oc expose` makes an HTTP-only route and `https://` returns 503. Patch edge TLS immediately, then both work.
 - Sandbox expires 30 days after activation (~6 Dec 2026). Never the only demo link.
