@@ -24,6 +24,7 @@ from app.ingest import IficData
 GEOMETRY_FIELDS = ("bore_long", "bore_lat", "maj_axis", "min_axis")
 REGISTER_GAIN = "frequencies_of_interest.Ant gain (dB)"
 REGISTER_POWER = "frequencies_of_interest.Radioation power"
+SYNTHETIC_POWER_W = 1e9  # above 1 GW the value is a synthetic artefact (plan 3.6)
 
 
 def m4_lookup(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> dict:
@@ -94,8 +95,15 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             "lon": case.victim.lon,
             "rx_mhz": case.victim.rx_mhz,
             "gain_db": case.victim.gain_db,
+            "power_w": case.victim.power_w,
             "direction_deg": case.victim.direction_deg,
         },
+        "synthetic_data_warning": (
+            "victim received power is above 1 GW (synthetic register artefact); "
+            "the value is shown but not used in the PFD calculation"
+            if case.victim.power_w is not None and case.victim.power_w > SYNTHETIC_POWER_W
+            else None
+        ),
         "calculation": {
             "method": "PFD_peak_upper_bound",
             "psd_dbw_hz": case.psd_dbw_hz,
@@ -229,7 +237,9 @@ def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[
                 "orbit": case.orbit if case is not None else "",
                 "dropped_at": stage,
                 "reason": reason,
-                "class": case.klass if case is not None else ("cannot_decide" if reason else ""),
+                "class": case.klass
+                if case is not None
+                else ("" if stage else ("cannot_decide" if reason else "")),
                 "freq_min_mhz": case.band_lo_mhz if case is not None else "",
                 "freq_max_mhz": case.band_hi_mhz if case is not None else "",
                 "station": case.victim.id if case is not None else "",
@@ -267,12 +277,13 @@ RESULT_COLUMNS = (
 )
 
 
-def render_run_log(result: GateResult, counts: dict[str, int]) -> str:
+def render_run_log(result: GateResult, counts: dict[str, int], ific: IficData) -> str:
     return "\n".join(
         [
             f"run_at={result.run_at}",
             f"input_sha256={result.input_sha256}",
             f"rules_version={result.rules_version}",
+            f"ific={Path(ific.file).stem}",
             f"mode={result.mode}",
             f"notices={result.counts['notices']}",
             f"freq_rows={counts.get('freq', 0)}",
@@ -303,7 +314,7 @@ def write_outputs(
     (out / "funnel.json").write_text(
         json.dumps(funnel_json(result), ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    (out / "run.log").write_text(render_run_log(result, counts), encoding="utf-8")
+    (out / "run.log").write_text(render_run_log(result, counts, ific), encoding="utf-8")
     with (out / "3074_results.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=RESULT_COLUMNS)
         writer.writeheader()

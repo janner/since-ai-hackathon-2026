@@ -130,10 +130,20 @@ def field_strength_p1546(freq_mhz, dist_km, h_ant_m, p_erp_kw):
     return e + 10 * math.log10(p_erp_kw)
 
 
-def extrapolated(freq_mhz, dist_km):
-    """Onko kysely taulukon ulkopuolella (arvo kiinnittyy reunapisteeseen)."""
-    f_ax, _, d_ax = _axes()
-    return not (f_ax[0] <= freq_mhz <= f_ax[-1]) or dist_km > d_ax[-1]
+def extrapolated(freq_mhz, dist_km, h_ant_m):
+    """Onko kysely taulukon ulkopuolella (arvo kiinnittyy reunapisteeseen).
+
+    Kaikki kolme akselia, molemmin puolin: matala taajuus, korkea antenni ja lyhyt
+    etäisyys kiinnittyvät siinä missä korkea taajuus tai pitkä etäisyys.
+    """
+    if None in (freq_mhz, dist_km, h_ant_m):
+        return False  # ei arvoa, ei väitettä
+    f_ax, h_ax, d_ax = _axes()
+    return not (
+        f_ax[0] <= freq_mhz <= f_ax[-1]
+        and h_ax[0] <= h_ant_m <= h_ax[-1]
+        and d_ax[0] <= dist_km <= d_ax[-1]
+    )
 
 
 def load_issue(path):
@@ -271,6 +281,7 @@ def findings(prev, curr, register_path):
     for notice, distance in kept:
         centre = (notice["freq_min_mhz"] + notice["freq_max_mhz"]) / 2
         points = {}
+        extrapolated_any = False
         for name, (lat, lon) in POINTS.items():
             point_km = haversine_km(notice["lat"], notice["lon"], lat, lon)
             value = field_strength_p1546(centre, point_km, notice["ant_h_m"], notice["p_erp_kw"])
@@ -278,6 +289,7 @@ def findings(prev, curr, register_path):
                 "dist_km": round(point_km, 1),
                 "e_dbuv_m": None if value is None else round(value, 1),
             }
+            extrapolated_any = extrapolated_any or extrapolated(centre, point_km, notice["ant_h_m"])
         notices.append(
             {
                 "ntc_id": notice["ntc_id"],
@@ -287,7 +299,7 @@ def findings(prev, curr, register_path):
                 "p_erp_kw": notice["p_erp_kw"],
                 "ant_h_m": notice["ant_h_m"],
                 "points": points,
-                "extrapolated": extrapolated(centre, distance),
+                "extrapolated": extrapolated_any,
             }
         )
     rows = trends(prev["notices"], changes)

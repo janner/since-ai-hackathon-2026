@@ -80,9 +80,35 @@ def test_field_strength_rejects_unusable_input():
 
 
 def test_extrapolated_flags_clamped_query():
-    assert t.extrapolated(450, 80) is False
-    assert t.extrapolated(50, 900) is True
-    assert t.extrapolated(450, 1200) is True
+    assert t.extrapolated(450, 80, 40) is False
+    assert t.extrapolated(50, 900, 40) is True  # below the frequency axis
+    assert t.extrapolated(450, 1200, 40) is True  # beyond the distance axis
+    assert t.extrapolated(450, 80, 2000) is True  # above the height axis
+    assert t.extrapolated(450, 0.5, 40) is True  # below the distance axis
+
+
+def test_findings_flags_extrapolated_per_point():
+    """The flag must follow the worst point: near Maarianhamina is inside the table,
+    Lappeenranta is beyond its 1000 km edge, so the notice is extrapolated."""
+    issue = {
+        "issue": "X",
+        "notices": [
+            {
+                "ntc_id": "1",
+                "adm": "EST",
+                "stn_cls": "LM",
+                "freq_min_mhz": 450,
+                "freq_max_mhz": 460,
+                "lat": 52.0,
+                "lon": 19.0,
+                "p_erp_kw": 10,
+                "ant_h_m": 30,
+            }
+        ],
+    }
+    doc = t.findings(issue, issue, REGISTER)
+    assert len(doc["notices"]) == 1
+    assert doc["notices"][0]["extrapolated"] is True
 
 
 def test_run_writes_three_outputs(issues, tmp_path):

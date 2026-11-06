@@ -62,6 +62,7 @@ def test_mini_cases_json_and_markdown(mini_out):
 def test_run_log_records_the_hash_and_the_counts(mini_out):
     log = (mini_out / "run.log").read_text(encoding="utf-8")
     assert "input_sha256=" in log
+    assert "ific=ific_mini" in log
     assert "g1=6 g2=4 g3=2 cannot_decide=2" in log
     assert "mode=slice" in log
 
@@ -111,6 +112,26 @@ def test_bad_input_returns_exit_code_two(tmp_path):
         )
         == 2
     )
+
+
+def test_missing_limits_is_a_clear_error(tmp_path, capsys):
+    """A bad --limits path must print `error: ...` and exit 2, not a traceback."""
+    code = pipeline.main(
+        [
+            "--ific",
+            str(FIXTURES / "ific_mini"),
+            "--register",
+            str(FIXTURES / "register_mini.csv"),
+            "--m4",
+            str(FIXTURES / "m4_mini.json"),
+            "--out",
+            str(tmp_path / "out"),
+            "--limits",
+            str(tmp_path / "does-not-exist.csv"),
+        ]
+    )
+    assert code == 2
+    assert "error:" in capsys.readouterr().err
 
 
 def test_register_without_stations_on_a_band_is_a_clear_error(tmp_path):

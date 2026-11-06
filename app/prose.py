@@ -44,7 +44,9 @@ def _ask(card: dict, chat: Callable | None) -> str | None:
 
         chat = llm.chat
     try:
-        return chat([{"role": "user", "content": PROMPT.format(card=card)}])
+        text = chat([{"role": "user", "content": PROMPT.format(card=card)}])
+        # A blank or whitespace answer is a failure, not prose: fall back to the template.
+        return text if text and text.strip() else None
     except Exception:
         # An LLM that is down must not stop a run that is otherwise deterministic.
         return None

@@ -54,7 +54,10 @@ def run(
     ific = ingest.load_ific(ific_dir)
     stations, _ = ingest.load_register(register)
     m4_rows = ingest.load_m4(m4)
-    limits_rows = pfd.load_limits(limits)
+    try:
+        limits_rows = pfd.load_limits(limits)
+    except (OSError, KeyError, ValueError) as error:
+        raise ingest.DataError(f"cannot read limits {limits}: {error}") from error
 
     all_derived = derive_bands(stations)
     bands = all_derived if all_bands else select_bands(all_derived, *DEMO_SLICE_MHZ)

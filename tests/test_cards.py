@@ -81,10 +81,27 @@ def test_results_rows_cover_every_notice(mini):
     by_id = {row["ntc_id"]: row for row in rows}
     assert by_id["900000005"]["dropped_at"] == "G1"
     assert by_id["900000005"]["reason"] == "earth_station_notice"
+    assert by_id["900000005"]["class"] == ""  # dropped before G3: no class
     assert by_id["900000003"]["class"] == "cannot_decide"
     assert by_id["900000003"]["reason"] == "no_orbit"
     assert by_id["900000001"]["class"] == "exceeds"
     assert by_id["900000001"]["dropped_at"] == ""
+
+
+def test_a_too_large_victim_power_is_flagged(mini):
+    """A register row above 1 GW is a synthetic artefact: show it, warn, never hide it."""
+    case = mini.result.case_by_id()["900000001"]
+    huge = replace(case, victim=replace(case.victim, power_w=7.33e9))
+    card = build_card(huge, mini.ific, mini.m4, _audit())
+    assert card["victim"]["power_w"] == 7.33e9
+    assert "not used in the PFD calculation" in card["synthetic_data_warning"]
+
+
+def test_a_normal_victim_power_has_no_warning(mini):
+    case = mini.result.case_by_id()["900000001"]
+    card = build_card(case, mini.ific, mini.m4, _audit())
+    assert card["victim"]["power_w"] == 145.0
+    assert card["synthetic_data_warning"] is None
 
 
 @pytest.mark.data
@@ -121,6 +138,7 @@ def test_golden_case_103500417(challenge):
         "lon": 24.6245,
         "rx_mhz": 3726.8,
         "gain_db": 40.0,
+        "power_w": 145.0,
         "direction_deg": 253.0,
     }
     calc = card["calculation"]

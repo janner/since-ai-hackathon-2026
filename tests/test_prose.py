@@ -47,6 +47,16 @@ def test_a_failing_llm_falls_back_to_the_template():
     assert draft["source"] == "template"
 
 
+@pytest.mark.parametrize("empty", ["", "   "])
+def test_an_empty_llm_answer_falls_back(empty):
+    def blank_chat(messages):
+        return empty
+
+    draft = prose.draft_summary(CARD, chat=blank_chat)
+    assert draft["source"] == "template"
+    assert draft["text"].strip()
+
+
 def test_a_number_the_card_does_not_have_falls_back():
     def inventive_chat(messages):
         return "Marginaali on +9,99 dB, joten tapaus on kriittinen."
