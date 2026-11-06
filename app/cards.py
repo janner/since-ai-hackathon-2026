@@ -1,0 +1,310 @@
+"""Turn cases into the case card, the queue and the six output files.
+
+Every number in a card comes from the case; the prose modules may only restate them.
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+from pathlib import Path
+
+from app.config import (
+    ADM_NAMES,
+    M4_SERVICES,
+    M4_SOURCE,
+    M4_SUB_HI,
+    M4_SUB_LO,
+    fmt_mhz,
+    fmt_num,
+)
+from app.gates import Case, GateResult
+from app.ingest import IficData
+
+GEOMETRY_FIELDS = ("bore_long", "bore_lat", "maj_axis", "min_axis")
+REGISTER_GAIN = "frequencies_of_interest.Ant gain (dB)"
+REGISTER_POWER = "frequencies_of_interest.Radioation power"
+
+
+def m4_lookup(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> dict:
+    """The M4 allocation sub-bands that overlap the notified band.
+
+    M4 is context, not a gate: it never changes a class.
+    """
+    lo_hz, hi_hz = lo_mhz * 1e6, hi_mhz * 1e6
+    hits = [
+        row for row in m4_rows if row.get(M4_SUB_LO, 0) <= hi_hz and row.get(M4_SUB_HI, 0) >= lo_hz
+    ]
+    if not hits:
+        return {
+            "rows": [],
+            "band_mhz": [],
+            "services_in_finland": "not allocated",
+            "source": M4_SOURCE,
+        }
+    ids = [row["ID"] for row in hits if "ID" in row]
+    services = sorted({str(row.get(M4_SERVICES, "")).strip() for row in hits})
+    return {
+        "rows": [min(ids), max(ids)] if ids else [],
+        "band_mhz": [
+            min(row[M4_SUB_LO] for row in hits) / 1e6,
+            max(row[M4_SUB_HI] for row in hits) / 1e6,
+        ],
+        "services_in_finland": ", ".join(service for service in services if service),
+        "source": M4_SOURCE,
+    }
+
+
+def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> dict:
+    notice = ific.notices[case.ntc_id]
+    beam = ific.beam(case.ntc_id, case.beam)
+    geometry = beam.geometry if beam is not None else {}
+    return {
+        "case_id": f"{ifact_tag(ific)}-{case.ntc_id}",
+        "same_network": ific.same_network(case.ntc_id),
+        "source": {
+            "file": ific.file,
+            "tables": ["notice", "freq", "emiss", "s_beam", "geo", "orbit"],
+            "keys": {"ntc_id": case.ntc_id, "grp_id": case.grp_id, "beam_name": case.beam},
+        },
+        "parties": {
+            "admin": notice.adm,
+            "network_org": notice.ntwk_org,
+            "adm_ref_id": notice.adm_ref_id,
+        },
+        "band": {
+            "freq_min_mhz": case.band_lo_mhz,
+            "freq_max_mhz": case.band_hi_mhz,
+            "bandwidth_mhz": round(case.band_hi_mhz - case.band_lo_mhz, 2),
+        },
+        "direction": "space-to-Earth",
+        "coverage": {
+            "orbit": case.orbit,
+            "sat_name": ific.sat_name(case.ntc_id),
+            "longitude_deg": _longitude(ific, case.ntc_id),
+            "elevation_deg": case.elev_deg,
+            "beam": case.beam,
+            "beam_geometry": "missing" if _missing_geometry(geometry) else "declared",
+            "coverage_hint": f"beam name {case.beam}; service area not declared",
+        },
+        "victim": {
+            "station": case.victim.id,
+            "class": case.victim.licence,
+            "lat": case.victim.lat,
+            "lon": case.victim.lon,
+            "rx_mhz": case.victim.rx_mhz,
+            "gain_db": case.victim.gain_db,
+            "direction_deg": case.victim.direction_deg,
+        },
+        "calculation": {
+            "method": "PFD_peak_upper_bound",
+            "psd_dbw_hz": case.psd_dbw_hz,
+            "beam_gain_db": case.beam_gain_db,
+            "distance_km": case.slant_km,
+            "fspl_db": case.fspl_db,
+            "pfd_dbw_m2_hz": case.pfd_dbw_m2_hz,
+            "limit_dbw_m2_hz": case.limit_dbw_m2_hz,
+            "margin_db": case.margin_db,
+            "limit_source": case.limit.cite(),
+            "offset_db": case.offset_db,
+            "perigee_km": case.perigee_km,
+        },
+        "m4": m4_lookup(m4_rows, case.band_lo_mhz, case.band_hi_mhz),
+        "class": case.klass,
+        "missing": missing_fields(case, geometry),
+        "next_action": {
+            "counterparty": notice.adm,
+            "template": "templates/correspondence_fi_en.md",
+            "question": (
+                f"Can {ADM_NAMES.get(notice.adm, notice.adm)} confirm the service area of the "
+                f"{ific.sat_name(case.ntc_id)} {case.beam} beam and whether it illuminates "
+                f"Finland in the {fmt_mhz(case.band_lo_mhz)}-{fmt_mhz(case.band_hi_mhz)} MHz range?"
+            ),
+        },
+        "audit": {
+            "input_sha256": audit["input_sha256"],
+            "rules_version": audit["rules_version"],
+            "run_at": audit["run_at"],
+        },
+    }
+
+
+def ifact_tag(ific: IficData) -> str:
+    """'ific3074.mdb' -> '3074': the short name used in case_id."""
+    digits = "".join(c for c in ific.file if c.isdigit())
+    return digits or "ific"
+
+
+def missing_fields(case: Case, geometry: dict) -> list[str]:
+    missing = [f"s_beam.{key}" for key in GEOMETRY_FIELDS if geometry.get(key) is None]
+    if case.victim.gain_db is None:
+        missing.append(REGISTER_GAIN)
+    if case.victim.power_w is None:
+        missing.append(REGISTER_POWER)
+    return missing
+
+
+def _longitude(ific: IficData, ntc_id: str) -> float | None:
+    geo = ific.geo.get(ntc_id)
+    return geo.long_nom if geo is not None else None
+
+
+def _missing_geometry(geometry: dict) -> bool:
+    return all(geometry.get(key) is None for key in GEOMETRY_FIELDS)
+
+
+def render_card_md(card: dict) -> str:
+    calc, band, victim = card["calculation"], card["band"], card["victim"]
+    lines = [
+        f"# {card['case_id']} — {card['class']}",
+        "",
+        f"- **Satellite:** {card['coverage']['sat_name']} ({card['coverage']['orbit']}, "
+        f"{card['parties']['admin']}), beam {card['coverage']['beam']}",
+        f"- **Band:** {fmt_mhz(band['freq_min_mhz'])}-{fmt_mhz(band['freq_max_mhz'])} MHz",
+        f"- **Victim:** station {victim['station']} ({victim['class']}), "
+        f"elevation {fmt_num(card['coverage']['elevation_deg'])}°",
+        f"- **PFD:** {fmt_num(calc['pfd_dbw_m2_hz'])} dB(W/m²/Hz) vs limit "
+        f"{fmt_num(calc['limit_dbw_m2_hz'])} dB(W/m²/Hz) → margin {fmt_num(calc['margin_db'])} dB",
+        f"- **Limit:** {calc['limit_source']}",
+        f"- **M4 in Finland:** {card['m4']['services_in_finland']}",
+        f"- **Missing:** {', '.join(card['missing']) or 'nothing'}",
+        f"- **Question:** {card['next_action']['question']}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def render_cases_md(cards: list[dict]) -> str:
+    head = f"# Cases ({len(cards)})\n\n"
+    return head + "\n".join(render_card_md(card) for card in cards)
+
+
+def render_queue_md(result: GateResult) -> str:
+    counts = result.counts
+    head = (
+        f"# Queue ({len(result.queue)} of {counts['g3'] + counts['cannot_decide']})\n\n"
+        f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
+        f"{counts['g3']} + {counts['cannot_decide']}\n\n"
+        "| # | case | class | margin dB | reason |\n|---|---|---|---|---|\n"
+    )
+    rows = [
+        f"| {index} | {item.ntc_id} | {item.klass} | "
+        f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | {item.reason} |"
+        for index, item in enumerate(result.queue, start=1)
+    ]
+    return head + "\n".join(rows) + "\n"
+
+
+def funnel_json(result: GateResult) -> dict:
+    return {
+        "input_sha256": result.input_sha256,
+        "rules_version": result.rules_version,
+        "run_at": result.run_at,
+        "mode": result.mode,
+        "counts": result.counts,
+        "drops": result.drops,
+        "queue": {
+            "shown": len(result.queue),
+            "overflow": result.overflow or False,
+            "coverage_gap": result.coverage_gap,
+        },
+    }
+
+
+def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[dict]:
+    """One row per notice in the input, dropped notices with their reason code."""
+    by_id = {card["case_id"]: card for card in cards}
+    rows = []
+    for ntc_id, notice in ific.notices.items():
+        case = result.case_by_id().get(ntc_id)
+        stage, drop_reason = result.dropped.get(ntc_id, ("", ""))
+        reason = drop_reason or result.undecided.get(ntc_id, "")
+        card = by_id.get(f"{ifact_tag(ific)}-{ntc_id}")
+        rows.append(
+            {
+                "ntc_id": ntc_id,
+                "adm": notice.adm,
+                "sat_name": ific.sat_name(ntc_id),
+                "ntc_type": notice.ntc_type,
+                "orbit": case.orbit if case is not None else "",
+                "dropped_at": stage,
+                "reason": reason,
+                "class": case.klass if case is not None else ("cannot_decide" if reason else ""),
+                "freq_min_mhz": case.band_lo_mhz if case is not None else "",
+                "freq_max_mhz": case.band_hi_mhz if case is not None else "",
+                "station": case.victim.id if case is not None else "",
+                "elevation_deg": case.elev_deg if case is not None else "",
+                "pfd_dbw_m2_hz": case.pfd_dbw_m2_hz if case is not None else "",
+                "limit_dbw_m2_hz": case.limit_dbw_m2_hz if case is not None else "",
+                "margin_db": case.margin_db if case is not None else "",
+                "limit_source": case.limit.cite() if case is not None else "",
+                "m4_services": card["m4"]["services_in_finland"] if card else "",
+                "missing": ";".join(card["missing"]) if card else "",
+            }
+        )
+    return rows
+
+
+RESULT_COLUMNS = (
+    "ntc_id",
+    "adm",
+    "sat_name",
+    "ntc_type",
+    "orbit",
+    "dropped_at",
+    "reason",
+    "class",
+    "freq_min_mhz",
+    "freq_max_mhz",
+    "station",
+    "elevation_deg",
+    "pfd_dbw_m2_hz",
+    "limit_dbw_m2_hz",
+    "margin_db",
+    "limit_source",
+    "m4_services",
+    "missing",
+)
+
+
+def render_run_log(result: GateResult, counts: dict[str, int]) -> str:
+    return "\n".join(
+        [
+            f"run_at={result.run_at}",
+            f"input_sha256={result.input_sha256}",
+            f"rules_version={result.rules_version}",
+            f"mode={result.mode}",
+            f"notices={result.counts['notices']}",
+            f"freq_rows={counts.get('freq', 0)}",
+            f"stations_on_band={result.stations_on_band}",
+            f"bands={len(result.bands)}",
+            f"visible=GEO {result.geo_visible} NGSO {result.ngso_visible}",
+            f"g1={result.counts['g1']} g2={result.counts['g2']} g3={result.counts['g3']} "
+            f"cannot_decide={result.counts['cannot_decide']}",
+            f"elapsed_s={result.elapsed_s:.2f}",
+            "",
+        ]
+    )
+
+
+def write_outputs(
+    result: GateResult,
+    ific: IficData,
+    cards: list[dict],
+    counts: dict[str, int],
+    out: Path,
+) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "cases.json").write_text(
+        json.dumps(cards, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (out / "cases.md").write_text(render_cases_md(cards), encoding="utf-8")
+    (out / "queue.md").write_text(render_queue_md(result), encoding="utf-8")
+    (out / "funnel.json").write_text(
+        json.dumps(funnel_json(result), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (out / "run.log").write_text(render_run_log(result, counts), encoding="utf-8")
+    with (out / "3074_results.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=RESULT_COLUMNS)
+        writer.writeheader()
+        writer.writerows(results_rows(result, ific, cards))
