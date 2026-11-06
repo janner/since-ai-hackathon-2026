@@ -1,6 +1,6 @@
 # How it works, and how to see it
 
-Everything below was run on 6 Nov 2026 against commit `c649fe8`; the output blocks are the real
+Everything below was run on 6 Nov 2026 against commit `26187c3`; the output blocks are the real
 output, not illustrations. Numbers may move by a second or two between runs, and the timestamps and
 `run_at` fields change with the clock.
 
@@ -14,8 +14,9 @@ uv run python scripts/fetch_data.py
 ```
 
 The last command downloads the IFIC package and the M4 table, runs `mdb-export` for the 15 tables,
-converts the register xlsx to CSV, and prints a SHA256 per file. It needs a network; the pipeline
-itself does not.
+converts the register xlsx to CSV, and prints a SHA256 per file. It needs a network. The
+deterministic pipeline does not: it opens a connection only in the optional LLM prose step, and only
+when `LLM_BASE_URL` is set.
 
 ## 2. The demo run: the 3.47 to 3.78 GHz slice
 
@@ -32,8 +33,8 @@ wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log
 ```
 
 The first line is the funnel: 196 notices, 41 overlap a protected band, 19 of those can be seen from
-Finland, 18 get a number and one cannot be decided. The whole run takes about a second and never
-opens a connection.
+Finland, 18 get a number and one cannot be decided. The whole run takes about a second and opens no
+connection with no LLM configured.
 
 ## 3. What to look at
 
@@ -76,8 +77,8 @@ line is why the case exists at all: IFIC 3074 does not declare the beam geometry
 say whether Finland is inside the beam, and the card asks instead of concluding. `Question` is the
 draft the administration would receive.
 
-`out/3074_results.csv` has one row per notice in the input, including the 155 the funnel dropped,
-each with its stage and reason. The same notice as a row:
+`out/3074_results.csv` has one row per notice in the input, including the 177 the funnel dropped
+(155 at G1, 22 at G2), each with its stage and reason. The same notice as a row:
 
 ```
 103500417,CHN,COMPASS-80E,G,GSO,,,exceeds,3642.0,3678.0,983816,4.85,-184.78,-188.02,3.24,"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287",MOBILE AND FIXED,s_beam.bore_long;s_beam.bore_lat;s_beam.maj_axis;s_beam.min_axis
@@ -89,6 +90,7 @@ each with its stage and reason. The same notice as a row:
 run_at=2026-11-06T22:57:47+02:00
 input_sha256=2b7683bb00f0a998e40888b6502d7d229ccd7ec0d88a5b71b9a9e0d64d8497be
 rules_version=1.1.0
+ific=ific3074
 mode=slice
 notices=196
 freq_rows=95865
@@ -219,10 +221,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 108 passed with data/
+make check        # ruff check, ruff format --check, pytest: 114 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 96 passed, 12 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 102 passed, 12 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. Three-minute demo script
@@ -236,5 +238,5 @@ to quote for "does it work on my machine" is that one, since it needs no challen
 | 2:20 | terrestrial split and run, `TERRESTRIAL.md` | the same style for terrestrial notices: diff, field strength, trends, threshold open |
 | 2:50 | the UI, or `run.log` | every number is reproducible from the hash and the rules version; the human decides |
 
-If the UI is not running, the demo works from `cases.md` and `queue.md` alone. Nothing in the run
-needs a network, and nothing breaks when the language model is absent.
+If the UI is not running, the demo works from `cases.md` and `queue.md` alone. The deterministic run
+needs no network, and nothing breaks when the language model is absent.

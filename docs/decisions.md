@@ -106,7 +106,8 @@ Reopen if: time is left after everything else, which is unlikely.
 ### D9. Data stays out of the repository
 
 Choice: `data/` is gitignored; `scripts/fetch_data.py` downloads the IFIC package and the M4 table
-and converts the register xlsx; the run itself is offline.
+and converts the register xlsx; the deterministic run itself is offline (only the optional LLM
+prose step, when `LLM_BASE_URL` is set, opens a connection).
 
 Reason: the IFIC zip is 60.5 MB and its database 274 MB, against a 100 MB source zip limit, and
 redistributing the Traficom register is not allowed. An offline demo is also safer on stage than
@@ -190,12 +191,17 @@ Reopen if: Traficom wants results at network level.
 
 Each one is visible in the source, and the tests named here would fail if it changed.
 
-### I1. Units: read the `Channel bandwidth` column, understand a bare `G`
+### I1. Units: read the `Channel bandwidth` column first, and understand a bare `G`
 
-`app/ingest.py`, `mhz()` and `load_register()`. The register column `Channel bandwidth` holds
-values such as `0,1G`; a bare `G` suffix means GHz. The consequence for the full run is 101 notices
+`app/ingest.py`, `mhz()` and `load_register()`. The register keeps two bandwidth columns. For the
+same station `Transmission bandwidth` holds shorthand such as `0,1G`, while `Channel bandwidth`
+spells it out as `0.1 GHz`; `mhz()` reads a bare `G` as GHz, so `0,1G` and `0.1 GHz` both come to
+100 MHz, and a shorthand such as `8M00` parses to nothing. `load_register()` therefore reads
+`Channel bandwidth` first, the raster the station sits in, and falls back to `Transmission
+bandwidth` when the channel column is empty. The consequence for the full run is 101 notices
 surviving G1, 75 visible and 11 undecidable, one more than the plan's 100/74/10, because the
-reference tool behind the plan read that cell as 0.1 MHz. The demo slice matches the plan exactly.
+reference tool behind the plan read the cell `0,1G` as 0.1 MHz. The demo slice matches the plan
+exactly.
 
 Test that locks it: `tests/test_gates.py::test_all_bands_funnel`, plus the parametrised
 `tests/test_ingest.py::test_mhz_normalises_units`.
@@ -318,6 +324,28 @@ satellite name or a case id cannot inject markup. No external request, no CDN, n
 Test: `tests/test_api.py::test_index_serves_the_finnish_page` covers the page contents; the
 injection property rests on the code shape rather than a test.
 
+### I15. A notice that cannot be computed gets no card
+
+`app/pipeline.py` builds a card only for a case that reached G3 with a number. A notice that passes
+G1 and G2 but lands in `undecided` keeps its row in `queue.md` and `3074_results.csv` (class
+`cannot_decide`) and is counted in `funnel.json`, but has no entry in `cases.json`. In the demo
+slice that is notice 126590032 (`no_power`): 18 cards from the 19 notices that reach G3, against the
+19 the plan's F7/F10 expects. The row, the reason and the count stay in the files, so the audit
+trail is whole, but the notice has no card in the web UI. Stated as README limitation 15; a card for
+it would be an owner decision, not a silent gap.
+
+Test: `tests/test_gates.py::test_case_126590032_cannot_be_decided` locks the notice and its reason.
+
+### I16. A blank LLM answer is not prose; the template is the floor
+
+`app/prose.py::_ask()`. An answer that is empty or whitespace is treated as a failure, so the card
+gets `prose.source = "template"` instead of an empty sentence. A refusal or an answer in the wrong
+language is still not detected: the guard checks numbers, not intent, so the fallback only catches
+what the endpoint fails to produce. The gap is stated in README limitation 7 and
+`docs/features.md` F8.
+
+Tests: `tests/test_prose.py::test_an_empty_llm_answer_falls_back`.
+
 ### T1. The P.1546 table is generated once and committed
 
 `rules/p1546_land.csv`. Generated with the ITU reference implementation (eeveetza/Py1546, commit
@@ -398,17 +426,16 @@ section of the README.
 
 Reopen if: the repository grows other documentation that needs an index of its own.
 
-### W3. The known defect is documented, not fixed here
+### W3. The known defect is documented, then fixed in the code card
 
-`3074_results.csv` labels every notice dropped at G1 or G2 as `cannot_decide` in the `class` column
-(README limitation 6). This card owns documentation; the fix belongs to code review, and a silent
-edit by the writer would leave the test suite describing something else. The finding is stated in
-the README, in `docs/features.md` where the CSV is described, and in the handoff to the reviewer.
-
-Reopen if: the review card asks for the fix, or the code changes.
+`3074_results.csv` originally labelled every notice dropped at G1 or G2 as `cannot_decide` in the
+`class` column. This documentation pass wrote it up as README limitation 6 rather than editing code,
+because the fix belonged to a code card, not to a prose pass. That card (`t_caa3d691`) then changed
+`app/cards.py::results_rows()`: a gate drop now has an empty `class`, and `cannot_decide` is kept
+for a case that reached G3. The README limitation and `docs/features.md` F6 were corrected with it.
 
 ### W4. Documentation is verified by running, not by reading
 
-Every command and number in these files was executed on 6 Nov 2026 against commit `c649fe8`, with
+Every command and number in these files was executed on 6 Nov 2026 against commit `26187c3`, with
 the outputs recorded in the handoff. A number that appears in the documentation comes from a run,
 not from the plan.

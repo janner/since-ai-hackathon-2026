@@ -8,5 +8,5 @@ uv run python -m app.pipeline \
   --m4 data/taajuusjakotaulukko.json \
   --out out/
 echo
-echo "out/queue.md  - the 20 cases a human decides"
+echo "out/queue.md  - the cases a human decides (19 in the demo slice)"
 echo "out/cases.md  - the full cards, with the audit trail"

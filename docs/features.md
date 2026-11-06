@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `c649fe8`, verified on 6 Nov 2026 with `make check` (108 passed) and a clean clone
-(96 passed, 12 skipped).
+commit `26187c3`, verified on 6 Nov 2026 with `make check` (114 passed) and a clean clone
+(102 passed, 12 skipped).
 
 Read a feature row in the tables below as: the module that owns the job, the tests that would fail
 if the behaviour changed, and the number the tests lock in.
@@ -41,9 +41,9 @@ that is missing stays `None` and the caller decides what that means.
 `Station.centre_mhz` is RX when it exists and TX otherwise, `lo_mhz` and `hi_mhz` are the centre
 plus or minus half the channel bandwidth.
 
-Tests (`tests/test_ingest.py`, 13): `test_mhz_normalises_units` (parametrised over the unit forms),
-`test_watts_converts_units`, `test_load_register_skips_rows_without_frequency`,
-`test_station_uses_tx_when_rx_is_missing`, and the four error paths
+Tests (`tests/test_ingest.py`, 21 collected): `test_mhz_normalises_units` (parametrised over nine
+unit forms), `test_watts_converts_units`, `test_load_register_skips_rows_without_frequency`,
+`test_station_uses_tx_when_rx_is_missing`, `test_load_ific_mini_counts`, and the six error paths
 (`test_empty_file_is_a_clear_error`, `test_missing_column_names_the_column`,
 `test_header_only_file_is_a_clear_error`, `test_missing_ific_directory_is_a_clear_error`,
 `test_missing_required_table_is_a_clear_error`, `test_m4_without_value_array_is_a_clear_error`).
@@ -149,6 +149,10 @@ Tests: `test_class_boundaries`, `test_mini_funnel_counts_and_reasons`,
 `class`, `missing`, `next_action`, `audit`. The audit block carries `input_sha256`,
 `rules_version` and `run_at`.
 
+The `victim` block carries `power_w`, and the card carries a top-level `synthetic_data_warning`
+that is set when the victim received power is above 1 GW: the register value is a synthetic
+artefact, so it is shown but never used in the PFD. In the full run 20 cards are flagged.
+
 M4 (`m4_lookup()`) is context, never a gate: it lists the sub-band IDs that overlap the notified
 band, the merged band range in MHz, the Finnish services from the open data table and the source
 URL. A band with no M4 row gets `rows: []` and `services_in_finland: "not allocated"`.
@@ -158,13 +162,18 @@ target. The card shows them; every notice is still decided on its own.
 
 `missing_fields()` names the empty beam geometry (`s_beam.bore_long`, `bore_lat`, `maj_axis`,
 `min_axis`) and a register row without gain or power. `render_card_md()` and `render_queue_md()`
-write the Markdown, `results_rows()` writes the CSV rows, `render_run_log()` the log.
+write the Markdown, `results_rows()` writes the CSV rows, `render_run_log()` the log. In the CSV,
+`results_rows()` leaves `class` empty for a notice dropped at G1 or G2 and writes `cannot_decide`
+only for a case that reached G3 and could not be computed; `dropped_at` and `reason` carry the gate
+and the cause. `render_run_log()` writes the `ific=` id of the input package alongside the hash and
+the counts.
 
-Tests (`tests/test_cards.py`, 5): `test_mini_card_has_the_whole_schema`,
+Tests (`tests/test_cards.py`, 7): `test_mini_card_has_the_whole_schema`,
 `test_m4_lookup_is_context_not_a_gate`, `test_missing_register_field_is_reported`,
-`test_results_rows_cover_every_notice` (asserts one row per notice and the `dropped_at` plus
-`reason` for a gate drop), and the data test `test_golden_case_103500417`, which locks every field
-of the plan's test vector including the band label 3 642–3 678 MHz.
+`test_results_rows_cover_every_notice` (asserts one row per notice, the empty `class` for a gate
+drop and the `dropped_at` plus `reason`), `test_a_too_large_victim_power_is_flagged`,
+`test_a_normal_victim_power_has_no_warning`, and the data test `test_golden_case_103500417`, which
+locks every field of the plan's test vector including the band label 3 642–3 678 MHz.
 
 ## F7: the six output files and the CLI
 
@@ -179,15 +188,16 @@ python -m app.pipeline --ific data/itu-ific-3074 \
 It loads the inputs, derives the bands, runs the gates, builds a card per case with its prose
 block, and writes `cases.json`, `cases.md`, `queue.md`, `funnel.json`, `3074_results.csv` and
 `run.log` into `--out` (created if missing). The last step prints the funnel and the class counts.
-A `DataError` such as a missing file prints `error: ...` on stderr and exits 2.
+A `DataError` such as a missing input file or an unreadable `--limits` CSV prints `error: ...` on
+stderr and exits 2.
 
-Tests (`tests/test_pipeline.py`, 11): `test_mini_run_writes_every_output`,
+Tests (`tests/test_pipeline.py`, 12): `test_mini_run_writes_every_output`,
 `test_mini_results_csv_has_one_row_per_notice`, `test_mini_funnel_json_mini_out`,
 `test_mini_cases_json_and_markdown`, `test_run_log_records_the_hash_and_the_counts`,
 `test_out_directory_is_created`, `test_missing_input_is_a_clear_error`,
 `test_missing_argument_is_an_argparse_error`, `test_bad_input_returns_exit_code_two`,
-`test_register_without_stations_on_a_band_is_a_clear_error`, and the data test
-`test_real_run_writes_the_documented_numbers`.
+`test_missing_limits_is_a_clear_error`, `test_register_without_stations_on_a_band_is_a_clear_error`,
+and the data test `test_real_run_writes_the_documented_numbers`.
 
 ## F8: prose from an LLM, template as the floor, numeric guard
 
@@ -198,11 +208,14 @@ and decides what the card gets:
 |---|---|
 | `LLM_BASE_URL` unset and no `chat` callable | `prose.source = "template"` |
 | Endpoint raises | `prose.source = "template"` |
+| Endpoint answers blank or whitespace | `prose.source = "template"` |
 | Endpoint answers, and the guard rejects a number | `prose.source = "template_guard"` |
 | Endpoint answers, guard passes | `prose.source = "llm"` |
 
 The prompt is fixed and says plainly that no number may be invented and no verdict may be given.
-The text is not empty-checked beyond that, because the guard is the real check.
+A blank or whitespace answer is treated as a failure rather than prose, so it falls back to the
+template. A refusal or an answer in the wrong language is not detected: the guard checks numbers,
+not intent.
 
 `app/guard.py` scans both sides for numbers, normalises the Finnish thousands separator and the
 decimal comma, and compares the absolute values with a 0.01 tolerance. Signs are ignored on purpose:
@@ -211,8 +224,9 @@ in a band range such as `3 662-3 698` the minus is a separator, not a value.
 A pipeline run attaches the card summary only; `draft_letter` is exercised by tests and by the
 correspondence template, and the CLI does not write letters to `out/`.
 
-Tests: `tests/test_prose.py` 6 (`test_without_an_endpoint_the_template_is_used`,
+Tests: `tests/test_prose.py` 8 (`test_without_an_endpoint_the_template_is_used`,
 `test_letter_template_asks_the_question`, `test_a_failing_llm_falls_back_to_the_template`,
+`test_an_empty_llm_answer_falls_back` (parametrised over an empty and a whitespace answer),
 `test_a_number_the_card_does_not_have_falls_back`, `test_a_clean_llm_answer_is_kept`,
 `test_a_configured_endpoint_is_called`), `tests/test_guard.py` 6
 (`test_scan_normalises_decimals_and_thousands`, `test_card_numbers_are_accepted`,
@@ -247,7 +261,7 @@ skipped and counted in `skipped_invalid`.
 | Diff | keyed by `ntc_id`; a change in band, position, power, height or class is `modified` |
 | Filter | keeps `stn_cls` in `{LM, MVV}`, within 1 000 km of the nearest of the four Finnish test points, and overlapping the register on RX or TX |
 | Field strength | `field_strength_p1546(freq, dist, h_ant, p_erp_kw)` interpolates the P.1546-6 land table linearly in frequency, height and distance, then adds `10*log10(p)`. Model: land path, 50 % of time, 50 % of locations, no terrain, 10 m receiving antenna |
-| Extrapolation | a query outside the table clamps to the nearest node and sets `extrapolated: true` |
+| Extrapolation | a query outside any of the three table axes (frequency, antenna height, distance) clamps to the nearest node; the notice is flagged `extrapolated: true` when any of the four test points is outside |
 | Trends | grouped by administration, band label, class and bandwidth; counts of new, modified and withdrawn against the previous issue |
 | Anomalies | a group with nothing in the previous issue and three or more now |
 | Threshold | `protection_threshold_dbuVm` is `null` and the criterion line says it is to be confirmed |
@@ -258,15 +272,15 @@ is a pair: RX 464.04 MHz and TX 454.04 MHz belong to the same licence.
 
 Outputs: `terrestrial_findings.json`, `terrestrial_trends.csv`, `TERRESTRIAL.md`.
 
-Tests (`tests/test_terrestrial.py`, 15): `test_diff_finds_new_modified_withdrawn` (3 new, 1
+Tests (`tests/test_terrestrial.py`, 16): `test_diff_finds_new_modified_withdrawn` (3 new, 1
 modified, 1 withdrawn), `test_diff_detects_moved_station`,
 `test_filter_drops_far_and_non_land_mobile`, `test_findings_mark_synthetic_and_leave_threshold_open`,
 `test_field_strength_matches_p1546_table_node`,
 `test_field_strength_falls_with_distance_and_follows_power`,
 `test_field_strength_rejects_unusable_input`, `test_extrapolated_flags_clamped_query`,
-`test_run_writes_three_outputs`, `test_load_issue_skips_rows_without_required_fields`,
-`test_load_issue_rejects_wrong_shape`, `test_empty_extract_still_produces_outputs`,
-`test_register_without_frequency_columns_is_rejected`,
+`test_findings_flags_extrapolated_per_point`, `test_run_writes_three_outputs`,
+`test_load_issue_skips_rows_without_required_fields`, `test_load_issue_rejects_wrong_shape`,
+`test_empty_extract_still_produces_outputs`, `test_register_without_frequency_columns_is_rejected`,
 `test_cli_runs_and_fails_cleanly_on_missing_input`, and the data test
 `test_fixture_bands_overlap_the_real_register`.
 

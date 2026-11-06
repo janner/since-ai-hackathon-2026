@@ -17,13 +17,17 @@ protected bands from Traficom's table of frequencies of interest, keeps the spac
 that overlap those bands and can be seen from Finland, and computes an upper-bound power flux
 density (PFD) against the ITU Radio Regulations Article 21, Table 21-4 limit.
 
-Every surviving notice gets a case card with the source rows, the calculation, the Finnish
-allocation from Regulation M4, the missing data, and one question for the other administration.
-The queue shows the 20 most urgent cards. A separate accuracy file covers all 196 notices, the
-dropped ones included. A human decides.
+Every notice that survives the gates and gets a number becomes a case card with the source rows,
+the calculation, the Finnish allocation from Regulation M4, the missing data, and one question for
+the other administration. A notice that passes G1 and G2 but cannot be computed is not a card: it
+keeps its row in `queue.md` and `3074_results.csv` under class `cannot_decide`, and its count is in
+`funnel.json`. The demo slice therefore has 18 cards and one notice without (limitation 15). The
+queue shows the most urgent cards, capped at 20. A separate accuracy file covers all 196 notices,
+the dropped ones included. A human decides.
 
-The language model only writes the prose (the card summary and a draft letter). Every number comes
-from code, and a numeric guard rejects a sentence that carries a number the card does not have.
+The language model only writes the card summary. Every number comes from code, and a numeric guard
+rejects a sentence that carries a number the card does not have. The correspondence letter has its
+own template and function and is covered by tests, but the CLI does not write letters to `out/`.
 
 A side feature applies the same style to terrestrial land-mobile notices: it diffs two
 3076-style extracts, filters what is within 1 000 km of Finland and overlaps the register, and
@@ -33,8 +37,9 @@ _Screenshot: funnel and one case card._
 
 ## Verified numbers
 
-Measured 6 Nov 2026 on IFIC 3074: `make check` 108 tests passed, the slice run takes about 1.3 s
-and the seven-band run about 5.5 s, and neither opens a connection.
+Measured 6 Nov 2026 on IFIC 3074: `make check` 114 tests passed, the slice run takes about 1.3 s,
+the seven-band run about 5.5 s. The deterministic pipeline is offline; the optional LLM prose step
+is the only part that opens a connection, and only when `LLM_BASE_URL` is set.
 
 | | Demo slice 3 470–3 780 MHz | All seven space bands (`--all`) |
 |---|---|---|
@@ -102,8 +107,11 @@ uv run uvicorn app.main:app --reload      # http://localhost:8000
 three-minute script and the two commands that split the terrestrial fixture into one issue per
 file.
 
-The pipeline never touches the network. The LLM is optional: without `LLM_BASE_URL` every card
-falls back to the deterministic template in `templates/`.
+The deterministic pipeline is offline. The LLM is an optional extra step: without `LLM_BASE_URL`
+every card falls back to the deterministic template in `templates/`, and the run opens no
+connection at all. With `LLM_BASE_URL` set, `app/prose.py` makes one request per card to that
+endpoint through `app/llm.py`. `scripts/fetch_data.py` remains the only code that downloads
+anything, and only when called by hand.
 
 ### Output files
 
@@ -114,7 +122,7 @@ falls back to the deterministic template in `templates/`.
 | `queue.md` | The queue in decision order: class first, then margin |
 | `funnel.json` | Counts per gate, drop reasons, queue state, input hash, rules version, mode |
 | `3074_results.csv` | One row per notice in the input, 18 columns, dropped notices with stage and reason |
-| `run.log` | Timestamp, input SHA256, rules version, counts, elapsed time, GEO and non-GSO visibility |
+| `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, elapsed time |
 
 ## Tests
 
@@ -130,8 +138,8 @@ make run          # uvicorn on http://localhost:8000
 
 | Environment | Result (6 Nov 2026) |
 |---|---|
-| With `data/` | 108 passed |
-| Clean clone, no `data/` | 96 passed, 12 skipped |
+| With `data/` | 114 passed |
+| Clean clone, no `data/` | 102 passed, 12 skipped |
 
 `tests/fixtures/` holds the small committed inputs: a nine-notice synthetic IFIC package, an
 eight-station register, a five-row M4 table, and the synthetic terrestrial fixture. The tests that
@@ -165,20 +173,23 @@ row; the funnel endpoint carries their count.
 5. Reason codes for one notice can hide each other: inside the per-notice loop the reason is
    overwritten in the order `no_limit_for_band`, `no_power`, `no_gain`, so a notice missing two
    things reports one of them.
-6. In `3074_results.csv` the `class` column reads `cannot_decide` for every notice dropped at G1 or
-   G2 as well (`app/cards.py`, `results_rows`). Use `dropped_at` and `reason` to tell a gate drop
-   from a notice that cannot be decided. Flagged for review rather than changed here.
+6. In `3074_results.csv` the `class` column is empty for every notice dropped at G1 or G2 and reads
+   `cannot_decide` only for a notice that reached G3 and could not be computed. `dropped_at` holds
+   the gate and `reason` the cause (`app/cards.py`, `results_rows`).
 7. The LLM path has not been run against a real endpoint. The tests cover the template, the
-   exception fallback and the numeric guard with a stubbed chat call. The run behind the numbers
-   above had no `LLM_BASE_URL`, so every card carries `prose.source = template`.
+   exception fallback, the blank-answer fallback and the numeric guard with a stubbed chat call. A
+   blank or whitespace answer falls back to the template, but a refusal or an answer in the wrong
+   language is not detected: the guard checks numbers, not intent. The run behind the numbers above
+   had no `LLM_BASE_URL`, so every card carries `prose.source = template`.
 8. No terrestrial IFIC 3076 extract was available. `app/terrestrial.py` runs on the synthetic
    fixture marked `synthetic: true`, and the CLI reads the JSON shape documented in
    `docs/features.md`. There is no converter from a real 3076 file, and the `--ific-terrestrial`
    parameter in the plan is not implemented.
 9. The P.1546 table in `rules/p1546_land.csv` is coarse: three frequencies (100, 600, 2000 MHz),
-   eight antenna heights, 70 distances from 1 to 1 000 km, rounded to 0.01 dB. Queries outside
-   those ranges clamp to the nearest node and are flagged `extrapolated: true`. The model is land
-   path, 50 % of time, 50 % of locations, no terrain, 10 m receiving antenna, 1 kW e.r.p. basis.
+   eight antenna heights, 70 distances from 1 to 1 000 km, rounded to 0.01 dB. A query outside any
+   of those three ranges clamps to the nearest node; the notice is then flagged `extrapolated: true`
+   if any of the four test points is outside the table. The model is land path, 50 % of time, 50 %
+   of locations, no terrain, 10 m receiving antenna, 1 kW e.r.p. basis.
 10. Nothing names a protection threshold for the terrestrial path, so
     `protection_threshold_dbuVm` stays `null` and the report says the criterion is to be confirmed.
     The tool claims neither a pass nor a fail.
@@ -189,7 +200,13 @@ row; the funnel endpoint carries their count.
     overflow counts are reported and not filled with invented cases.
 13. The 26 protected bands are an artefact of the register, not a simplification: the demo slice
     has two bands separated by a 13.1 MHz hole, and the hole is shown rather than covered.
-14. `main` is ten commits ahead of `origin/main` and not pushed. The push is Janne's call.
+14. `main` is ahead of `origin/main` and not pushed. The push is Janne's call.
+15. A notice that survives G1 and G2 but cannot be computed gets no case card. In the demo slice
+    126590032 passes both gates and carries no emission power, so it lands in `queue.md` and
+    `3074_results.csv` under class `cannot_decide`, while `cases.json` holds 18 cards, not the 19
+    the plan's F7/F10 expects. The row, the reason and the count stay in the files, so nothing drops
+    out of the audit trail, but the notice has no card in the web UI. Recorded as I15 in
+    `docs/decisions.md`.
 
 ## Layout
 
@@ -228,8 +245,9 @@ be copied in by hand.
 - No personal data goes through the pipeline.
 - No secrets in the repository: configuration comes from `.env` (see `.env.example`), and the only
   credential any code reads is `LLM_API_KEY`, sent to the endpoint the user configured.
-- The run is offline. `scripts/fetch_data.py` is the only code that opens a connection, and only
-  when called by hand.
+- The deterministic run is offline. `scripts/fetch_data.py` is the only code that downloads data, and
+  only when called by hand. The optional LLM prose step (`LLM_BASE_URL`) makes one request per card
+  to the endpoint the user configured.
 - `data/` and `out/` are gitignored. The register and the IFIC package are not redistributed.
 
 ## Technology inventory
