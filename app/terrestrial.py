@@ -23,6 +23,12 @@ taajuuksilla 100/600/2000 MHz, korkeuksilla 10/20/37.5/75/150/300/600/1200 m ja
 P.1546:n nimellisetäisyyksillä 1–1000 km. Taulukon arvot ovat 1 kW ERP
 -referenssille, joten teho lisätään 10*log10(p). Kysely interpoloidaan lineaarisesti
 kaikilla kolmella akselilla ja kiinnittyy taulukon reunaan sen ulkopuolella.
+
+Traficomin Q&A 7.11.2026: kenttävoimakkuus lasketaan **rajaviivan pisteissä**, ei
+neljässä kaupungissa, ja lisäksi merkitään ne rekisterin suomalaiset asemat, joiden
+kenttävoimakkuus ylittää koordinointikynnyksen. Rajaviiva on `rules/finland_border.csv`
+(Natural Earth 50m, mantereen ulkorengas), kynnys on CEPT/ECC T/R 25-08 A1.2.3
+(`rules/tr2508_thresholds.csv`).
 """
 
 import argparse
@@ -40,6 +46,8 @@ from app.config import RULES_VERSION
 from app.ingest import input_digest, sha256
 
 RULES = Path(__file__).resolve().parent.parent / "rules" / "p1546_land.csv"
+BORDER = Path(__file__).resolve().parent.parent / "rules" / "finland_border.csv"
+TR2508 = Path(__file__).resolve().parent.parent / "rules" / "tr2508_thresholds.csv"
 
 # BR IFIC 3076 -skeeman taulut, joista notice rakennetaan.
 TABLES = ("fxm_terra", "fxm_geo", "fxm_ant")
@@ -49,26 +57,28 @@ KEYS = ("terrakey", "adm_ref_id")
 # intent -> muutoksen nimi. RECORDED on kanta, ei muutos.
 INTENT_CHANGE = {"ADD": "new", "MODIFY": "modified", "SUPPRESS": "withdrawn"}
 
-# Neljä suomalaista testipistettä. Samat pisteet toimivat kenttävoimakkuuden
-# mittauspisteinä ja "etäisyys Suomeen" -suodattimen ankkureina.
-POINTS = {
-    "Helsinki": (60.1699, 24.9384),
-    "Turku": (60.4518, 22.2666),
-    "Lappeenranta": (61.0587, 28.1887),
-    "Maarianhamina": (60.0971, 19.9348),
-}
 MAX_DIST_KM = 1000.0
 RX_HEIGHT_M = 10.0
+# Kenttävoimakkuus lasketaan rajaviivan pisteissä: murtoviiva näytellään tällä
+# välein, jotta myös pitkät suorat rajaosat tulevat katetuiksi (Traficom 7.11.).
+BORDER_STEP_KM = 10.0
+KM_PER_DEG = 111.32
+TR2508_REF_BW_KHZ = 25.0
 # BR IFIC -asemaluokat: FB = tukiasema, ML = maaliikenne, FL = maaliikenne (kiinteä).
 LAND_MOBILE_CLASSES = frozenset({"FB", "ML", "FL"})
-# Traficom ei ole nimennyt kenttävoimakkuutta, jolla suojelu käynnistyy: työkalu raportoi
-# lasketun arvon eikä väitä ylitystä eikä alitusta sen sijaan että keksisi kynnyksen (T5).
-THRESHOLD_DBUV_M = None  # asetetaan vasta kun Traficom nimeää suojelukriteerin
 CRITERION = (
     "protection framework in three tiers: "
     "ITU RR Art. 21 Table 21-4 (PFD limit, the level the space path applies) -> "
-    "CEPT/ECC T/R 25-08 (field strength that triggers protection, no value confirmed) -> "
+    "CEPT/ECC T/R 25-08 A1.2.3 (coordination threshold at the border line, "
+    "25 kHz reference bandwidth, 10 % time, 10 m receiving antenna) applies here -> "
     "national M4 / Traficomin taajuusjakotaulukko (protection threshold to be confirmed)"
+)
+# T/R 25-08:n kynnys on määritelty 10 % ajasta; käytössä oleva P.1546-taulukko on
+# 50 % ajasta, joten ylitys on aina varma mutta alitus ei todista mitään (T8).
+TIME_PERCENT_NOTE = (
+    "the exceedance flag uses the P.1546-6 50 % time value against the 10 % time "
+    "threshold, so a flagged station is a definite exceedance while a low value "
+    "does not prove the threshold is met"
 )
 
 
@@ -90,6 +100,17 @@ def _mhz(value):
     return number * {"khz": 1e-3, "mhz": 1.0, "ghz": 1e3}[parts[1].lower()]
 
 
+def _khz(value):
+    """'300.000 kHz' / '16 kHz' -> kHz. None jos ei luettavissa."""
+    parts = str(value or "").split()
+    if len(parts) != 2 or parts[1].lower() not in {"hz", "khz", "mhz"}:
+        return None
+    number = _num(parts[0])
+    if number is None:
+        return None
+    return number * {"hz": 1e-3, "khz": 1.0, "mhz": 1e3}[parts[1].lower()]
+
+
 def haversine_km(lat1, lon1, lat2, lon2):
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dp, dl = p2 - p1, math.radians(lon2 - lon1)
@@ -97,9 +118,77 @@ def haversine_km(lat1, lon1, lat2, lon2):
     return 2 * 6371.0 * math.asin(math.sqrt(a))
 
 
-def distance_to_finland_km(lat, lon):
-    """Lähin testipiste. Dokumentoitu korvike maantieteelliselle rajalle."""
-    return min(haversine_km(lat, lon, *point) for point in POINTS.values())
+@lru_cache(maxsize=1)
+def border_line():
+    """Suomen rajaviiva suljettuna murtoviivana (lat, lon)."""
+    points = []
+    with BORDER.open(encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            points.append((float(row["lat"]), float(row["lon"])))
+    if len(points) < 3:
+        raise ValueError(f"{BORDER}: rajaviiva tarvitsee vähintään 3 pistettä")
+    return tuple(points)
+
+
+@lru_cache(maxsize=1)
+def border_samples():
+    """Rajaviiva tasavälein (`BORDER_STEP_KM`): kenttävoimakkuuden laskentapisteet."""
+    ring = border_line()
+    samples = []
+    for i in range(len(ring)):
+        a, b = ring[i], ring[(i + 1) % len(ring)]
+        steps = max(1, int(haversine_km(a[0], a[1], b[0], b[1]) / BORDER_STEP_KM))
+        for j in range(steps):
+            w = j / steps
+            samples.append((a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w))
+    return tuple(samples)
+
+
+def _point_segment_km(lat, lon, a, b):
+    """Etäisyys pisteestä janan ab päälle: paikallinen taso (riittää 1 000 km:lle)."""
+    k = math.cos(math.radians(lat))
+    ax, ay = (a[1] - lon) * k * KM_PER_DEG, (a[0] - lat) * KM_PER_DEG
+    bx, by = (b[1] - lon) * k * KM_PER_DEG, (b[0] - lat) * KM_PER_DEG
+    dx, dy = bx - ax, by - ay
+    if dx == 0 and dy == 0:
+        return math.hypot(ax, ay)
+    t = max(0.0, min(1.0, -(ax * dx + ay * dy) / (dx * dx + dy * dy)))
+    return math.hypot(ax + t * dx, ay + t * dy)
+
+
+def distance_to_border_km(lat, lon):
+    """Lyhin etäisyys Suomen rajaviivaan, ei neljään testipisteeseen (T2)."""
+    ring = border_line()
+    return min(
+        _point_segment_km(lat, lon, ring[i], ring[(i + 1) % len(ring)]) for i in range(len(ring))
+    )
+
+
+@lru_cache(maxsize=1)
+def tr2508_rows():
+    rows = []
+    with TR2508.open(encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            rows.append((float(row["f_min_mhz"]), float(row["f_max_mhz"]), float(row["dbuv_m"])))
+    if not rows:
+        raise ValueError(f"{TR2508}: kynnystaulukko on tyhjä")
+    return tuple(rows)
+
+
+def tr2508_threshold(freq_mhz, bw_khz=TR2508_REF_BW_KHZ):
+    """T/R 25-08 A1.2.3 -koordinointikynnys dB(uV/m) 25 kHz vertailukaistalla.
+
+    None, jos taajuus on suosituksen ulkopuolella (29,7-470 MHz). Kaistanleveydelle
+    > 25 kHz lisätään A1.2.3:n mukainen korjaus 10*log10(bw/25) dB.
+    """
+    if freq_mhz is None:
+        return None
+    for f_min, f_max, dbuv in tr2508_rows():
+        if f_min <= freq_mhz <= f_max:
+            if bw_khz and bw_khz > TR2508_REF_BW_KHZ:
+                return dbuv + 10 * math.log10(bw_khz / TR2508_REF_BW_KHZ)
+            return dbuv
+    return None
 
 
 @lru_cache(maxsize=1)
@@ -284,6 +373,40 @@ def register_frequencies(path):
     return freqs
 
 
+def register_stations(path):
+    """Suomen rekisterin asemat: tunnus, sijainti ja kanavan taajuudet.
+
+    RX ensisijainen, TX fallback (Traficom Q&A 7.11.: jokainen TX vastaanotetaan
+    Suomessa). Asemat, joilta puuttuu sijainti tai taajuus, ohitetaan; niitä ei
+    arvata. `bw_khz` on kanavanleveys kynnyskorjausta varten.
+    """
+    stations = []
+    with Path(path).open(encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            lat, lon = _num(row.get("Latitude")), _num(row.get("Longitude"))
+            freqs = [
+                m
+                for m in (_mhz(row.get("RX frequency")), _mhz(row.get("TX frequency")))
+                if m is not None
+            ]
+            if lat is None or lon is None or not freqs:
+                continue
+            stations.append(
+                {
+                    "station": (row.get("Station number") or "").strip(),
+                    "lat": lat,
+                    "lon": lon,
+                    "freq_mhz": freqs[0],
+                    "freqs_mhz": freqs,
+                    "bw_khz": _khz(row.get("Channel bandwidth")),
+                    "stn_cls": (row.get("Class of licence") or "").strip(),
+                }
+            )
+    if not stations:
+        raise ValueError(f"{path}: rekisteristä ei löytynyt asemia, joilla on sijainti")
+    return stations
+
+
 def diff_intents(curr):
     """Ilmoituksen tila `intent`-kentästä: IFIC ei ole kumulatiivinen kanta.
 
@@ -304,7 +427,7 @@ def select(notices, register, max_km=MAX_DIST_KM):
         if notice["stn_cls"] not in LAND_MOBILE_CLASSES:
             dropped["class"] += 1
             continue
-        distance = distance_to_finland_km(notice["lat"], notice["lon"])
+        distance = distance_to_border_km(notice["lat"], notice["lon"])
         if distance >= max_km:
             dropped["far"] += 1
             continue
@@ -313,6 +436,101 @@ def select(notices, register, max_km=MAX_DIST_KM):
             continue
         kept.append((notice, distance))
     return kept, dropped
+
+
+def border_field_strength(freq_mhz, lat, lon, ant_h_m, p_erp_kw):
+    """Kenttävoimakkuuden maksimi rajaviivalla ja piste, jossa se syntyy.
+
+    Palauttaa (max_dbuv_m, (lat, lon), näytteiden lkm, extrapolated). Kenttävoimakkuus
+    lasketaan jokaisessa rajapisteessä ja raportoidaan suurin: se on rajaviivan kohta,
+    jossa ulkomainen asema näkyy voimakkaimmin (Traficom 7.11.).
+    """
+    best, at, samples, extra = None, (None, None), 0, False
+    for blat, blon in border_samples():
+        dist = haversine_km(lat, lon, blat, blon)
+        value = field_strength_p1546(freq_mhz, dist, ant_h_m, p_erp_kw)
+        samples += 1
+        if value is not None and (best is None or value > best):
+            best, at = value, (round(blat, 4), round(blon, 4))
+        extra = extra or extrapolated(freq_mhz, dist, ant_h_m)
+    return best, at, samples, extra
+
+
+def _notice_finding(notice, distance, issue):
+    centre = (notice["freq_min_mhz"] + notice["freq_max_mhz"]) / 2
+    bw_khz = (notice["freq_max_mhz"] - notice["freq_min_mhz"]) * 1000
+    e_max, at, samples, extra = border_field_strength(
+        centre, notice["lat"], notice["lon"], notice["ant_h_m"], notice["p_erp_kw"]
+    )
+    threshold = tr2508_threshold(centre, bw_khz)
+    return {
+        # Lähdeviite jokaiseen löydökseen: IFIC-numero, terrakey, adm, intent, taulut.
+        "ific": issue,
+        "terrakey": notice["terrakey"],
+        "adm_ref_id": notice["adm_ref_id"],
+        "adm": notice["adm"],
+        "stn_cls": notice["stn_cls"],
+        "intent": notice["intent"],
+        "tables": list(TABLES),
+        "band": band_label(notice),
+        "distance_to_border_km": round(distance, 1),
+        "p_erp_kw": notice["p_erp_kw"],
+        "ant_h_m": notice["ant_h_m"],
+        "border": {
+            "max_dbuv_m": None if e_max is None else round(e_max, 1),
+            "at": at,
+            "samples": samples,
+        },
+        "extrapolated": extra,
+        "threshold_dbuv_m": threshold,
+        "margin_db": None if (e_max is None or threshold is None) else round(e_max - threshold, 1),
+        "coordination": None if threshold is None else (e_max is not None and e_max >= threshold),
+    }
+
+
+def flag_stations(kept, stations):
+    """Rekisterin suomalaiset asemat ja ulkomaisen kenttävoimakkuuden marginaali.
+
+    Kenttävoimakkuus lasketaan aseman omassa sijainnissa (Traficom Q&A 7.11.), ei
+    rajalla: sama P.1546-arvo kuin rajalla, mutta aseman kohdalla, ja verrataan
+    T/R 25-08 -kynnykseen. Asemaa kohti raportoidaan voimakkain ilmoitus ja
+    `exceeds`, kun kenttävoimakkuus ylittää kynnyksen. Ilmoitukset taajuusalueen
+    ulkopuolella (yli 470 MHz) ohitetaan, koska T/R 25-08 ei aseta niille kynnystä.
+    """
+    worst = {}
+    for notice, _ in kept:
+        centre = (notice["freq_min_mhz"] + notice["freq_max_mhz"]) / 2
+        bw_khz = (notice["freq_max_mhz"] - notice["freq_min_mhz"]) * 1000
+        threshold = tr2508_threshold(centre, bw_khz)
+        if threshold is None:
+            continue
+        for station in stations:
+            if not any(
+                notice["freq_min_mhz"] <= f <= notice["freq_max_mhz"] for f in station["freqs_mhz"]
+            ):
+                continue
+            distance = haversine_km(notice["lat"], notice["lon"], station["lat"], station["lon"])
+            value = field_strength_p1546(centre, distance, notice["ant_h_m"], notice["p_erp_kw"])
+            if value is None:
+                continue
+            entry = worst.get(station["station"])
+            if entry is None or value > entry["e_dbuv_m"]:
+                worst[station["station"]] = {
+                    "station": station["station"],
+                    "lat": station["lat"],
+                    "lon": station["lon"],
+                    "freq_mhz": station["freq_mhz"],
+                    "stn_cls": station["stn_cls"],
+                    "terrakey": notice["terrakey"],
+                    "adm": notice["adm"],
+                    "band": band_label(notice),
+                    "distance_km": round(distance, 1),
+                    "e_dbuv_m": round(value, 1),
+                    "threshold_dbuv_m": threshold,
+                    "margin_db": round(value - threshold, 1),
+                    "exceeds": value >= threshold,
+                }
+    return sorted(worst.values(), key=lambda row: -row["margin_db"])
 
 
 def _group_key(notice):
@@ -363,50 +581,39 @@ def _source_block(issue):
     }
 
 
+def _threshold_block():
+    return {
+        "scheme": "ECC Recommendation T/R 25-08 (amended 28 September 2018), Annex 1 A1.2.3",
+        "reference_bandwidth_khz": TR2508_REF_BW_KHZ,
+        "time_percent": 10,
+        "location_percent": 50,
+        "rx_height_m": RX_HEIGHT_M,
+        "rows": [
+            {"f_min_mhz": f_min, "f_max_mhz": f_max, "dbuv_m": dbuv}
+            for f_min, f_max, dbuv in tr2508_rows()
+        ],
+        "note": TIME_PERCENT_NOTE,
+    }
+
+
 def findings(prev, curr, register_path):
     register = register_frequencies(register_path)
+    stations = register_stations(register_path)
     kept, dropped = select(curr["notices"], register)
-    notices = []
-    for notice, distance in kept:
-        centre = (notice["freq_min_mhz"] + notice["freq_max_mhz"]) / 2
-        points = {}
-        extrapolated_any = False
-        for name, (lat, lon) in POINTS.items():
-            point_km = haversine_km(notice["lat"], notice["lon"], lat, lon)
-            value = field_strength_p1546(centre, point_km, notice["ant_h_m"], notice["p_erp_kw"])
-            points[name] = {
-                "dist_km": round(point_km, 1),
-                "e_dbuv_m": None if value is None else round(value, 1),
-            }
-            extrapolated_any = extrapolated_any or extrapolated(centre, point_km, notice["ant_h_m"])
-        notices.append(
-            {
-                # Lähdeviite jokaiseen löydökseen: IFIC-numero, terrakey, adm, intent, taulut.
-                "ific": curr["issue"],
-                "terrakey": notice["terrakey"],
-                "adm_ref_id": notice["adm_ref_id"],
-                "adm": notice["adm"],
-                "stn_cls": notice["stn_cls"],
-                "intent": notice["intent"],
-                "tables": list(TABLES),
-                "band": band_label(notice),
-                "distance_to_finland_km": round(distance, 1),
-                "p_erp_kw": notice["p_erp_kw"],
-                "ant_h_m": notice["ant_h_m"],
-                "points": points,
-                "extrapolated": extrapolated_any,
-            }
-        )
+    notices = [_notice_finding(notice, distance, curr["issue"]) for notice, distance in kept]
     rows = trends(prev["notices"], curr["notices"])
     skipped = Counter(prev.get("skipped_invalid") or {}) + Counter(
         curr.get("skipped_invalid") or {}
     )
     audit = {
         # Sama provenienssi kuin avaruuskortilla: yksi tiiviste kaikista ajon syötteistä.
-        "input_sha256": input_digest([curr["path"], prev["path"], Path(register_path), RULES]),
+        "input_sha256": input_digest(
+            [curr["path"], prev["path"], Path(register_path), RULES, BORDER, TR2508]
+        ),
         "rules_version": RULES_VERSION,
         "run_at": datetime.now(UTC).astimezone().isoformat(timespec="seconds"),
     }
+    flagged = flag_stations(kept, stations)
     return {
         "source": _source_block(curr),
         "prev_source": _source_block(prev),
@@ -416,14 +623,29 @@ def findings(prev, curr, register_path):
             "rx_height_m": RX_HEIGHT_M,
             "field_strength_for": (
                 "frequency = band centre (freq_min+freq_max)/2, power = notice p_erp_kw, "
-                "height = notice ant_h_m, distance = direct distance to the point"
+                "height = notice ant_h_m, distance = direct distance to the border sample"
             ),
+            "border_step_km": BORDER_STEP_KM,
         },
-        "protection_threshold_dbuVm": THRESHOLD_DBUV_M,
+        "coordination_thresholds": _threshold_block(),
         "criterion": CRITERION,
+        "border": {
+            "source": (
+                "Natural Earth 50m admin-0 mainland ring (public domain), rules/finland_border.csv"
+            ),
+            "points": len(border_line()),
+            "samples": len(border_samples()),
+            "step_km": BORDER_STEP_KM,
+        },
         "audit": audit,
         "diff": diff_intents(curr),
         "notices": notices,
+        "flagged_stations": {
+            "count": sum(row["exceeds"] for row in flagged),
+            "evaluated": len(flagged),
+            "threshold_applied": True,
+            "stations": flagged,
+        },
         "trends": rows,
         "anomalies": anomalies(rows),
         # Sama kontrakti kuin avaruuskortin `missing`: mitä jäi lukematta. Kortilla
@@ -447,37 +669,66 @@ def render_md(doc):
         f"- ajo: {doc['audit']['run_at']}, säännöt {doc['audit']['rules_version']}",
         f"- taulut: {', '.join(TABLES)}",
         f"- mallinnus: {doc['model']}",
-        f"- suojelukynnys: `{doc['protection_threshold_dbuVm']}`",
+        f"- rajaviiva: {doc['border']['source']} ({doc['border']['points']} pistettä, "
+        f"näyte {doc['border']['step_km']:g} km välein)",
         f"- kehys: {doc['criterion']}",
         "",
-        "## Ilmoituksen tila (intent)",
+        "## Koordinointikynnys (ECC T/R 25-08 A1.2.3)",
         "",
-        "| intent | muutos | lkm |",
-        "|---|---|---|",
+        f"25 kHz vertailukaista, {doc['coordination_thresholds']['time_percent']} % ajasta, "
+        f"{doc['coordination_thresholds']['location_percent']} % paikoista, "
+        f"{doc['coordination_thresholds']['rx_height_m']:g} m vastaanottoantenni.",
+        "",
+        "| taajuus MHz | kynnys dB(uV/m) |",
+        "|---|---|",
     ]
-    for intent, change in (*INTENT_CHANGE.items(), ("RECORDED", "kanta")):
-        lines.append(f"| {intent} | {change} | {doc['diff']['counts'].get(intent, 0)} |")
+    for row in doc["coordination_thresholds"]["rows"]:
+        lines.append(f"| {row['f_min_mhz']:g}-{row['f_max_mhz']:g} | {row['dbuv_m']:g} |")
     lines += [
         "",
-        f"Uudet {doc['diff']['new']}, muutetut {doc['diff']['modified']}, "
-        f"poistetut {doc['diff']['withdrawn']}, kanta {doc['diff']['recorded']}.",
+        "## Kenttävoimakkuus rajaviivalla, dB(uV/m)",
         "",
-        "## Kenttävoimakkuus suomalaisissa testipisteissä, dB(uV/m)",
-        "",
-        "| terrakey | hallinto | tila | kaista | " + " | ".join(POINTS) + " |",
-        "|---|---|---|---|" + "---|" * len(POINTS),
+        "| terrakey | hallinto | tila | kaista | etäisyys km | max rajalla | kynnys | marginaali |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for notice in doc["notices"]:
-        cells = [
-            "-" if p["e_dbuv_m"] is None else f"{p['e_dbuv_m']:.1f}"
-            for p in notice["points"].values()
-        ]
-        head = (
-            f"| {notice['terrakey']} | {notice['adm']} | {notice['intent']} | {notice['band']} | "
+        border = notice["border"]
+        e_max = "-" if border["max_dbuv_m"] is None else f"{border['max_dbuv_m']:.1f}"
+        threshold = notice["threshold_dbuv_m"]
+        threshold = "-" if threshold is None else f"{threshold:.1f}"
+        margin = "-" if notice["margin_db"] is None else f"{notice['margin_db']:+.1f}"
+        lines.append(
+            f"| {notice['terrakey']} | {notice['adm']} | {notice['intent']} | {notice['band']} "
+            f"| {notice['distance_to_border_km']:.0f} | {e_max} | {threshold} | {margin} |"
         )
-        lines.append(head + " | ".join(cells) + " |")
     if not doc["notices"]:
-        lines.append("| - | - | - | - | " + " | ".join("-" for _ in POINTS) + " |")
+        lines.append("| - | - | - | - | - | - | - | - |")
+    lines += [
+        "",
+        "## Rekisterin asemat ulkomaista kenttävoimakkuutta vasten",
+        "",
+        f"Arvioitu {doc['flagged_stations']['evaluated']} asemaa, "
+        f"{doc['flagged_stations']['count']} ylittää kynnyksen.",
+        "",
+    ]
+    flagged = doc["flagged_stations"]["stations"]
+    if flagged:
+        lines += [
+            "| asema | luokka | kaista | ilmoitus | hallinto | etäisyys km "
+            "| kenttävoimakkuus | kynnys | marginaali | yli |",
+            "|---|---|---|---|---|---|---|---|---|---|",
+        ]
+        for row in flagged:
+            lines.append(
+                f"| {row['station']} | {row['stn_cls']} | {row['band']} | {row['terrakey']} "
+                f"| {row['adm']} | {row['distance_km']:.0f} | {row['e_dbuv_m']:.1f} "
+                f"| {row['threshold_dbuv_m']:.1f} | {row['margin_db']:+.1f} "
+                f"| {'kyllä' if row['exceeds'] else 'ei'} |"
+            )
+    else:
+        lines.append(
+            "Ei arvioitavia asemia: yksikään ilmoitus ei osu rekisteriin T/R 25-08 -alueella."
+        )
     lines += [
         "",
         "## Trendit",
@@ -502,8 +753,9 @@ def render_md(doc):
         lines.append("Ei poikkeamia.")
     lines += ["", "## Rajaus", ""]
     lines.append(
-        "Kenttävoimakkuus on laskennallinen arvio, ei mitattu. Ilman nimettyä "
-        "suojelukynnystä työkalu ei väitä ylitystä eikä alitusta."
+        "Kenttävoimakkuus on laskennallinen arvio, ei mitattu. Ylitys on varma, mutta "
+        "alitus ei todista, että kynnys alittuu: P.1546-taulukko on 50 % ajasta ja kynnys "
+        "on määritelty 10 % ajasta (T/R 25-08 A1.2.3). Kansallinen M4-kynnys on nimeämättä."
     )
     return "\n".join(lines) + "\n"
 
@@ -549,7 +801,8 @@ def main(argv=None):
     print(
         f"{doc['diff']['new']} new, {doc['diff']['modified']} modified, "
         f"{doc['diff']['withdrawn']} withdrawn, {doc['diff']['recorded']} recorded; "
-        f"{len(doc['notices'])} notices in reach; -> {args.out}"
+        f"{len(doc['notices'])} notices in reach; "
+        f"{doc['flagged_stations']['count']} Finnish stations flagged; -> {args.out}"
     )
     return 0
 
