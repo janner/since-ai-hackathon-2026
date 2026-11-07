@@ -17,9 +17,7 @@ def make_case(ntc_id, klass, provision, margin, ific="3074"):
 
 def write_out(tmp_path, counts, cases):
     tmp_path.mkdir(parents=True, exist_ok=True)
-    (tmp_path / "funnel.json").write_text(
-        json.dumps({"counts": counts}), encoding="utf-8"
-    )
+    (tmp_path / "funnel.json").write_text(json.dumps({"counts": counts}), encoding="utf-8")
     (tmp_path / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
     return tmp_path
 
@@ -80,6 +78,8 @@ def test_dry_run_writes_markdown_json_and_html(tmp_path):
     assert "application/vnd.microsoft.card.adaptive" in card_text
     page = (tmp_path / "teams_message.html").read_text(encoding="utf-8")
     assert page.startswith("<!DOCTYPE html>")
+    assert "BR IFIC 3074" in page
+    assert "Kiireellisimmät" in page
 
 
 def test_send_without_webhook_fails_cleanly(tmp_path, monkeypatch, capsys):

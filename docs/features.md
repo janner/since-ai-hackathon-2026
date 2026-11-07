@@ -379,12 +379,12 @@ test, so one may corrupt its files); the index, health and error paths need no c
 `scripts/notify.py` turns the files of the last run into one Teams message per IFIC. It reads
 `out/funnel.json` and `out/cases.json`, imports nothing from `app/` (its stage rank table is a copy
 of `app/config.REGULATORY_STAGES`, marked `shortcut` in the code), and computes nothing: the counts
-are the ones in `funnel.json` and the three lines are the first three rows of `queue.md`, ordered by
-class, then stage, then margin, then case id. `--dry-run` writes `out/teams_message.md` and
-`out/teams_message.json` (the Adaptive Card envelope) and, with `--html`, `out/teams_message.html`;
-`--send` POSTs the card to `TEAMS_WEBHOOK_URL` and returns 1 with one line on stderr when the
-variable is unset. A run whose queue is empty gets the single line `Käsitelty, ei uusia huomioitavia
-tapauksia.`
+are the ones in `funnel.json` and the three lines are the first three decidable rows of `queue.md`,
+ordered by class, then stage, then margin, then case id. `--dry-run` writes `out/teams_message.md`
+and `out/teams_message.json` (the Adaptive Card envelope) and, with `--html`,
+`out/teams_message.html`; `--send` POSTs the card to `TEAMS_WEBHOOK_URL` and returns 1 with one line
+on stderr when the variable is unset. A run whose queue is empty gets the single line `Käsitelty, ei
+uusia huomioitavia tapauksia.`
 
 This is a wish, not a requirement: no bot, no chat surface, no cron, and no live Teams send (there
 was no test channel). The README section "Teams notification (optional)" carries the commands and
@@ -528,7 +528,7 @@ Tests (`tests/test_fetch_data.py`, 2): `test_html_instead_of_zip_is_rejected`,
 There are no committed data fixtures. The tests that need a real input are marked `data` and read
 `data/itu-ific-3074/ific3074.mdb`, `data/frequencies_of_interest.csv`, `data/taajuusjakotaulukko.json`
 and the two terrestrial BR IFIC MDBs; `tests/conftest.py` skips every one of them when
-`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (85 passed, 43 skipped).
+`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (91 passed, 43 skipped).
 The pure tests carry their own inputs in the test: the unit forms in `tests/test_ingest.py`, the band
 merging in `tests/test_bands.py`, the guard rows in `tests/test_gates.py`, the PFD vectors and the
 limit table in `tests/test_pfd.py`.

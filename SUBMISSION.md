@@ -153,7 +153,7 @@ Measured evidence, 7 Nov 2026, sandbox `janner-1-dev`. The raw output is in
   the local run. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
   the 17 drafts it saw. One call per card, 36.6 s to 120.3 s, median 86.9 s, whole run 25.6 min. The
   deterministic part of the same run took 1.19 s.
-- `make check` green: 131 tests passed. The tests never need the network.
+- `make check` green: 131 tests passed that day. The tests never need the network.
 - One card of 18 fell back to the template. The slowest call measured 120.3 s, right at the 120 s
   client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer.
 

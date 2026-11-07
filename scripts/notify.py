@@ -33,8 +33,7 @@ EMPTY_MESSAGE = "Käsitelty, ei uusia huomioitavia tapauksia."
 
 # The HTML preview's CSS, kept as constants so the template lines stay readable.
 _TEAMS_STYLE = (
-    "margin:0;padding:24px;background:#f5f5f5;"
-    "font:14px/1.5 'Segoe UI',sans-serif;color:#242424"
+    "margin:0;padding:24px;background:#f5f5f5;font:14px/1.5 'Segoe UI',sans-serif;color:#242424"
 )
 _CARD_STYLE = (
     "max-width:520px;background:#fff;border:1px solid #e1dfdd;border-radius:6px;padding:16px"
@@ -66,7 +65,7 @@ def top_cases(cases: list[dict], limit: int = 3) -> list[dict]:
         return (
             CLASS_ORDER.index(case["class"]) if case["class"] in CLASS_ORDER else len(CLASS_ORDER),
             STAGE_RANK.get(stage, UNKNOWN_RANK),
-            -case["calculation"]["margin_db"],
+            -(case["calculation"]["margin_db"] or 0.0),
             case["case_id"],
         )
 
@@ -160,9 +159,12 @@ def build_card(counts: dict, top: list[dict], ific: str, url: str) -> dict:
 def build_html(message: str, ific: str, url: str) -> str:
     """A standalone Teams-styled preview of the same message: no assets, no app/static/."""
     text = "\n".join(
-        f"<p>{html.escape(line)}</p>" if line else ""
+        f"<p><b>{html.escape(line.lstrip('# '))}</b></p>"
+        if line.startswith("#")
+        else f"<p>{html.escape(line)}</p>"
+        if line
+        else ""
         for line in message.splitlines()
-        if not line.startswith("#")
     )
     return f"""<!DOCTYPE html>
 <html lang="fi">
