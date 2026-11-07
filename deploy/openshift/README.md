@@ -44,7 +44,7 @@ curl $U/v1/chat/completions -H 'Content-Type: application/json' \
 ```bash
 export LLM_BASE_URL=https://granite-janner-1-dev.apps.rm2.thpm.p1.openshiftapps.com/v1
 export LLM_MODEL=granite
-uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
+uv run python -m app.pipeline --ific data/itu-ific-3074 \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json --out out/
 ```
@@ -94,20 +94,49 @@ Before the router timeout was raised, the same card prompt returned:
 HTTP 504 30.31s
 ```
 
-A slice run against the served model, 18 cards:
+A slice run against the served model, 18 cards, measured before the guard's list-marker fix:
 
 ```
 196 notices -> G1 41 -> G2 19 -> G3 18 + 1 cannot decide
 exceeds 9, near 5, clear 4, 19 in the queue (1 groups, 2 bands)
 ```
 
+That run predates the queue change: the current code queues the 15 cases that need a decision and
+leaves `clear` out.
+
 Funnel and class counts are identical to the local run. The prose step changes nothing but the
 sentences, and the guard is why.
 
 `prose.source` over the 18 cards: **llm 5, template_guard 12, template 1**. The guard rejected
-12 of the 17 drafts it saw, 71 %. Three of those drafts were re-asked to see the reason: two were rejected by a list marker (`1.` in
-a numbered answer counts as a number) and one by an invented band (`300-400 MHz FSS`). The other
-nine rejections were not inspected one by one.
+12 of the 17 drafts it saw, 71 %. Three of those drafts were re-asked to see the reason: two were
+rejected by a list marker (`1.` in a numbered answer counts as a number) and one by an invented band
+(`300-400 MHz FSS`). The other nine rejections were not inspected one by one.
+
+The list marker was a bug in the guard, not in the model. `app/guard.py::scan` now drops the digits
+that open a list (`docs/decisions.md` I11, commit `7acffb0`). On the same kind of numbered answer
+against the card fixture of the guard's own tests:
+
+```
+1. PFD -184,78 dB(W/m²/Hz).   the pre-fix guard: rejected (['1'])   the fixed guard: accepted
+2. Marginaali +3,24 dB.
+```
+
+Re-measuring the whole slice after the fix did not work on 7 Nov. The node also runs the
+data-science pipeline of the sibling task, the predictor had scaled to zero replicas (its HPA read
+no metrics and the live isvc carried `minReplicas: 0` against the `1` in the YAML here), and once it
+was scaled back up one card prompt took 239.5 s, past the 120 s client timeout in `app/llm.py`.
+Three attempts:
+
+| 7 Nov | client timeout | calls with an answer | what happened |
+|---|---|---|---|
+| 08:47 | 120 s (shipped) | 7 of 27, 84 to 107 s | 6 kept, 1 rejected for inventing `9.3` and `40,719`; call 8 answered nothing and calls 9 to 27 hit the route's 503 in 0.3 s |
+| 09:44 | 120 s (shipped) | 0 of 4, 120.3 s each | every call passed the client timeout |
+| 10:00 | 300 s (a probe, not the shipped code) | 2 of 3, 203 and 248 s | both kept; the third call passed 300 s |
+
+Across those nine real drafts the fixed guard and the pre-fix guard agreed on every verdict. No
+draft gained or lost a number at a list marker, because the digits `1` and `2` are already in the
+card: its ids, hashes and version strings fill the set of known numbers. The fix removes a false
+rejection, and how many of the 12 rejections above it removes is not measured yet.
 
 Response time per card, one chat call each, in card order:
 
@@ -133,12 +162,14 @@ Response time per card, one chat call each, in card order:
 | 3074-309500876 | clear | template_guard | 98.8 |
 
 18 calls, 36.6 s to 120.3 s, median 86.9 s. The whole run took 25.6 min. The deterministic part of
-the same run took 1.19 s.
+the same run took 1.19 s. The current code also drafts the nine `exceeds` letters through the model
+(`prose.draft_letter`), so a run now makes 27 calls, not 18.
 
 ## Limitations
 
 1. **CPU only.** The sandbox has no GPU and a 3 CPU request quota, so the model is small and one
-   card takes about 85 s. Case letters are generated in a run, never in the live demo.
+   card takes about 85 s (240 s on 7 Nov, when the same node also ran the data-science pipeline).
+   Case letters are generated in a run, never in the live demo.
 2. **Route timeout.** The router default of 30 s returns 504 on any real card. The annotation
    `haproxy.router.openshift.io/timeout: 300s` on the InferenceService fixes it. It has to be on
    the isvc: the KServe controller owns the route and resets annotations set on the route itself.
