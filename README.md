@@ -116,12 +116,13 @@ exits 1; `runs/latest` stays where it was, and `hermes cron runs` shows the run 
 | G2 visible from Finland | 21 (18 GEO, 3 non-GSO) | 138 |
 | G3 computed | 20 | 73 |
 | cannot_decide | 1 (`no_power`) | 65 |
-| exceeds / near / not_space / clear | 11 / 5 / 2 / 2 | 30 / 19 / 2 / 22 |
-| Queue | 19 | 116 |
+| exceeds / near / not_space / clear | 11 / 5 / 4 / 0 | 30 / 19 / 2 / 22 |
+| Queue (needs attention) | 21 | 116 |
 
 `not_space` is the frequency finding of `docs/decisions.md` D17 and D18: the band has no satellite
 service in Finland, so a satellite transmitting there is a case even when the margin is clear.
-The demo slice is `MOBILE AND FIXED` in Finland, so all 20 demo cases carry it.
+The demo slice is `MOBILE AND FIXED` in Finland, so all 20 demo cases carry it. The page lists
+every notice in three tiers; the queue column above is the needs-attention tier.
 
 Two test vectors reproduce to the digit:
 
