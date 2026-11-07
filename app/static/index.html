@@ -696,6 +696,11 @@ function renderCard(item) {
   details.append(el("summary", "Show calculation"), el("pre", calculationText(item)));
   card.append(details);
 
+  // The card exactly as cases.json holds it: every value behind the rendering above.
+  const raw = el("details", null, "calc");
+  raw.append(el("summary", "Show raw data (JSON)"), el("pre", JSON.stringify(item, null, 2)));
+  card.append(raw);
+
   card.append(el("p", sourceLine(item), "src"));
   document.getElementById("card").replaceChildren(card);
 }
