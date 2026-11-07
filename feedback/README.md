@@ -62,6 +62,28 @@ lue ~/.hermes/hackathon-feedback/latest.md
 Jokaisesta palautteesta lähtee myös best-effort-viesti Matrixin kotikanavalle.
 Jos Matrix ei vastaa, palaute säilyy silti tiedostossa.
 
+## Testaus 7.11.2026
+
+Kaksi testaajaa: asiantuntija (P) ja Traficomin erityisasiantuntija (O). Molemmat tekivät
+tehtävät itsenäisesti. Raakavastaukset ovat repon ulkopuolella:
+`~/.hermes/hackathon-feedback/feedback.md`.
+
+- Hyödyllisyys 4/5 molemmilla, pilottihalukkuus kyllä molemmilla.
+- Tehtävä 1 onnistui: IFIC 3075, 129 ilmoitusta.
+- Luottamus lukuun: P 2/5, O 4/5. P haluaa tarkemmat viittaukset ennen luottamista.
+- P: yläpalkista ei näe, onko paketti Space vai Terrestrial.
+- O: kortista puuttuu julkaisun tyyppi (API, CRC, CRD, Part II) ja tieto siitä, missä
+  vaiheessa tapaus on. O painottaa suunnitteluvaiheessa olevia tapauksia.
+- Molemmat: ei-päätettäviä ei löydy listana, vain lukuna. Worst case -sijainti Suomessa puuttuu.
+
+Näiden pohjalta 7.11. tehdyt muutokset: hakuteksti kertoo dokumenttisarjan (space), kortti
+näyttää sääntelyvaiheen ITU-lyhenteellä ja suojaavan aseman koordinaatit, suppilo listaa
+ei-päätettävät ilmoitukset syineen ja tarvittavine arvoineen, laskelman avaus näyttää kaavan ja
+lähtötiedot, ja kortin teksti on englanniksi.
+
+Avoinna: P:n vaatima viittaustarkkuus, O:n CRD/Part II -tarkennus ja aiempien valitusten
+historia.
+
 ## Testi
 
 ```bash
