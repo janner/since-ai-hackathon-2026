@@ -200,6 +200,10 @@ labels only if there is time, and then labelled as own labels rather than Trafic
 Reason: without ground truth a recall figure is circular. What Traficom needs is a file they can
 compare against their own judgement, not an invented accuracy number.
 
+Implemented 7 Nov 2026: `docs/eval-3074.md` labels the 21 notices the slice run classifies, and
+`scripts/eval_3074.py` reports the agreement (16/21, 76.2 %). The labels are the project's own; the
+number is not an accuracy figure.
+
 Reopen if: Traficom gives three to five cases whose outcome they already know.
 
 ### D16. `same_network` shows, and does not merge
