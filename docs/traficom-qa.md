@@ -65,10 +65,11 @@ the foreign transmitters and to the border sections where the field strength can
 the relevant border sections, not one representative point. Also mark the Finnish stations in the
 Excel table whose field strength exceeds the coordination threshold.
 
-**What changed.** Code change: the four test points became the border polyline in
-`rules/finland_border.csv`, the nearest point to each transmitter and the highest-field-strength
-border section are reported, and the register's stations are flagged against the threshold.
-Recorded in `docs/decisions.md` T2 and T5 and in `docs/features.md` F6.
+**What changed.** Code change: the four test points became the border polylines in
+`rules/finland_border.csv` (land borders plus the territorial sea outer limit; see the follow-up
+answers below), the nearest point to each transmitter and the highest-field-strength border section
+are reported, and the register's stations are flagged against the threshold. Recorded in
+`docs/decisions.md` T2 and T5 and in `docs/features.md` F6.
 
 ### Q5. Output format
 
@@ -125,13 +126,63 @@ data is already local: `SPS_ALL_IFIC3083.zip` → 387 MB MDB, four Finnish notic
 `100550081`, `100550722`, `100550723`), two at 22.8°E. The free 3074 zip has empty AP30B tables; the
 plan data is separate. SpaceExplorer needs a TIES account or SNS subscription, which we do not have.
 
+## Follow-up answers (second round, 7 Nov 2026)
+
+### F1. Which T/R 25-08 criterion above 470 MHz
+
+> Above 470 MHz you said to apply the same criteria as T/R 25-08 defines for the range above 400 MHz.
+> T/R 25-08 has more than one table in that range. Which one should we use for the land-mobile
+> records? And should the time percentage be 10 % or 1 % for digital systems?
+
+**Answer.** For this challenge, use the general land-mobile threshold in T/R 25-08 A.1.2.3. The time
+percentage is A1.2.3's 10 % (the answer did not restate it, but A1.2.3 is the named criterion).
+
+**What changed.** The A1.2.3 reading is confirmed; `rules/tr2508_thresholds.csv` already carries the
+20 dBµV/m row above 470 MHz. The 400 MHz range's NB/WB and LTE/LTE tables (20/55/37 dBµV/m) are not
+used. The P.1546 table stays 50 % time, so the note in the output about a flagged station being a
+definite exceedance while a low value proves nothing remains true.
+
+### F2. Which border sections count
+
+> You asked us to cover the border sections where the field strength can be highest. Which border
+> sections: the land border with Sweden, Norway and Russia, the sea border, or also Åland?
+
+**Answer.** Along the Finnish land borders as well as along the outer limit of Finland's territorial
+sea. The Åland question is answered by the territorial sea outer limit, which surrounds Åland.
+
+**What changed.** Code change: `rules/finland_border.csv` now holds the land borders (SE, NO, RU) and
+the 12 nautical mile territorial sea outer limit (TS) from Marine Regions. The coastline is dropped.
+`border_line()` returns polylines split on section, `border_samples()` samples each, and
+`distance_to_border_km()` takes the minimum over all of them. The border maximum for POL 92817506
+(801–806 MHz) moved from −51.1 to −46.9 dBµV/m, and its strongest section is now TS. Recorded in
+`docs/decisions.md` T2 and `docs/features.md` F6.
+
+### F3. Fixed (FX) records
+
+> The 3076 records above 470 MHz include 2 166 fixed (FX) records as well as 999 FB and 870 ML. Does
+> T/R 25-08 apply to the fixed records too, or only to the land-mobile classes? If fixed records are
+> outside T/R 25-08, what criterion should we use?
+
+**Answer.** The side quest is limited to land-mobile only.
+
+**What changed.** No code change: `LAND_MOBILE_CLASSES = {FB, ML, FL}` already filters FX out. The
+2 166 FX records are dropped by the class filter, not by the threshold.
+
+### F4. Which threshold for the register's stations, and the class of licence
+
+> Which threshold should we compare against: T/R 25-08 land-mobile or national M4? The register's rows
+> are Class of licence BC, MVV and empty; T/R 25-08 is for land-mobile stations.
+
+**Answer.** T/R 25-08 threshold. The ITU-R BR IFIC terrestrial preface defines the station classes in
+the land mobile service; the register's Class of licence is not needed.
+
+**What changed.** No code change: `flag_stations()` compares against `tr2508_threshold()`, not the
+national M4 value. The register's Class of licence is not used to pick the threshold; it only labels
+the row.
+
 ## Open
 
 - **Mandatory fields (Q5 follow-up).** Not answered. The current CSV fields stay until Traficom names
   them.
 - **Empty Class of licence.** 294 rows are treated as unclassified and marked in the card. Asked, not
   answered in the quoted reply; not asked again.
-- **The "same criteria as above 400 MHz" reading.** The answer names the 400 MHz range; the table
-  applies A1.2.3's 20 dBµV/m plus the bandwidth correction. The 400 MHz range also has the NB/WB and
-  LTE/LTE tables (20/55/37 dBµV/m); those are not used for the land-mobile rows, and the choice is
-  recorded in `rules/tr2508_thresholds.csv`.

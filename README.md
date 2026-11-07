@@ -50,7 +50,8 @@ A side feature applies the same style to terrestrial land-mobile notices under t
 runs in the same `app.pipeline` pass (`--terrestrial`), writes into the same `out/`, and carries the
 same `source` / `audit` / `missing` fields. It reads two real BR IFIC terrestrial databases (3075 and
 3076), takes the change from each notice's `intent` field, filters what is within 1 000 km of Finland
-and overlaps the register, and computes ITU-R P.1546-6 field strength at points along the Finnish border.
+and overlaps the register, and computes ITU-R P.1546-6 field strength at points along the Finnish border
+(the land borders with Sweden, Norway and Russia plus the outer limit of the territorial sea).
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
@@ -63,7 +64,7 @@ Two runs are on record and their numbers are not interchangeable. The auto-fetch
 the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 4 near, 2 `cannot_decide`,
 9 queue rows and the first card `3075-108501259`. The accuracy dataset is the challenge's IFIC 3074
 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026: `make check`
-163 tests (119 passed, 44 skipped without `data/`). The deterministic pipeline is offline; the
+165 tests (121 passed, 44 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
@@ -171,8 +172,8 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 163 passed |
-| Clean clone, no `data/` | 119 passed, 44 skipped |
+| With `data/` | 165 passed |
+| Clean clone, no `data/` | 121 passed, 44 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
@@ -324,7 +325,7 @@ app/            one module per feature, each with tests/test_<feature>.py
 rules/          rr21_table21_4.csv, p1546_land.csv
 templates/      the two Finnish templates (card summary, correspondence)
 scripts/        fetch_data.py, monitor.py, demo.sh, notify.py
-docs/           features.md, architecture.md, decisions.md, demo.md
+docs/           features.md, architecture.md, decisions.md, demo.md, demo-video.md
 tests/          unit, component and data tests; the data tests read data/ and skip when it is missing
 data/  out/     local only, ignored by git
 ```
@@ -415,5 +416,6 @@ during the hackathon, 6 to 8 Nov 2026.
 | `docs/architecture.md` | One-page architecture: the pipeline diagram and the module table |
 | `docs/decisions.md` | Decision log with reasons, including the choices made without user input |
 | `docs/demo.md` | The three-minute demo script and the exact commands, with the expected output |
+| `docs/demo-video.md` | The two-minute demo video: timed narration, screen plan, caption lines |
 | `deploy/openshift/README.md` | What runs in the cluster and what runs on the laptop, the apply and call commands, and the measured evidence from the served Granite |
 | `SUBMISSION.md` | Draft of the sinceai.app submission form and the Red Hat award checklist |

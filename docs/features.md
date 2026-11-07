@@ -305,7 +305,7 @@ guessed.
 | Step | Behaviour |
 |---|---|
 | Diff | from `fxm_terra.intent`: ADD → `new`, MODIFY → `modified`, SUPPRESS → `withdrawn`, RECORDED → the stock, not a change. The IFIC is not a cumulative database (3075 and 3076 share no `terrakey`), so the change is this field, not a key comparison |
-| Filter | keeps `stn_cls` in `{FB, ML, FL}`, within 1 000 km of the nearest point on the Finnish border, and overlapping the register on RX or TX |
+| Filter | keeps `stn_cls` in `{FB, ML, FL}`, within 1 000 km of the nearest point on the Finnish border, and overlapping the register on RX or TX. The border is the land borders with Sweden, Norway and Russia plus the outer limit of the territorial sea (12 nautical miles), not the coastline (Traficom 7.11.2026) |
 | Field strength | `field_strength_p1546(freq, dist, h_ant, p_erp_kw)` interpolates the P.1546-6 land table linearly in frequency, height and distance, then adds `10*log10(p)`. Model: land path, 50 % of time, 50 % of locations, no terrain, 10 m receiving antenna |
 | Extrapolation | a query outside any of the three table axes (frequency, antenna height, distance) clamps to the nearest node; the notice is flagged `extrapolated: true` when any border sample is outside |
 | Trends | grouped by administration, band label, class and bandwidth; new, modified and withdrawn against the same group in the previous number (3075) |
@@ -319,7 +319,10 @@ SHA256, tables, keys), `audit` (input SHA256, rules version, run time) and `miss
 report header shows the file name and SHA256 of both MDBs.
 
 The distance to Finland is the nearest point on the border polyline in
-`rules/finland_border.csv`, not a single representative point. Both register directions count as overlap, because a channel
+`rules/finland_border.csv`, not a single representative point. The polyline is the land borders with
+Sweden (SE), Norway (NO) and Russia (RU) plus the outer limit of the territorial sea (TS, the 12
+nautical mile line from Marine Regions); the coastline is not a border (Traficom 7.11.2026). Both
+register directions count as overlap, because a channel
 is a pair: RX 464.04 MHz and TX 454.04 MHz belong to the same licence.
 
 Measured on the real pair: 3076 has 4 057 `fxm_terra` rows, `intent` ADD 2 905 / MODIFY 163 /

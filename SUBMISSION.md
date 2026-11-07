@@ -29,7 +29,7 @@ Everything before the card text is deterministic: `mdb-export` reads the BR IFIC
 
 Finding the package is the other half, so the tool does it too. `scripts/monitor.py` asks ITU for the next space BR IFIC, and the page shows the last package checked, when it was checked and, when nothing new is out yet, when the next check falls. "Check now" asks ITU again and ingests what it finds; a clean run writes its own `runs/<ific>/` and moves the `runs/latest` pointer. The check pulled IFIC 3075, the automatic path's demo: 129 notices to 19 to 9, seven cards and two undecidable notices, first card 3075-108501259 (APSTAR-92E, 0,38 dB over the limit). IFIC 3074 stays the accuracy material.
 
-The tool is one module per feature, each with its own test file, 163 tests in all, 119 of them in a clean clone. A slice run takes about 3.5 seconds. A side feature applies the same style to terrestrial land-mobile notices: `python -m app.pipeline --terrestrial` runs it in the same pass and into the same output directory, with the same `source` and `audit` blocks on every file it writes, and only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates.
+The tool is one module per feature, each with its own test file, 165 tests in all, 121 of them in a clean clone. A slice run takes about 3.5 seconds. A side feature applies the same style to terrestrial land-mobile notices: `python -m app.pipeline --terrestrial` runs it in the same pass and into the same output directory, with the same `source` and `audit` blocks on every file it writes, and only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates.
 
 Two things the build met on the way. Beam geometry is empty in IFIC 3074, so the tool cannot decide whether a beam actually illuminates Finland; instead of guessing, every card carries that as a question and lists the missing fields. And the reference tool behind the plan read the register cell `0,1G` as 0.1 MHz, while this code reads the `Channel bandwidth` column as 0.1 GHz = 100 MHz; that is why the seven-band funnel sits one notice above the plan (101 against 100). The demo slice is identical either way, and the difference is written up in docs/decisions.md.
 
@@ -56,10 +56,9 @@ the source zip below.
 
 **Demo video** (YouTube, public or unlisted, ideally under 2 min; no file uploads)
 
-TODO (human): Janne records it. Script and exact commands are in `docs/demo.md` (three minutes on stage;
-under two minutes on video). Open on the automatic check: the top-bar automatic-check panel and the
-"Check now" click are the first 30 seconds, and the funnel and the first card follow. No link is
-invented here.
+TODO (human): Janne records it. The two-minute video script — timed narration, screen plan and
+caption lines — is `docs/demo-video.md`; the three-minute stage script with the exact commands is
+`docs/demo.md` §10. No link is invented here.
 
 **Source code .zip** (one file, max 100 MB; leave out dependencies and data)
 
@@ -159,7 +158,7 @@ Measured evidence, 7 Nov 2026, sandbox `janner-1-dev`. The raw output is in
   the local run. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
   the 17 drafts it saw. One call per card, 36.6 s to 120.3 s, median 86.9 s, whole run 25.6 min. The
   deterministic part of the same run took 1.19 s.
-- `make check` green: 137 tests passed in that run; 163 at the final commit. The tests never need
+- `make check` green: 137 tests passed in that run; 165 at the final commit. The tests never need
   the network.
 - One card of 18 fell back to the template. The slowest call measured 120.3 s, right at the 120 s
   client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer. After the
@@ -186,8 +185,8 @@ Sandbox facts (verified 6 and 7 Nov 2026, namespace `janner-1-dev`):
 
 Automated, done in the repository
 
-- [x] `make check` green: ruff check, ruff format --check, 163 tests passed
-- [x] README run steps work in a clean clone (119 passed, 44 skipped without `data/`)
+- [x] `make check` green: ruff check, ruff format --check, 165 tests passed
+- [x] README run steps work in a clean clone (121 passed, 44 skipped without `data/`)
 - [x] Pre-existing work and outside assets stated in README and About (template commit `6fe98b9`)
 - [x] No secrets or challenge data committed; `data/` and `out/` are gitignored
 - [x] `make submission-zip` builds `dist/kaista-submission.zip`, tracked files at HEAD only, no data

@@ -60,8 +60,9 @@ Choice: a 13-row limit table in `rules/rr21_table21_4.csv` covering GSO, non-GSO
 Reason: `c_pfd` covers four frequency ranges and none of the seven space bands. An I/N criterion
 needs a receiver noise figure and a bandwidth that the register does not carry. Table 21-4 is public,
 citable and a function of elevation. Traficom confirmed Table 21-4 as the internationally agreed
-limit; CEPT may elaborate the European concern thresholds, and the −3 dB `near` class is a
-screening convention rather than a CEPT threshold.
+limit and the primary source; CEPT may elaborate the European concern thresholds, and the −3 dB
+`near` class is a screening convention rather than a CEPT threshold. National limits exist for some
+bands but are not relevant to this challenge.
 
 Reopen if: Traficom names a protection criterion, gives receiver parameters, or shows that the upper
 bound produces too many false flags.
@@ -462,10 +463,12 @@ Test: `tests/test_terrestrial.py::test_field_strength_matches_p1546_table_node`.
 
 ### T2. Distance to Finland is the nearest point on the border line
 
-`app/terrestrial.py::distance_to_border_km()`. The border polyline in `rules/finland_border.csv`
-serves as the field strength sample locations, so the filter and the report use one definition.
-Traficom asked for the nearest points to the foreign transmitters and the border sections with the
-highest field strength, so the border line is not optional.
+`app/terrestrial.py::distance_to_border_km()`. The border polylines in `rules/finland_border.csv`
+serve as the field strength sample locations, so the filter and the report use one definition.
+The border is the land borders with Sweden (SE), Norway (NO) and Russia (RU) plus the outer limit of
+the territorial sea (TS, the 12 nautical mile line from Marine Regions); the coastline is not a
+border. Traficom asked for the nearest points to the foreign transmitters and the border sections
+with the highest field strength, so the border line is not optional.
 
 Test: `tests/test_terrestrial.py::test_filter_keeps_land_mobile_in_reach`.
 

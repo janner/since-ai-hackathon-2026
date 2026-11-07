@@ -280,10 +280,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 163 passed with data/
+make check        # ruff check, ruff format --check, pytest: 165 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 119 passed, 44 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 121 passed, 44 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. The optional Teams digest (15 seconds)
@@ -327,7 +327,7 @@ running the UI; a link a real channel could use needs the app on a hosted URL.
 
 Two data sets on the screen: IFIC 3074 is the accuracy material, IFIC 3075 is what the automatic
 search fetched. The first 30 seconds are the automatic check; the rest is one card of the run it
-produced.
+produced. The two-minute video version, with narration and captions, is `docs/demo-video.md`.
 
 | Time | On screen | What to say |
 |---|---|---|
