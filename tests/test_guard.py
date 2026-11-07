@@ -42,3 +42,18 @@ def test_unit_names_are_not_numbers():
 
 def test_empty_text_is_accepted():
     assert guard.check("", _card()) == []
+
+
+def test_a_list_marker_is_not_a_number():
+    # "1." at a line start or after a space opens a list; the digits are not a claim.
+    assert guard.scan("1. Vastaus") == []
+    assert guard.scan("1. Vastaus\n2. Toinen") == []
+    assert guard.scan("kohta 3. Vastaus") == []
+    assert guard.check("1. PFD -184,78 dB(W/m²/Hz).\n2. Marginaali +3,24 dB.", _card()) == []
+
+
+def test_dates_and_case_ids_keep_their_digits():
+    # Only a period and a space make a marker: a date, an id and a decimal are still numbers.
+    assert guard.scan("3.1.2026") == [("3.1", 3.1), ("2026", 2026.0)]
+    text = "Tapaus 3074-103500417, kaista 3 662-3 698 MHz, marginaali +3,24 dB."
+    assert guard.check(text, _card()) == []

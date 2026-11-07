@@ -13,11 +13,13 @@ import re
 _NUMBER_RE = re.compile(r"(?<!\d)[-−+]?\d+(?:[.,]\d+)?")
 # A Finnish "3 662" is one number; join digits that are only separated by a space.
 _SPACE_IN_NUMBER_RE = re.compile(r"(?<=\d)[\s\u00a0](?=\d)")
+# "1. Vastaus" opens a list at the start of a line or after a space: a marker, not a number.
+_LIST_MARKER_RE = re.compile(r"(?<!\S)[-−+]?\d+(?:[.,]\d+)?(?=\.\s)")
 
 
 def scan(text: str) -> list[tuple[str, float]]:
     """Normalised numbers of a text as (as written, value)."""
-    plain = _SPACE_IN_NUMBER_RE.sub("", text)
+    plain = _LIST_MARKER_RE.sub("", _SPACE_IN_NUMBER_RE.sub("", text))
     found = []
     for match in _NUMBER_RE.finditer(plain):
         raw = match.group(0)
