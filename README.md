@@ -183,8 +183,9 @@ row; the funnel endpoint carries their count.
 6. In `3074_results.csv` the `class` column is empty for every notice dropped at G1 or G2 and reads
    `cannot_decide` only for a notice that reached G3 and could not be computed. `dropped_at` holds
    the gate and `reason` the cause (`app/cards.py`, `results_rows`).
-7. The LLM path has not been run against a real endpoint. The tests cover the template, the
-   exception fallback, the blank-answer fallback and the numeric guard with a stubbed chat call. A
+7. The LLM path has been run against one real endpoint (the served Granite, see
+   `deploy/openshift/README.md`). The tests cover the template, the exception fallback, the
+   blank-answer fallback and the numeric guard with a stubbed chat call. A
    blank or whitespace answer falls back to the template, but a refusal or an answer in the wrong
    language is not detected: the guard checks numbers, not intent. The run behind the numbers above
    had no `LLM_BASE_URL`, so every card carries `prose.source = template`.
@@ -200,9 +201,11 @@ row; the funnel endpoint carries their count.
 10. Nothing names a protection threshold for the terrestrial path, so
     `protection_threshold_dbuVm` stays `null` and the report says the criterion is to be confirmed.
     The tool claims neither a pass nor a fail.
-11. Not implemented: the labelled evaluation set (plan R16) and OpenShift AI or LUMI deployment (R19
-    and R20). The demo video, the push and the rest of the submission form are the owner's steps;
-    `SUBMISSION.md` lists them under the final check.
+11. Not implemented: the labelled evaluation set (plan R16) and the LUMI run (R20). The OpenShift AI
+    part (R19) was built and used: Granite 3.3 2B Instruct served by KServe and the vLLM CPU runtime
+    in the sandbox, called by the prose step. See `deploy/openshift/README.md`. The demo video, the
+    push and the rest of the submission form are the owner's steps; `SUBMISSION.md` lists them under
+    the final check.
 12. The queue cap of 20 comes from the spoken challenge brief. Everything is in the files; the
     overflow counts are reported and not filled with invented cases.
 13. The 26 protected bands are an artefact of the register, not a simplification: the demo slice
@@ -295,4 +298,5 @@ during the hackathon, 6 to 8 Nov 2026.
 | `docs/architecture.md` | One-page architecture: the pipeline diagram and the module table |
 | `docs/decisions.md` | Decision log with reasons, including the choices made without user input |
 | `docs/demo.md` | The three-minute demo script and the exact commands, with the expected output |
+| `deploy/openshift/README.md` | What runs in the cluster and what runs on the laptop, the apply and call commands, and the measured evidence from the served Granite |
 | `SUBMISSION.md` | Draft of the sinceai.app submission form and the Red Hat award checklist |

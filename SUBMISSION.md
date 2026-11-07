@@ -25,13 +25,13 @@ Kaista is a triage tool for that first pass. It reads one IFIC package, derives 
 
 The funnel is the whole point, so the tool shows it. On the demo slice (3,470 to 3,780 MHz) 196 notices become 41 on band overlap, 19 visible from Finland, and 18 computed cards. Nine cards exceed the limit, five come near it and four are clear. One notice passes the first two gates and cannot be computed, so it keeps its row in the queue and the CSV as cannot_decide instead of becoming a card. Over all seven space bands the run goes 196 to 101 to 75 to 64 computed cards, with 26 exceeding, 15 near and 23 clear, and a queue of 20. Nothing is dropped silently: every notice that leaves carries a stage and a reason in 3074_results.csv, and the counts are in funnel.json.
 
-Everything before the card text is deterministic. The pipeline reads CSV and JSON, uses standard-library math, and never opens a network connection. The PFD is an upper bound, not a claim of interference: max PSD plus max beam gain minus free-space loss, against Table 21-4. The one optional step is prose. If LLM_BASE_URL is set, a language model writes the card summary; if it is not, a template does. The model never supplies a number. A numeric guard reads every sentence and rejects it if it carries a number that is not already in the card, and the template takes over. The letter to the other administration has its own template and its own function.
+Everything before the card text is deterministic. The pipeline reads CSV and JSON, uses standard-library math, and never opens a network connection. The PFD is an upper bound, not a claim of interference: max PSD plus max beam gain minus free-space loss, against Table 21-4. The one optional step is prose. If LLM_BASE_URL is set, a language model writes the card summary; if it is not, a template does. The model never supplies a number. A numeric guard reads every sentence and rejects it if it carries a number that is not already in the card, and the template takes over. The letter to the other administration has its own template and its own function. In the Red Hat award setup the drafting model runs in an OpenShift AI sandbox and the pipeline runs on the laptop, so with `LLM_BASE_URL` unset nothing leaves the machine.
 
 The tool is built as one module per feature, each with its own test file, 116 tests in all. A slice run takes about 1.3 seconds and the seven-band run about 5.5 seconds on the hackathon machine. The repository also carries a side feature for terrestrial land-mobile notices: it diffs two 3076-style extracts, keeps what is within 1,000 km of Finland and overlaps the register, and computes ITU-R P.1546-6 field strength at four Finnish test points.
 
 Two things the build met on the way. Beam geometry is empty in IFIC 3074, so the tool cannot decide whether a beam actually illuminates Finland; instead of guessing, every card carries that as a question and lists the missing fields. And the reference tool behind the plan read the register cell `0,1G` as 0.1 MHz, while this code reads the `Channel bandwidth` column as 0.1 GHz = 100 MHz; that is why the seven-band funnel sits one notice above the plan (101 against 100). The demo slice is identical either way, and the difference is written up in docs/decisions.md.
 
-What comes next: a labelled evaluation set, so the screening can be measured against a human decision; a converter for real 3076 extracts for the terrestrial path; and a run of the prose step against a real OpenAI-compatible endpoint, which the tests currently cover only with a stub.
+What comes next: a labelled evaluation set, so the screening can be measured against a human decision; a converter for real 3076 extracts for the terrestrial path; and a machine-readable Article 21, Table 21-4, which today has to be transcribed by hand.
 
 What was built during the hackathon, 6 to 8 Nov 2026, starts from a pre-event repository template (commit `6fe98b9`): a FastAPI skeleton, an OpenAI-compatible client and a test setup. Everything after that commit is new. The work was planned, implemented, documented and reviewed by Hermes Agent roles on a shared kanban board (planner, coder, writer, reviewer), with a human owner who chose the challenge, set the framing and makes the push decision.
 
@@ -75,8 +75,9 @@ or `dist/`. Run it after the final commit, attach the file.
 - Did you implement a generative AI model or API: no trained model. The repository ships a pre-event
   OpenAI-compatible chat client; the product uses it only for optional card prose, and only when
   `LLM_BASE_URL` is set. Without it the run is fully offline and every card falls back to the
-  deterministic template. The drafting LLM proposed for the Red Hat award (Granite 3.3 2B Instruct,
-  served by KServe and vLLM in OpenShift AI) was planned but not deployed.
+  deterministic template. The drafting LLM for the Red Hat award (Granite 3.3 2B Instruct, served by
+  KServe and vLLM in OpenShift AI) is deployed in the sandbox and wrote 5 of the 18 card drafts in
+  the measured run.
 
 **Challenge terms**: accepted by submitting. The challenge transfers no ownership (Traficom is not
 confidential), so no personal ticks are needed.
@@ -89,33 +90,62 @@ confidential), so no personal ticks are needed.
   run is the primary demo, and the sandbox expires after 30 days.
 - Pitch deck (one PDF or PowerPoint): not produced.
 - Supporting documents (max two): `docs/features.md` and `docs/decisions.md` are the two candidates.
-- Partner technologies: not claimed, see below.
+- Partner technologies: Red Hat OpenShift AI, see below.
 
 ## Optional award: Red Hat OpenShift AI (1 000 €)
 
-**Not claimed: F12 (OpenShift AI) was scoped P2 and not implemented.** No box under Partner technologies
-is ticked, because a Red Hat reviewer checks the evidence and there is none: no InferenceService was
-deployed, no model was served, and the app never called a vLLM endpoint.
+**Claimed: the drafting model is served by OpenShift AI and the app called it.** Granite 3.3 2B
+Instruct (Red Hat modelcar) runs on KServe with the vLLM CPU runtime in the sandbox project
+`janner-1-dev`, and the prose step drafted cards through its OpenAI-compatible endpoint.
 
-The checklist below is kept as a record of the plan and stays unticked.
+- [x] The drafting LLM (Granite 3.3 2B Instruct modelcar) served by KServe + vLLM CPU runtime in
+  OpenShift AI. `oc get isvc granite` reads READY True, the pod is 3/3 Running, and the route
+  answers over HTTPS.
+- [x] The app calls it through the OpenAI-compatible endpoint; the numeric guard tests pass against
+  its output. Verified as: the 18-card slice run went through the route (5 drafts kept, 12 rejected
+  by the guard) and the guard's unit tests stay green in `make check`.
+- [x] `deploy/openshift/` in repo: InferenceService YAML, ServingRuntime YAML, namespace, and the
+  apply and call commands.
+- [ ] Screenshot or short recording of a successful call; no keys or tokens in it. Not captured yet.
+  The route is live and unauthenticated until about 6 Dec 2026, so it can still be taken.
+- [x] "How did you use it?" field, 40+ characters. The text below.
+- [x] One About-text line: what runs in the cluster, what runs locally.
 
-- [ ] The drafting LLM (Granite 3.3 2B Instruct modelcar) served by KServe + vLLM CPU runtime in OpenShift AI
-- [ ] The app calls it through the OpenAI-compatible endpoint; the numeric guard tests pass against its output
-- [ ] `deploy/openshift/` in repo: InferenceService YAML, build commands, namespace
-- [ ] Screenshot or short recording of a successful call; no keys or tokens in it
-- [ ] "How did you use it?" field, 40+ characters
-- [ ] One About-text line: what runs in the cluster, what runs locally
+**How did you use it?** (259 characters)
 
-The About text above mentions no cluster, and that is deliberate.
+> The case-drafting model (Granite 3.3 2B Instruct) is served by KServe with the vLLM CPU runtime in
+> OpenShift AI; the IFIC triage app calls it through an OpenAI-compatible endpoint, and a numeric
+> guard rejects drafts whose numbers are not in the computed case.
 
-Sandbox facts (verified 6 Nov 2026, namespace `janner-1-dev`), kept for any later attempt:
+Measured evidence, 7 Nov 2026, sandbox `janner-1-dev`. The raw output is in
+`deploy/openshift/README.md`.
+
+- `curl $U/v1/models`: HTTP 200 in 0.52 s. One short chat completion: HTTP 200 in 9.03 s. One full
+  card prompt (1002 prompt tokens, 155 completion tokens): HTTP 200 in 41.84 s. Before the route
+  timeout was raised, the same prompt returned HTTP 504 at 30.31 s.
+- The 18-card slice run: 196 notices to 41 to 19 to 18 cards plus 1 `cannot_decide`, identical to
+  the local run. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
+  the 17 drafts it saw. One call per card, 36.6 s to 120.3 s, median 86.9 s, whole run 25.6 min. The
+  deterministic part of the same run took 1.19 s.
+- `make check` green: 116 tests passed. The tests never need the network.
+- One card of 18 fell back to the template. The slowest call measured 120.3 s, right at the 120 s
+  client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer.
+
+The local run stays the primary demo. The sandbox expires about 6 Dec 2026, so the route is never
+the only demo link. The route is unauthenticated, and that is why no token sits in the repository
+or in any screenshot.
+
+Sandbox facts (verified 6 and 7 Nov 2026, namespace `janner-1-dev`):
 
 - KServe is available: `oc auth can-i create inferenceservices` = yes. Runtime template
-  `vllm-cpu-x86-runtime-template` in `redhat-ods-applications`. No GPU quota.
-- Build without PyPI: `oc new-build --binary --name=app --image-stream=python:3.12-ubi9`, `.s2i/bin/run`
-  with `exec python app.py`, then `oc start-build app --from-dir=. -F`.
-- `oc expose` makes an HTTP-only route and `https://` returns 503. Patch edge TLS immediately, then both work.
-- Sandbox expires 30 days after activation (~6 Dec 2026). Never the only demo link.
+  `vllm-cpu-x86-runtime-template` in `redhat-ods-applications`. No GPU quota, 3 CPU request quota.
+- No build step for the model: KServe pulls the modelcar
+  `quay.io/redhat-ai-services/modelcar-catalog:granite-3.3-2b-instruct` as an OCI artifact and mounts
+  it at `/mnt/models`. The first start took about 8 minutes (the pull, then the vLLM load of 4.72 GiB).
+- The router default timeout of 30 s returns 504 on any real card. The annotation
+  `haproxy.router.openshift.io/timeout: 300s` on the InferenceService fixes it. It has to sit on the
+  isvc, because the KServe controller owns the route and resets annotations set on the route itself.
+- Sandbox expires 30 days after activation (~6 Dec 2026).
 
 ## Final check before 10:00
 
@@ -137,6 +167,8 @@ Human steps, before submitting
 - [ ] Repository URL pasted into the form (and the repo made readable to judges)
 - [ ] Demo URL opens logged out, if a demo URL is given at all
 - [ ] Every field of the form copied over and the form submitted by 09:00
-- [ ] Red Hat award left unticked
+- [ ] Red Hat award: the boxes are ticked in this draft. Janne ticks the form and pastes the
+      "How did you use it?" text. The https link to `deploy/openshift/` does not open for a reviewer
+      while the repository is private, so publish it or grant access first.
 - [ ] `SUBMISSION.md` is a draft of the form, TODOs and all: decide whether it stays in a public
       repository as-is or is moved out once the fields are submitted

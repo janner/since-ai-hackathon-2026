@@ -57,10 +57,13 @@ calculation: without `out/` the page still loads and the API answers 503 with th
 | `app/pipeline.py` | The CLI: one IFIC package in, the six output files out. The deterministic path never touches the network; the optional prose step calls the endpoint in `LLM_BASE_URL` through `app/llm.py`. |
 | `app/prose.py` | Card prose. The LLM drafts it, the guard checks it, the deterministic template in `templates/` is the floor. Also holds the correspondence-letter template and function. |
 | `app/guard.py` | Numeric guard: scans the prose for numbers and rejects a sentence that carries a number the card does not have. |
-| `app/llm.py` | The single OpenAI-compatible chat call. The endpoint and key come from `.env` (`LLM_BASE_URL`, `LLM_API_KEY`), never from code. |
+| `app/llm.py` | The single OpenAI-compatible chat call. The endpoint and key come from `.env` (`LLM_BASE_URL`, `LLM_API_KEY`), never from code. The model runs wherever that URL points: the OpenShift AI sandbox in the Red Hat setup, another endpoint, or nowhere at all when the variable is unset. |
 | `app/terrestrial.py` | The side path: diffs two 3076-style land-mobile extracts, keeps what is within 1 000 km of Finland and overlaps the register, and computes ITU-R P.1546-6 field strength at four Finnish test points. stdlib only, no network, writes its own three files. |
 | `app/main.py` | Read-only FastAPI app: six endpoints (`/`, `/health`, `/api/funnel`, `/api/cases`, `/api/cases/{id}`, `/api/queue`) over the files in `out/`, plus the one page. `KAISTA_OUT` points it at another output directory. |
 
 Data flow goes one way. Nothing in the UI writes, and the deterministic path never reads the network.
+The prose model is the one piece that can run outside the laptop: with `LLM_BASE_URL` set to the
+served Granite in OpenShift AI, `app/llm.py` sends one chat call per card to the cluster, and the
+guard still decides what reaches the output. Unset it and the run is local and offline.
 
 Back to the documentation index in [README.md](../README.md#documentation).

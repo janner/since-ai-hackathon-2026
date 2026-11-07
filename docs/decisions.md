@@ -167,6 +167,13 @@ sandbox expires after 30 days, so it cannot be the only demo link.
 
 Reopen if: the core and the side feature are finished before Saturday evening.
 
+Reopened: that condition was met. The core was finished and green on Friday 6 Nov 2026 at 23.42, so
+the OpenShift AI part was built. Granite 3.3 2B Instruct is served by KServe and the vLLM CPU
+runtime in the sandbox project `janner-1-dev`, and the prose step ran against it: 18 cards, 5 drafts
+kept, 12 rejected by the guard, funnel unchanged. LUMI stays out, because an archive run needs data
+we do not have. The measured evidence is in `deploy/openshift/README.md`, and the plan behind the
+part is D17 in the prep repository.
+
 ### D15. No recall claim
 
 Choice: report the funnel numbers and the share of `cannot_decide`; an evaluation set with own
