@@ -48,7 +48,7 @@ the `mdb-export` of the 15 tables — and opens no connection with no LLM config
 ## 2b. The automatic check: what the monitor did on IFIC 3075
 
 Nobody downloads the package by hand. `scripts/monitor.py` asks ITU for the next space BR IFIC and
-ingests it when it appears; the "Tarkista nyt" button in the page runs the same thing.
+ingests it when it appears; the "Check now" button in the page runs the same thing.
 
 ```bash
 uv run python scripts/monitor.py --check   # ask ITU now, ingest a new package
@@ -88,10 +88,10 @@ a run that dies) writes `status: error`, exits 1, and leaves `runs/latest` and `
 
 The top-bar panel reads the last answer from `out/fetch_status.json`:
 
-- `new`: "Uusi IFIC 3075 haettu ja ajettu 7.11.2026 klo 9.43 · 129 ilmoitusta."
-- `no_new`: "Uutta IFIC:iä ei ole vielä julkaistu (viimeisin 3075). Tarkistettu <aika> · seuraava
-  tarkistus <aika>."
-- `error`: "Tarkistus epäonnistui <aika>: <viesti>."
+- `new`: "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices."
+- `no_new`: "No new IFIC has been published yet (latest 3075). Checked <time> · next
+  check <time>."
+- `error`: "Check failed <time>: <message>."
 
 The cadence is 14 days (`CADENCE` in `scripts/monitor.py`), and `next_check` is written only when a
 check finds nothing new.
@@ -328,8 +328,8 @@ produced.
 
 | Time | On screen | What to say |
 |---|---|---|
-| 0:00 | browser, the top-bar panel and "Tarkista nyt" | the panel holds the last check of "Uusi aineisto": the newest package and when it was checked. On this tree it reads "Uusi IFIC 3075 haettu ja ajettu 7.11.2026 klo 9.43 · 129 ilmoitusta."; when a check finds nothing new it reads "Uutta IFIC:iä ei ole vielä julkaistu (viimeisin 3075). Tarkistettu <aika> · seuraava tarkistus <aika>." Nobody downloads anything; the tool asks ITU itself, every two weeks. |
-| 0:10 | click "Tarkista nyt", the panel updates | the button asks ITU now and ingests what it finds. The panel of the last check, that of 7 Nov 2026, reads "Uusi IFIC 3075 haettu ja ajettu 7.11.2026 klo 9.43 · 129 ilmoitusta."; a live click on this tree finds 3076 published (the URL answers 200) and moves the page on to it, so read the 3075 line before you click — see "Before the click". |
+| 0:00 | browser, the top-bar panel and "Check now" | the panel shows the last check: the newest package and when it was checked. On this tree it reads "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices."; when a check finds nothing new it reads "No new IFIC has been published yet (latest 3075). Checked <time> · next check <time>." Nobody downloads anything; the tool asks ITU itself, every two weeks. |
+| 0:10 | click "Check now", the panel updates | the button asks ITU now and ingests what it finds. The panel of the last check, that of 7 Nov 2026, reads "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices."; a live click on this tree finds 3076 published (the URL answers 200) and moves the page on to it, so read the 3075 line before you click — see "Before the click". |
 | 0:25 | the funnel panel | 129 notices: 110 with no band overlap and 10 below the horizon dropped, 19 overlap a protected band, 9 of those can be seen from Finland, 7 get a number and 2 cannot be decided. |
 | 0:35 | the queue, card `3075-108501259` (the first card of `cases.json`) | APSTAR-92E, 3 520-3 560 MHz, No. 11.2, recorded in the MIFR: PFD −187,64 against the −188,02 dB(W/m²/Hz) limit, margin +0,38 dB. |
 | 0:50 | the card's "Missing" line | the beam geometry is empty in IFIC 3075, so the tool cannot say whether the beam covers Finland. Four fields are listed, and the question to China follows from them. |
@@ -345,5 +345,5 @@ that and demo 3076, or skip the click and narrate the status line the 3075 run l
 check on the tree you are about to submit.
 
 If the UI is not running, the demo works from `cases.md` and `queue.md` alone; for the 3075 run those
-are in `runs/3075/`. Everything except the "Tarkista nyt" click is offline, and nothing breaks when
+are in `runs/3075/`. Everything except the "Check now" click is offline, and nothing breaks when
 the language model is absent: every card of the 3075 run carries the deterministic template.

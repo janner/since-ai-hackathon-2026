@@ -3,22 +3,22 @@
 Tämä sivu on Traficomin taajuusasiantuntijalle. Viisi askelta, ei yhtään komentoriviä.
 
 **Ennen kuin alat.** Työkalu avataan selaimessa. Palvelu hakee uuden BR IFIC -paketin itse ITU:lta
-kahden viikon välein, joten sinun ei tarvitse tuoda tiedostoa. Yläpalkin "Tarkista nyt" -nappi kysyy
+kahden viikon välein, joten sinun ei tarvitse tuoda tiedostoa. Yläpalkin "Check now" -nappi kysyy
 ITU:lta heti (komentoriviltä sama on `python scripts/monitor.py --check`). Jos automaattihaku ei
 toimi tai sinulla on paketti kädessä, tiedoston tuonti on varatie.
 
 ## Viisi askelta
 
 1. **Avaa osoite selaimessa.** Yläpalkki näyttää suppilon luvut ja jonon pituuden. Vasemman
-   sarakkeen Suppilo kertoo, montako ilmoitusta seulottiin ja miksi loput putosivat pois.
+   sarakkeen "Funnel" (suppilo) kertoo, montako ilmoitusta seulottiin ja miksi loput putosivat pois.
 2. **Tarkista uusi aineisto.** Palvelu hakee uuden BR IFIC -paketin ITU:lta itse; sinä et tuo
-   tiedostoa. Yläpalkin "Tarkista nyt" -nappi kertoo, onko uutta pakettia, ja ajaa sen. Rekisteri ja
+   tiedostoa. Yläpalkin "Check now" -nappi kertoo, onko uutta pakettia, ja ajaa sen. Rekisteri ja
    M4 eivät vaihdu joka paketissa, joten ne ovat palvelimella.
-3. **Katso jono kohdasta 2.** Ylittävät ensin, sitten lähellä rajaa olevat. Etujulkaisu ja
-   koordinaatiopyyntö tulevat ennen MIFR-kirjattuja, koska niihin voi vielä vaikuttaa.
-4. **Avaa tapaus.** Lue "Mitä tämä tarkoittaa" ja "Mitä tietoa puuttuu". Laskelma on piilossa
-   "Näytä laskelma" -painikkeen alla; avaa se, jos haluat tarkistaa luvun itse.
-5. **Kopioi kysymys kohdasta "Kysymys toiselle hallinnolle"** ja lähetä kirje omasta
+3. **Katso "Queue" (jono).** "Exceeds limit" ensin, sitten "Near limit". "Advance publication" ja
+   "Coordination request" tulevat ennen "Recorded in the MIFR", koska niihin voi vielä vaikuttaa.
+4. **Avaa tapaus.** Lue "What this means" ja "What information is missing". Laskelma on piilossa
+   "Show calculation" -painikkeen alla; avaa se, jos haluat tarkistaa luvun itse.
+5. **Kopioi kysymys kohdasta "Question to the other administration"** ja lähetä kirje omasta
    sähköpostistasi.
 
 ## Mitä työkalu ei tee

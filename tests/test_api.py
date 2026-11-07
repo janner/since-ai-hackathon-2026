@@ -50,10 +50,10 @@ def bare_client(tmp_path, monkeypatch) -> TestClient:
     return TestClient(main.app)
 
 
-def test_index_serves_the_finnish_page(bare_client):
+def test_index_serves_the_demo_page(bare_client):
     response = bare_client.get("/")
     assert response.status_code == 200
-    for word in ("Kaista", "Suppilo", "Jono", "Kortti"):
+    for word in ("Kaista", "Funnel", "Queue", "Card"):
         assert word in response.text
 
 

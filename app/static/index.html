@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fi">
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kaista - IFIC-triage</title>
@@ -82,30 +82,30 @@
 </style>
 <header>
   <h1>Kaista</h1>
-  <p class="sub">ITU:n taajuusilmoitusten seulonta</p>
-  <p class="funnel-line" id="funnel-line">ladataan...</p>
+  <p class="sub">Screening ITU frequency filings</p>
+  <p class="funnel-line" id="funnel-line">loading...</p>
   <div class="fetch">
-    <p id="fetch-status">Hakua ei ole vielä tarkistettu.</p>
-    <button class="btn btn-sm" id="fetch-check" type="button">Tarkista nyt</button>
+    <p id="fetch-status">No check has run yet.</p>
+    <button class="btn btn-sm" id="fetch-check" type="button">Check now</button>
   </div>
   <p class="status" id="status" role="status" aria-live="polite"></p>
 </header>
 <main>
   <section id="funnel-section" aria-labelledby="h-funnel">
-    <h2 id="h-funnel">Suppilo</h2>
+    <h2 id="h-funnel">Funnel</h2>
     <div id="funnel"></div>
   </section>
   <section id="queue-section" aria-labelledby="h-queue">
-    <h2 id="h-queue">Jono</h2>
-    <p class="note">Ei päätettävissä olevat ilmoitukset eivät tuota korttia, joten ne näkyvät vain suppilossa.</p>
+    <h2 id="h-queue">Queue</h2>
+    <p class="note">Notices that cannot be decided do not produce a card; they appear only in the funnel.</p>
     <ul id="queue"></ul>
   </section>
   <section aria-labelledby="h-card">
-    <h2 id="h-card">Kortti</h2>
-    <div id="card">Valitse kortti jonosta.</div>
+    <h2 id="h-card">Card</h2>
+    <div id="card">Select a card from the queue.</div>
   </section>
 </main>
-<footer>Työkalu ei tee päätöstä. Jokainen luku tulee koodista, ei kielimallista.</footer>
+<footer>The tool does not decide. Every number comes from code, not from a language model.</footer>
 <script>
 "use strict";
 
@@ -117,12 +117,12 @@ function el(tag, text, cls) {
   return node;
 }
 
-// Finnish number formatting; values stay exactly as the files carry them.
+// English number formatting; values stay exactly as the files carry them.
 function num(value, unit) {
-  if (value === null || value === undefined || value === "") return "ei tiedossa";
+  if (value === null || value === undefined || value === "") return "unknown";
   const n = Number(value);
   if (!isFinite(n)) return String(value);
-  return n.toLocaleString("fi-FI", { maximumFractionDigits: 6 }) + (unit ? " " + unit : "");
+  return n.toLocaleString("en-GB", { maximumFractionDigits: 6 }) + (unit ? " " + unit : "");
 }
 
 function signed(value, unit) {
@@ -142,43 +142,50 @@ function rows(pairs) {
   return box;
 }
 
-// UI-only Finnish words. The data keeps its own English labels (cases.json is untouched).
-const ADMIN_FI = { CHN: "Kiina", USA: "Yhdysvallat", RUS: "Venäjä", EST: "Viro" };
-const CLASS_FI = {
-  exceeds: "Ylittää rajan", near: "Lähellä rajaa",
-  clear: "Selvä", cannot_decide: "Ei voi päättää",
+// UI-only English words. The data keeps its own labels (cases.json is untouched).
+const ADMIN_EN = { CHN: "China", USA: "United States", RUS: "Russia", EST: "Estonia" };
+const CLASS_EN = {
+  exceeds: "Exceeds limit", near: "Near limit",
+  clear: "Clear", cannot_decide: "Cannot decide",
 };
-const STAGE_FI = {
-  "No. 9.1": { name: "Etujulkaisu", meaning: "Voi vielä vaikuttaa." },
-  "No. 9.6": { name: "Koordinaatiopyyntö", meaning: "Voi vielä vaikuttaa." },
-  "No. 11.2": { name: "MIFR-kirjattu", meaning: "Ei enää vaikutettavissa." },
-  "Resolution 49": { name: "Resolution 49 -ilmoitus", meaning: "" },
+const STAGE_EN = {
+  "No. 9.1": { name: "Advance publication", meaning: "Can still be influenced." },
+  "No. 9.6": { name: "Coordination request", meaning: "Can still be influenced." },
+  "No. 11.2": { name: "Recorded in the MIFR", meaning: "No longer influenceable." },
+  "Resolution 49": { name: "Resolution 49 notice", meaning: "" },
 };
 const MISSING_LABEL = {
-  "s_beam.bore_long": "keilan suunta", "s_beam.bore_lat": "keilan suunta",
-  "s_beam.maj_axis": "keilan leveys", "s_beam.min_axis": "keilan leveys",
+  "s_beam.bore_long": "beam direction", "s_beam.bore_lat": "beam direction",
+  "s_beam.maj_axis": "beam width", "s_beam.min_axis": "beam width",
+};
+
+const DROP_LABEL = {
+  no_band_overlap: "No band overlap",
+  geo_below_horizon: "Below the horizon",
+  ngso_never_visible: "Never visible from Finland",
 };
 
 function adminName(code) {
-  return ADMIN_FI[code] || code || "tuntematon hallinto";
+  return ADMIN_EN[code] || code || "unknown administration";
 }
 
 function stageOf(item) {
   const prov = item.regulatory_stage && item.regulatory_stage.provision;
-  return STAGE_FI[prov] || { name: prov || "tuntematon vaihe", meaning: "" };
+  return STAGE_EN[prov] || { name: prov || "unknown stage", meaning: "" };
 }
 
 function bandText(band) {
-  if (!band || band.freq_min_mhz === undefined) return "kaista ei tiedossa";
+  if (!band || band.freq_min_mhz === undefined) return "band unknown";
   return num(band.freq_min_mhz) + "\u2013" + num(band.freq_max_mhz) + " MHz";
 }
 
 function fmtRun(iso) {
   const d = new Date(iso);
-  if (isNaN(d)) return iso || "ei tiedossa";
-  const p = (n) => String(n).padStart(2, "0");
-  return d.getDate() + "." + (d.getMonth() + 1) + "." + d.getFullYear() +
-    " klo " + d.getHours() + "." + p(d.getMinutes());
+  if (isNaN(d)) return iso || "unknown";
+  return d.toLocaleString("en-GB", {
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
 }
 
 function hasBeamMissing(item) {
@@ -187,11 +194,11 @@ function hasBeamMissing(item) {
 
 function missingText(item) {
   const missing = item.missing || [];
-  if (!missing.length) return "Ei puuttuvia tietoja.";
+  if (!missing.length) return "No missing information.";
   const labels = [...new Set(missing.map((field) => MISSING_LABEL[field] || field))];
-  let text = "Ilmoituksesta puuttuu " + labels.join(" ja ") + " (" + missing.join(", ") + ").";
+  let text = "The notice is missing " + labels.join(" and ") + " (" + missing.join(", ") + ").";
   if (hasBeamMissing(item)) {
-    text += " Siksi työkalu ei voi sanoa, osuuko keila Suomeen. Se kysyy sen sijaan.";
+    text += " The tool therefore cannot say whether the beam covers Finland. It asks instead.";
   }
   return text;
 }
@@ -200,12 +207,12 @@ function missingText(item) {
 function deterministicProse(item) {
   const coverage = item.coverage || {};
   const over = Number(item.calculation && item.calculation.margin_db) >= 0;
-  return "Satelliitti " + (coverage.sat_name || item.case_id) + " (" +
-    adminName(item.parties && item.parties.admin) + ") ilmoittaa lähettävänsä kaistalla " +
-    bandText(item.band) + " alas Suomeen päin. Laskettu yläraja on " +
+  return "Satellite " + (coverage.sat_name || item.case_id) + " (" +
+    adminName(item.parties && item.parties.admin) + ") declares it transmits on " +
+    bandText(item.band) + " towards Finland. The calculated upper bound is " +
     signed(item.calculation && item.calculation.margin_db, "dB") +
-    (over ? " ITU:n rajan yläpuolella" : " ITU:n rajan alapuolella") +
-    ". Tämä ei ole häiriö eikä päätös, vaan syy katsoa tapaus tarkemmin.";
+    (over ? " above the ITU limit" : " below the ITU limit") +
+    ". This is not interference and not a decision, but a reason to look at the case more closely.";
 }
 
 // prose.text is Markdown; drop the "# ..." heading lines and keep the paragraphs.
@@ -218,12 +225,12 @@ function calculationText(item) {
   const c = item.calculation || {};
   const coverage = item.coverage || {};
   return [
-    "Lähetysteho " + num(c.psd_dbw_hz, "dBW/Hz") + " + keilan vahvistus " +
-      num(c.beam_gain_db, "dBi") + " - vapaan tilan vaimennus " + num(c.fspl_db, "dB"),
+    "Transmit PSD " + num(c.psd_dbw_hz, "dBW/Hz") + " + beam gain " +
+      num(c.beam_gain_db, "dBi") + " - free-space loss " + num(c.fspl_db, "dB"),
     "= PFD " + num(c.pfd_dbw_m2_hz, "dB(W/m\u00b2/Hz)"),
-    "Raja " + num(c.limit_dbw_m2_hz, "dB(W/m\u00b2/Hz)") + ", marginaali " + signed(c.margin_db, "dB"),
-    "Etäisyys " + num(c.distance_km, "km") + ", korkeuskulma " + num(coverage.elevation_deg, "\u00b0"),
-    "Rajan lähde: " + (c.limit_source || "ei tiedossa"),
+    "Limit " + num(c.limit_dbw_m2_hz, "dB(W/m\u00b2/Hz)") + ", margin " + signed(c.margin_db, "dB"),
+    "Distance " + num(c.distance_km, "km") + ", elevation " + num(coverage.elevation_deg, "\u00b0"),
+    "Limit source: " + (c.limit_source || "unknown"),
   ].join("\n");
 }
 
@@ -231,10 +238,10 @@ function sourceLine(item) {
   const s = item.source || {};
   const a = item.audit || {};
   const sha = s.sha256 || a.input_sha256 || "";
-  const shortSha = sha ? sha.slice(0, 12) + "\u2026" + sha.slice(-4) : "ei tiedossa";
-  return "Ilmoitus " + ((s.keys && s.keys.ntc_id) || "ei tiedossa") + " \u00b7 tiedosto " +
-    (s.file || "ei tiedossa") + " \u00b7 SHA256 " + shortSha + " \u00b7 säännöt " +
-    (a.rules_version || "ei tiedossa") + " \u00b7 ajettu " + fmtRun(a.run_at);
+  const shortSha = sha ? sha.slice(0, 12) + "\u2026" + sha.slice(-4) : "unknown";
+  return "Notice " + ((s.keys && s.keys.ntc_id) || "unknown") + " \u00b7 file " +
+    (s.file || "unknown") + " \u00b7 SHA256 " + shortSha + " \u00b7 rules " +
+    (a.rules_version || "unknown") + " \u00b7 run " + fmtRun(a.run_at);
 }
 
 function setStatus(message) {
@@ -245,21 +252,21 @@ function setStatus(message) {
 function renderFetch(status) {
   const line = document.getElementById("fetch-status");
   if (!status || !status.status || status.status === "unknown") {
-    line.textContent = "Hakua ei ole vielä tarkistettu.";
+    line.textContent = "No check has run yet.";
     return;
   }
   const when = status.run_at || status.checked_at || "";
   if (status.status === "new") {
     const n = status.counts && status.counts.notices;
-    line.textContent = "Uusi IFIC " + status.ific + " haettu ja ajettu " + fmtRun(when) +
-      (n === undefined ? "" : " · " + n + " ilmoitusta") + ".";
+    line.textContent = "New IFIC " + status.ific + " fetched and processed " + fmtRun(when) +
+      (n === undefined ? "" : " · " + n + " notices") + ".";
   } else if (status.status === "error") {
-    line.textContent = "Tarkistus epäonnistui " + fmtRun(when) + ": " + (status.message || "") +
-      (status.last_ific ? " Viimeisin hyvä ajo on IFIC " + status.last_ific + "." : "");
+    line.textContent = "Check failed " + fmtRun(when) + ": " + (status.message || "") +
+      (status.last_ific ? " The last good run is IFIC " + status.last_ific + "." : "");
   } else {
-    line.textContent = "Uutta IFIC:iä ei ole vielä julkaistu (viimeisin " + status.last_ific +
-      "). Tarkistettu " + fmtRun(when) +
-      (status.next_check ? " · seuraava tarkistus " + fmtRun(status.next_check) : "") + ".";
+    line.textContent = "No new IFIC has been published yet (latest " + status.last_ific +
+      "). Checked " + fmtRun(when) +
+      (status.next_check ? " · next check " + fmtRun(status.next_check) : "") + ".";
   }
 }
 
@@ -274,34 +281,34 @@ async function loadFetch() {
 async function checkNow() {
   const button = document.getElementById("fetch-check");
   button.disabled = true;
-  button.textContent = "Tarkistetaan...";
-  setStatus("Tarkistetaan ITU:lta uutta IFIC-pakettia...");
+  button.textContent = "Checking...";
+  setStatus("Checking ITU for a new IFIC package...");
   try {
     const response = await fetch("/api/fetch-check", { method: "POST" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.detail || "HTTP " + response.status);
     renderFetch(body);
     if (body.status === "new") {
-      setStatus("Uusi IFIC " + body.ific + " ajettu. Päivitetään näkymä...");
+      setStatus("New IFIC " + body.ific + " processed. Refreshing the view...");
       location.reload();
       return;
     }
-    setStatus(body.status === "error" ? "Tarkistus epäonnistui: " + (body.message || "") : "");
+    setStatus(body.status === "error" ? "Check failed: " + (body.message || "") : "");
   } catch (error) {
-    setStatus("Tarkistus ei onnistunut: " + error.message);
+    setStatus("Check did not succeed: " + error.message);
   } finally {
     button.disabled = false;
-    button.textContent = "Tarkista nyt";
+    button.textContent = "Check now";
   }
 }
 
 function copyText(text, button) {
   if (!text) return;
   const done = () => {
-    button.textContent = "Kopioitu";
-    setStatus("Kysymys kopioitu leikepöydälle.");
+    button.textContent = "Copied";
+    setStatus("Question copied to the clipboard.");
   };
-  const fail = () => setStatus("Kopiointi ei onnistunut. Valitse kysymys käsin.");
+  const fail = () => setStatus("Copy failed. Select the question manually.");
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done, fail);
   } else {
@@ -320,26 +327,26 @@ function renderFunnel(data) {
   const c = data.counts;
   document.getElementById("funnel-line").textContent =
     c.notices + " \u2192 " + c.g1 + " \u2192 " + c.g2 + " \u2192 " + c.g3 + " + " +
-    c.cannot_decide + " \u00b7 jono " + ((data.queue && data.queue.shown) || 0);
+    c.cannot_decide + " \u00b7 queue " + ((data.queue && data.queue.shown) || 0);
   document.getElementById("funnel").replaceChildren(
     rows([
-      ["Ilmoituksia", c.notices],
-      ["G1 kaistaosuma", c.g1],
-      ["G2 näkyy Suomesta", c.g2],
-      ["G3 laskettu", c.g3],
-      ["Ei päätettävissä", c.cannot_decide],
-      ["Ylittää rajan", c.exceeds],
-      ["Lähellä rajaa", c.near],
-      ["Selviä", c.clear],
+      ["Notices", c.notices],
+      ["Band overlap", c.g1],
+      ["Visible from Finland", c.g2],
+      ["Computed", c.g3],
+      ["Cannot decide", c.cannot_decide],
+      ["Exceeds limit", c.exceeds],
+      ["Near limit", c.near],
+      ["Clear", c.clear],
     ]),
-    el("h3", "Pudotukset"),
-    rows(Object.entries(data.drops)),
-    el("h3", "Ajo"),
+    el("h3", "Drops"),
+    rows(Object.entries(data.drops).map(([key, value]) => [DROP_LABEL[key] || key, value])),
+    el("h3", "Run"),
     rows([
-      ["Tila", data.mode],
-      ["Säännöt", data.rules_version],
-      ["Aika", data.run_at],
-      ["Aineiston SHA256", data.input_sha256],
+      ["Mode", data.mode],
+      ["Rules", data.rules_version],
+      ["Time", fmtRun(data.run_at)],
+      ["Input SHA256", data.input_sha256],
     ]),
   );
 }
@@ -378,7 +385,7 @@ function renderQueue(items) {
   // Clear cases are not the queue: the queue is the cases a human looks at.
   const queue = items.filter((item) => item["class"] !== "clear").sort(compareQueue);
   if (!queue.length) {
-    ul.replaceChildren(el("li", "Jono on tyhjä."));
+    ul.replaceChildren(el("li", "The queue is empty."));
     return;
   }
   ul.replaceChildren(
@@ -401,7 +408,7 @@ function renderQueue(items) {
 
       const status = el("span", null, "q-status");
       status.append(
-        el("span", CLASS_FI[item["class"]] || item["class"], "tag t-" + item["class"]),
+        el("span", CLASS_EN[item["class"]] || item["class"], "tag t-" + item["class"]),
         el("span", signed(item.calculation && item.calculation.margin_db, "dB"), "m"),
       );
       button.append(status);
@@ -427,8 +434,8 @@ function renderCard(item) {
   const c = item.calculation || {};
   const coverage = item.coverage || {};
   const klass = item["class"];
-  const verb = klass === "exceeds" ? "ylittää rajan"
-    : klass === "near" ? "on lähellä rajaa" : "on selvästi rajan alla";
+  const verb = klass === "exceeds" ? "exceeds the limit"
+    : klass === "near" ? "is near the limit" : "is clearly below the limit";
   const card = el("article", null, "card");
 
   card.append(el(
@@ -440,44 +447,44 @@ function renderCard(item) {
   card.append(el("p", [
     bandText(item.band),
     coverage.orbit,
-    coverage.beam ? "keila " + coverage.beam : "",
+    coverage.beam ? "beam " + coverage.beam : "",
   ].filter(Boolean).join(" \u00b7 "), "card-sub"));
 
-  card.append(el("h3", "Mitä tämä tarkoittaa"));
+  card.append(el("h3", "What this means"));
   const prose = item.prose || {};
   if (prose.text) {
     const box = el("div", null, "prose");
     for (const paragraph of proseParagraphs(prose.text)) box.append(el("p", paragraph));
-    card.append(box, el("p", "Seloste: " + (prose.source === "llm" ? "kielimalli" : "malli") +
+    card.append(box, el("p", "Narrative: " + (prose.source === "llm" ? "language model" : "template") +
       " (" + (prose.source || "template") + ")", "src"));
   } else {
-    card.append(el("p", deterministicProse(item)), el("p", "Seloste: malli (deterministinen)", "src"));
+    card.append(el("p", deterministicProse(item)), el("p", "Narrative: template (deterministic)", "src"));
   }
 
-  card.append(el("h3", "Mitä sinun pitää päättää"));
+  card.append(el("h3", "What you need to decide"));
   const questions = el("ol");
-  questions.append(el("li", "Osuuko keila Suomen alueelle?" +
-    (hasBeamMissing(item) ? " Tieto puuttuu ilmoituksesta." : "")));
-  questions.append(el("li", "Vastaako kaista sitä käyttöä, jota M4:ssä on Suomessa?"));
-  questions.append(el("li", (item.next_action && item.next_action.question) || "Ei kysymystä."));
+  questions.append(el("li", "Does the beam cover Finland?" +
+    (hasBeamMissing(item) ? " This information is missing from the notice." : "")));
+  questions.append(el("li", "Does the band match the use listed in Finland's M4 table?"));
+  questions.append(el("li", (item.next_action && item.next_action.question) || "No question."));
   card.append(questions);
 
-  card.append(el("h3", "Mitä tietoa puuttuu"), el("p", missingText(item)));
+  card.append(el("h3", "What information is missing"), el("p", missingText(item)));
 
-  card.append(el("h3", "Mitä kaistalla on Suomessa"));
-  card.append(el("p", (item.m4 && item.m4.services_in_finland) || "ei tietoa"));
+  card.append(el("h3", "What is on the band in Finland"));
+  card.append(el("p", (item.m4 && item.m4.services_in_finland) || "no information"));
   if (item.m4 && item.m4.source) card.append(el("p", "M4: " + item.m4.source, "src"));
 
-  card.append(el("h3", "Kysymys toiselle hallinnolle"));
+  card.append(el("h3", "Question to the other administration"));
   const question = (item.next_action && item.next_action.question) || "";
-  card.append(el("p", question || "Ei kysymystä."));
-  const copy = el("button", "Kopioi kysymys", "btn");
+  card.append(el("p", question || "No question."));
+  const copy = el("button", "Copy question", "btn");
   copy.type = "button";
   copy.addEventListener("click", () => copyText(question, copy));
   card.append(copy);
 
   const details = el("details", null, "calc");
-  details.append(el("summary", "Näytä laskelma"), el("pre", calculationText(item)));
+  details.append(el("summary", "Show calculation"), el("pre", calculationText(item)));
   card.append(details);
 
   card.append(el("p", sourceLine(item), "src"));
@@ -486,12 +493,12 @@ function renderCard(item) {
 
 async function showCase(caseId) {
   markCurrent(caseId);
-  setStatus("Ladataan korttia " + caseId + "...");
+  setStatus("Loading card " + caseId + "...");
   try {
     renderCard(await get("/api/cases/" + encodeURIComponent(caseId)));
     setStatus("");
   } catch (error) {
-    setStatus("Korttia ei saatu: " + error.message);
+    setStatus("Could not load the card: " + error.message);
   }
 }
 
@@ -502,8 +509,8 @@ async function start() {
     renderQueue(await get("/api/queue"));
     setStatus("");
   } catch (error) {
-    setStatus("Aineistoa ei saatu: " + error.message);
-    document.getElementById("funnel-line").textContent = "ei aineistoa";
+    setStatus("Could not load the data: " + error.message);
+    document.getElementById("funnel-line").textContent = "no data";
   }
 }
 

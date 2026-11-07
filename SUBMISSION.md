@@ -27,7 +27,7 @@ The funnel is the whole point, so the tool shows it. On the demo slice of the ch
 
 Everything before the card text is deterministic: `mdb-export` reads the BR IFIC Access database, plus a CSV and a JSON file, and standard-library math does the rest. The pipeline never opens a network connection. The PFD is an upper bound, not a claim of interference: max PSD plus max beam gain minus free-space loss, against Table 21-4. The one optional step is prose. With an endpoint configured a language model writes the card summary, otherwise a template does. The model never supplies a number: a numeric guard rejects any sentence whose number is not already on the card, and the template takes over. In the Red Hat award setup the drafting model runs in an OpenShift AI sandbox and the pipeline runs on the laptop; with `LLM_BASE_URL` unset nothing leaves the machine.
 
-Finding the package is the other half, so the tool does it too. `scripts/monitor.py` asks ITU for the next space BR IFIC, and the page shows the last package checked, when it was checked and, when nothing new is out yet, when the next check falls. "Tarkista nyt" asks ITU again and ingests what it finds; a clean run writes its own `runs/<ific>/` and moves the `runs/latest` pointer. The check pulled IFIC 3075, the automatic path's demo: 129 notices to 19 to 9, seven cards and two undecidable notices, first card 3075-108501259 (APSTAR-92E, 0,38 dB over the limit). IFIC 3074 stays the accuracy material.
+Finding the package is the other half, so the tool does it too. `scripts/monitor.py` asks ITU for the next space BR IFIC, and the page shows the last package checked, when it was checked and, when nothing new is out yet, when the next check falls. "Check now" asks ITU again and ingests what it finds; a clean run writes its own `runs/<ific>/` and moves the `runs/latest` pointer. The check pulled IFIC 3075, the automatic path's demo: 129 notices to 19 to 9, seven cards and two undecidable notices, first card 3075-108501259 (APSTAR-92E, 0,38 dB over the limit). IFIC 3074 stays the accuracy material.
 
 The tool is one module per feature, each with its own test file, 160 tests in all, 116 of them in a clean clone. A slice run takes about 3.5 seconds. A side feature applies the same style to terrestrial land-mobile notices: `python -m app.pipeline --terrestrial` runs it in the same pass and into the same output directory, with the same `source` and `audit` blocks on every file it writes, and only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates.
 
@@ -57,8 +57,8 @@ the source zip below.
 **Demo video** (YouTube, public or unlisted, ideally under 2 min; no file uploads)
 
 TODO (human): Janne records it. Script and exact commands are in `docs/demo.md` (three minutes on stage;
-under two minutes on video). Open on the automatic check: the top-bar "Uusi aineisto" panel and the
-"Tarkista nyt" click are the first 30 seconds, and the funnel and the first card follow. No link is
+under two minutes on video). Open on the automatic check: the top-bar automatic-check panel and the
+"Check now" click are the first 30 seconds, and the funnel and the first card follow. No link is
 invented here.
 
 **Source code .zip** (one file, max 100 MB; leave out dependencies and data)
@@ -199,7 +199,7 @@ Human steps, before submitting
 
 - [ ] Push: `origin/main` already carries the deadline commits; push the final commit before submitting
 - [ ] Demo video on YouTube, public or unlisted, under 2 minutes; opens on the automatic check (the
-      "Uusi aineisto" panel and the "Tarkista nyt" click) in the first 30 seconds
+      automatic-check panel and the "Check now" click) in the first 30 seconds
 - [ ] Source zip rebuilt after the final commit and attached to the form (under 100 MB)
 - [ ] Repository URL pasted into the form (and the repo made readable to judges)
 - [ ] Demo URL opens logged out, if a demo URL is given at all
