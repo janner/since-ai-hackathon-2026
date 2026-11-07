@@ -219,8 +219,27 @@ def test_border_samples_cover_the_line_evenly():
     ring = t.border_line()
     samples = t.border_samples()
     assert len(samples) > len(ring) > 100
-    steps = [t.haversine_km(*a, *b) for a, b in zip(samples, samples[1:], strict=False)]
+    steps = [
+        t.haversine_km(a[0], a[1], b[0], b[1]) for a, b in zip(samples, samples[1:], strict=False)
+    ]
     assert max(steps) <= 2 * t.BORDER_STEP_KM
+
+
+def test_border_sections_cover_the_ring_and_pick_the_max_section(tmp_path):
+    """The split must cover the whole ring, and the section with the strongest
+    value must be the one the notice's nearest border stretch belongs to."""
+    assert set(p[2] for p in t.border_line()) == {"SE", "NO", "RU", "EE"}
+    assert set(s for _, _, s in t.border_samples()) == {"SE", "NO", "RU", "EE"}
+    # A notice just outside Lappeenranta faces the Russian border, so RU holds the maximum.
+    notice = _notice(freq_min_mhz=450.0, freq_max_mhz=455.0, lat=60.9, lon=29.5)
+    issue = _issue([notice])
+    finding = t.findings(issue, issue, _register(tmp_path))["notices"][0]
+    border = finding["border"]
+    assert border["section"] == "RU"
+    assert border["max_dbuv_m"] == max(v for v in border["sections"].values() if v is not None)
+    # The section maxima are part of the output and the markdown shows them.
+    markdown = t.render_md(t.findings(issue, issue, _register(tmp_path)))
+    assert "rajaosat" in markdown and "## Kenttävoimakkuus rajaosittain" in markdown
 
 
 def test_flag_stations_reports_the_strongest_notice_per_station():

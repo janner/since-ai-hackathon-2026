@@ -27,7 +27,10 @@ kaikilla kolmella akselilla ja kiinnittyy taulukon reunaan sen ulkopuolella.
 Traficomin Q&A 7.11.2026: kenttävoimakkuus lasketaan **rajaviivan pisteissä**, ei
 neljässä kaupungissa, ja lisäksi merkitään ne rekisterin suomalaiset asemat, joiden
 kenttävoimakkuus ylittää koordinointikynnyksen. Rajaviiva on `rules/finland_border.csv`
-(Natural Earth 50m, mantereen ulkorengas), kynnys on CEPT/ECC T/R 25-08 A1.2.3
+(Natural Earth 50m, mantereen ulkorengas), jaettu `section`-sarakkeella rajaosiin sen
+mukaan, minkä naapurin vastaista rajaa tai rannikkoa piste edustaa (SE, NO, RU, EE),
+jotta tuloksesta näkyy, **missä osassa** kenttävoimakkuus on suurin (Traficom 7.11.).
+Kynnys on CEPT/ECC T/R 25-08 A1.2.3
 (`rules/tr2508_thresholds.csv`); Traficomin 7.11.2026 mukaan sama kriteeri jatkuu
 yli 470 MHz:n, missä on 85 % aineiston maaliikenteen riveistä.
 """
@@ -67,6 +70,15 @@ KM_PER_DEG = 111.32
 TR2508_REF_BW_KHZ = 25.0
 # BR IFIC -asemaluokat: FB = tukiasema, ML = maaliikenne, FL = maaliikenne (kiinteä).
 LAND_MOBILE_CLASSES = frozenset({"FB", "ML", "FL"})
+# Rajaosat (rules/finland_border.csv `section`): minkä naapurin vastaista rajaa tai
+# rannikkoa kukin osa edustaa. Kolmipisteet Kilpisjärvi (SE/NO) ja Muotkavaara
+# (NO/RU) sekä Suomenlahden rannikko (Viro) jakavat renkaan neljään osaan.
+SECTION_NAMES = {
+    "SE": "Ruotsi (Tornionlaakso, Perämeren–Saaristomeren rannikko)",
+    "NO": "Norja (Käsivarsi)",
+    "RU": "Venäjä (itäraja)",
+    "EE": "Viro (Suomenlahden rannikko)",
+}
 # Traficom 7.11.2026: T/R 25-08 päättyy 470 MHz:iin, ja sen yläpuolella sovelletaan
 # samaa kriteeriä kuin 400-470 MHz:n alueella (20 dB(uV/m) + kaistanleveyskorjaus).
 # Ilman tätä 85 % 3076:n maaliikenteen riveistä jäisi ilman kynnystä.
@@ -125,11 +137,18 @@ def haversine_km(lat1, lon1, lat2, lon2):
 
 @lru_cache(maxsize=1)
 def border_line():
-    """Suomen rajaviiva suljettuna murtoviivana (lat, lon)."""
+    """Suomen rajaviiva suljettuna murtoviivana (lat, lon, section).
+
+    `section` = rajaosa sen mukaan, minkä naapurin vastaista rajaa tai rannikkoa
+    piste edustaa: SE (Tornionlaakso ja Perämeren–Saaristomeren rannikko Ruotsia
+    vasten), NO (Norjan raja), RU (Venäjän raja), EE (Suomenlahden rannikko Viroa
+    vasten). Neljä osaa kattavat koko renkaan. Rajat on merkitty kolmen
+    kolmipisteen (Kilpisjärvi, Muotkavaara) ja Suomenlahden rannikon kohdalle.
+    """
     points = []
     with BORDER.open(encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
-            points.append((float(row["lat"]), float(row["lon"])))
+            points.append((float(row["lat"]), float(row["lon"]), row["section"]))
     if len(points) < 3:
         raise ValueError(f"{BORDER}: rajaviiva tarvitsee vähintään 3 pistettä")
     return tuple(points)
@@ -137,7 +156,11 @@ def border_line():
 
 @lru_cache(maxsize=1)
 def border_samples():
-    """Rajaviiva tasavälein (`BORDER_STEP_KM`): kenttävoimakkuuden laskentapisteet."""
+    """Rajaviiva tasavälein (`BORDER_STEP_KM`): kenttävoimakkuuden laskentapisteet.
+
+    Jokainen näyte kantaa sen janan rajaosan, jolla se on, joten maksimi voidaan
+    laskea rajaosittain.
+    """
     ring = border_line()
     samples = []
     for i in range(len(ring)):
@@ -145,7 +168,7 @@ def border_samples():
         steps = max(1, int(haversine_km(a[0], a[1], b[0], b[1]) / BORDER_STEP_KM))
         for j in range(steps):
             w = j / steps
-            samples.append((a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w))
+            samples.append((a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w, a[2]))
     return tuple(samples)
 
 
@@ -445,27 +468,34 @@ def select(notices, register, max_km=MAX_DIST_KM):
 
 
 def border_field_strength(freq_mhz, lat, lon, ant_h_m, p_erp_kw):
-    """Kenttävoimakkuuden maksimi rajaviivalla ja piste, jossa se syntyy.
+    """Kenttävoimakkuuden maksimi rajaviivalla, piste ja rajaosakohtaiset maksimit.
 
-    Palauttaa (max_dbuv_m, (lat, lon), näytteiden lkm, extrapolated). Kenttävoimakkuus
-    lasketaan jokaisessa rajapisteessä ja raportoidaan suurin: se on rajaviivan kohta,
-    jossa ulkomainen asema näkyy voimakkaimmin (Traficom 7.11.).
+    Palauttaa (max_dbuv_m, (lat, lon), näytteiden lkm, extrapolated, sections,
+    section). Kenttävoimakkuus lasketaan jokaisessa rajapisteessä ja raportoidaan
+    suurin: se on rajaviivan kohta, jossa ulkomainen asema näkyy voimakkaimmin
+    (Traficom 7.11.). `sections` on rajaosakohtainen maksimi (None = ei arvoa
+    osassa), `section` on osa, jossa kokonaismaksimi syntyy (None jos ei arvoa).
     """
     best, at, samples, extra = None, (None, None), 0, False
-    for blat, blon in border_samples():
+    sections = {}
+    for blat, blon, section in border_samples():
         dist = haversine_km(lat, lon, blat, blon)
         value = field_strength_p1546(freq_mhz, dist, ant_h_m, p_erp_kw)
         samples += 1
-        if value is not None and (best is None or value > best):
-            best, at = value, (round(blat, 4), round(blon, 4))
+        if value is not None:
+            if best is None or value > best:
+                best, at = value, (round(blat, 4), round(blon, 4))
+            if section not in sections or value > sections[section]:
+                sections[section] = value
         extra = extra or extrapolated(freq_mhz, dist, ant_h_m)
-    return best, at, samples, extra
+    at_section = next((s for s, v in sections.items() if v == best), None)
+    return best, at, samples, extra, sections, at_section
 
 
 def _notice_finding(notice, distance, issue):
     centre = (notice["freq_min_mhz"] + notice["freq_max_mhz"]) / 2
     bw_khz = (notice["freq_max_mhz"] - notice["freq_min_mhz"]) * 1000
-    e_max, at, samples, extra = border_field_strength(
+    e_max, at, samples, extra, sections, section = border_field_strength(
         centre, notice["lat"], notice["lon"], notice["ant_h_m"], notice["p_erp_kw"]
     )
     threshold = tr2508_threshold(centre, bw_khz)
@@ -485,6 +515,11 @@ def _notice_finding(notice, distance, issue):
         "border": {
             "max_dbuv_m": None if e_max is None else round(e_max, 1),
             "at": at,
+            # Suurin arvo rajaosittain ja se osa, jossa kokonaismaksimi on.
+            "section": section,
+            "sections": {
+                name: None if value is None else round(value, 1) for name, value in sections.items()
+            },
             "samples": samples,
         },
         "extrapolated": extra,
@@ -642,6 +677,11 @@ def findings(prev, curr, register_path):
             "points": len(border_line()),
             "samples": len(border_samples()),
             "step_km": BORDER_STEP_KM,
+            # Rajaviiva on jaettu rajaosiin (`section`); nimet kertovat, minkä
+            # naapurin vastaista rajaa tai rannikkoa osa edustaa.
+            "sections": {
+                name: SECTION_NAMES.get(name, name) for name in sorted(p[2] for p in border_line())
+            },
         },
         "audit": audit,
         "diff": diff_intents(curr),
@@ -666,6 +706,7 @@ def findings(prev, curr, register_path):
 
 
 def render_md(doc):
+    sections_legend = ", ".join(f"{n} = {label}" for n, label in doc["border"]["sections"].items())
     lines = [
         "# TERRESTRIAL: BR IFIC -land-mobile-ilmoitukset",
         "",
@@ -677,6 +718,7 @@ def render_md(doc):
         f"- mallinnus: {doc['model']}",
         f"- rajaviiva: {doc['border']['source']} ({doc['border']['points']} pistettä, "
         f"näyte {doc['border']['step_km']:g} km välein)",
+        f"- rajaosat: {sections_legend}",
         f"- kehys: {doc['criterion']}",
         "",
         "## Koordinointikynnys (ECC T/R 25-08 A1.2.3)",
@@ -694,21 +736,46 @@ def render_md(doc):
         "",
         "## Kenttävoimakkuus rajaviivalla, dB(uV/m)",
         "",
-        "| terrakey | hallinto | tila | kaista | etäisyys km | max rajalla | kynnys | marginaali |",
-        "|---|---|---|---|---|---|---|---|",
+        "| terrakey | hallinto | tila | kaista | etäisyys km | max rajalla | rajaosa "
+        "| kynnys | marginaali |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for notice in doc["notices"]:
         border = notice["border"]
         e_max = "-" if border["max_dbuv_m"] is None else f"{border['max_dbuv_m']:.1f}"
+        section = border["section"] or "-"
         threshold = notice["threshold_dbuv_m"]
         threshold = "-" if threshold is None else f"{threshold:.1f}"
         margin = "-" if notice["margin_db"] is None else f"{notice['margin_db']:+.1f}"
         lines.append(
             f"| {notice['terrakey']} | {notice['adm']} | {notice['intent']} | {notice['band']} "
-            f"| {notice['distance_to_border_km']:.0f} | {e_max} | {threshold} | {margin} |"
+            f"| {notice['distance_to_border_km']:.0f} | {e_max} | {section} "
+            f"| {threshold} | {margin} |"
         )
     if not doc["notices"]:
-        lines.append("| - | - | - | - | - | - | - | - |")
+        lines.append("| - | - | - | - | - | - | - | - | - |")
+    lines += [
+        "",
+        "## Kenttävoimakkuus rajaosittain",
+        "",
+        "Voimakkain kenttävoimakkuus kussakin rajaosassa ja niiden ilmoitusten määrä,",
+        "joiden maksimi osuu siihen (Traficom 7.11.2026: huomio rajaosiin, joissa",
+        "kenttävoimakkuus voi olla suurin).",
+        "",
+        "| rajaosa | ilmoituksia, joiden maksimi | voimakkain dB(uV/m) |",
+        "|---|---|---|",
+    ]
+    strongest = dict.fromkeys(doc["border"]["sections"])
+    peaks = Counter()
+    for notice in doc["notices"]:
+        for name, value in notice["border"]["sections"].items():
+            if value is not None and (strongest.get(name) is None or value > strongest[name]):
+                strongest[name] = value
+        if notice["border"]["section"]:
+            peaks[notice["border"]["section"]] += 1
+    for name in doc["border"]["sections"]:
+        value = strongest[name]
+        lines.append(f"| {name} | {peaks[name]} | {'-' if value is None else f'{value:.1f}'} |")
     lines += [
         "",
         "## Rekisterin asemat ulkomaista kenttävoimakkuutta vasten",
