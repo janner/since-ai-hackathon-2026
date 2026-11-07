@@ -238,6 +238,49 @@ The API endpoints for a scripted demo: `/api/funnel`, `/api/cases`, `/api/cases/
 notice in the 3074 slice has no row there (the 3075 run the page shows has two); its count is in
 the funnel panel.
 
+## 5b. The complaint register and the statistics
+
+Traficom's specialist asked what has to be answerable five years from now: what was complained about,
+whose operation it was, and what was done (`docs/traficom-qa.md` S6). The page's last section is the
+answer, and everything in it is folded from `ledger/complaints.jsonl` on read.
+
+```bash
+env -u PYTHONPATH -u PYTHONHOME uv run python scripts/seed_history.py --seed 2026
+# 206 complaints, 695 events -> ledger/complaints.synthetic.jsonl
+```
+
+The command is deterministic: the same seed writes the same file, byte for byte
+(`sha256 d1c80655e620668474eabbf59ad75e948e6044cabb2feb138267ac27e1a658b1`). Those rows are demo
+history and every one carries `synthetic: true`; the banner above the tables says so, and
+`?synthetic=false` hides them.
+
+The register as this tree shows it, measured 7 Nov 2026:
+
+```
+224 complaints · 88 still open · median 28 days from letter to reply
+206 of them are seeded demo history (2021-2026); the rest come from the pipeline runs
+```
+
+The five blocks are the three questions. Who: China 43 complaints and 23 still open, Russia 32, the
+United States 32. What: 3 400-4 200 MHz 97 complaints, PFD over the limit 83, near the limit 66, band
+without satellite use in Finland 33. What was done: a comment sent 191 times, coordination requested
+26, BR assistance requested 16, no action decided 21, with the outcomes beside each. Per year: 2021
+35, 2022 38, 2023 36, 2024 35, 2025 33, 2026 47.
+
+Three things to do on screen, in this order:
+
+1. **Start at the card, not at the table.** Open `3075-108501259` and read the new line: "In the
+   register China: 43 complaints, 23 open." That is the moment the register earns its place; a
+   dashboard nobody asked a question of does not.
+2. **One band, one answer.** Set the Year selector to 2023 and the banner and the tables follow. Click
+   `Download CSV` and say the file is for their own tools, not ours.
+3. **Say what it is not.** Seeded history is labelled; the real rows are the pipeline runs; the log is
+   a file, and a production deployment moves the same event model to a database with a retention
+   period (`docs/decisions.md` R1). The specialist who hears the limit from us does not have to find
+   it.
+
+If the recording is short on time, drop step 2: steps 1 and 3 carry the point alone.
+
 ## 6. The terrestrial side feature
 
 The side feature runs in the same command as the space funnel, one MDB per number:
@@ -298,10 +341,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 180 passed with data/
+make check        # ruff check, ruff format --check, pytest: 188 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 131 passed, 49 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 140 passed, 48 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. The optional Teams digest (15 seconds)

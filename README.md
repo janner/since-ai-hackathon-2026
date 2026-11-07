@@ -66,6 +66,29 @@ The screenshot above is the auto-fetch run: the funnel and the status line for I
 the nine cases it found, and a selected card with its territory point, the Finnish allocation and the
 register's reference row.
 
+## The complaint register
+
+The specialist asked what has to be answerable five years from now: what was complained about, whose
+operation it was, and what was done (`docs/traficom-qa.md` S6). `app/ledger.py` answers it as an
+append-only log: one JSON line per event in `ledger/complaints.jsonl`, and the state of a complaint
+is folded from its events on every read. No code path edits or deletes a line. The pipeline opens a
+complaint for every case it would write a letter for and records the letter; a human records the
+reply, the action and the closing outcome through `POST /api/complaints/{id}/events`. The
+classification is a closed list, so the API refuses an unknown type or outcome with a 422 and no
+statistic can come from a free-text label.
+
+`app/stats.py` counts the same events without a stored aggregate: per administration and per network
+(the two "who"), per band and per issue type (the "what"), per action and outcome with the median
+days from letter to reply (the "what was done"). The page has a Complaint register section for that,
+with a year filter and a CSV export, and the card carries a line saying how often that administration
+and that network have come up before.
+
+The history from 2021 to 2026 in the demo is generated and labelled: `python scripts/seed_history.py
+--seed 2026` writes `ledger/complaints.synthetic.jsonl` byte for byte from the seed (206 complaints,
+695 events, invented network names), every line carries `synthetic: true`, and the page says so in
+its banner. The real rows come from the pipeline runs; `ledger/complaints.jsonl` holds the IFIC 3074
+run, 18 complaints, and a second run of the same package adds none.
+
 ## Verified numbers
 
 Two runs are on record and their numbers are not interchangeable. The auto-fetch demo is IFIC 3075,
@@ -73,7 +96,7 @@ the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 
 9 queue rows; the first queue row is `125520114`, a coordination-stage near case, and the APSTAR-92E
 exceedance is fifth because its filing is already in the MIFR. The accuracy dataset is the challenge's
 IFIC 3074 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026:
-`make check` 182 tests (134 passed, 48 skipped without `data/`). The deterministic pipeline is offline; the
+`make check` 188 tests (140 passed, 48 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
@@ -190,8 +213,8 @@ under a `kaista/` prefix, plus the accuracy files from the last run under `resul
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 182 passed |
-| Clean clone, no `data/` | 134 passed, 48 skipped |
+| With `data/` | 188 passed |
+| Clean clone, no `data/` | 140 passed, 48 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
