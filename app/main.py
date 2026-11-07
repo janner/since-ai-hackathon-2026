@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -18,13 +20,24 @@ from app.gates import CLASS_ORDER
 
 app = FastAPI(title="Kaista")
 STATIC = Path(__file__).parent / "static"
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 NEED_PIPELINE = "run `python -m app.pipeline` first"
+NEED_MONITOR = "run `python scripts/monitor.py --check` first"
+
+
+def status_dir() -> Path:
+    """Where the monitor keeps fetch_status.json: KAISTA_OUT, else out/."""
+    return Path(os.environ.get("KAISTA_OUT", REPO_ROOT / "out"))
 
 
 def out_dir() -> Path:
-    """KAISTA_OUT points the API at another output directory (tests use a tmp dir)."""
-    return Path(os.environ.get("KAISTA_OUT", "out"))
+    """The run the page shows: KAISTA_OUT, else the monitor's runs/latest, else out/."""
+    pinned = os.environ.get("KAISTA_OUT")
+    if pinned:
+        return Path(pinned)
+    latest = REPO_ROOT / "runs" / "latest"
+    return latest if latest.is_dir() else REPO_ROOT / "out"
 
 
 def load(name: str) -> Any:
@@ -86,3 +99,36 @@ def queue() -> Any:
             case["case_id"],
         ),
     )
+
+
+def run_monitor() -> None:
+    """Ask ITU now, synchronously; the UI button waits for the answer.
+
+    A timeout leaves the last status file in place, so the page keeps the last good run.
+    """
+    try:
+        subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts" / "monitor.py"), "--check"],
+            cwd=REPO_ROOT,
+            check=False,
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        pass
+
+
+@app.get("/api/fetch-status")
+def fetch_status() -> Any:
+    """The last monitor check: status no_new | new | error (see scripts/monitor.py)."""
+    path = status_dir() / "fetch_status.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(503, f"{path}: {exc}. {NEED_MONITOR}") from exc
+
+
+@app.post("/api/fetch-check")
+def fetch_check() -> Any:
+    """Check ITU for a new IFIC and return the fresh status. Errors travel in the file."""
+    run_monitor()
+    return fetch_status()

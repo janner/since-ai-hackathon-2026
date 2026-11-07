@@ -9,6 +9,7 @@ __pycache__/
 # Challenge data and run output: fetched by scripts/fetch_data.py, never committed.
 data/
 out/
+runs/
 
 # The built submission zip (make submission-zip).
 dist/

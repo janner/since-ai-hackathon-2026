@@ -1,5 +1,6 @@
 """API tests. Content comes from a real pipeline run; the error paths need no data."""
 
+import json
 import shutil
 from pathlib import Path
 
@@ -74,6 +75,57 @@ def test_broken_json_is_503_not_500(tmp_path, monkeypatch):
     response = TestClient(main.app).get("/api/cases")
     assert response.status_code == 503
     assert "app.pipeline" in response.json()["detail"]
+
+
+def test_missing_fetch_status_is_503(bare_client):
+    response = bare_client.get("/api/fetch-status")
+    assert response.status_code == 503
+    assert "monitor.py" in response.json()["detail"]
+
+
+def test_fetch_status_reads_the_monitor_file(tmp_path, monkeypatch):
+    directory = tmp_path / "out"
+    directory.mkdir()
+    (directory / "fetch_status.json").write_text(
+        json.dumps({"status": "no_new", "last_ific": 3074}), encoding="utf-8"
+    )
+    monkeypatch.setenv("KAISTA_OUT", str(directory))
+    assert TestClient(main.app).get("/api/fetch-status").json()["last_ific"] == 3074
+
+
+def test_fetch_check_runs_the_monitor_and_returns_the_status(tmp_path, monkeypatch):
+    directory = tmp_path / "out"
+    directory.mkdir()
+    monkeypatch.setenv("KAISTA_OUT", str(directory))
+
+    def fake_monitor() -> None:
+        (directory / "fetch_status.json").write_text(
+            json.dumps({"status": "new", "ific": 3075}), encoding="utf-8"
+        )
+
+    monkeypatch.setattr(main, "run_monitor", fake_monitor)
+    response = TestClient(main.app).post("/api/fetch-check")
+    assert response.status_code == 200
+    assert response.json() == {"status": "new", "ific": 3075}
+
+
+def test_fetch_check_without_a_status_file_is_503(tmp_path, monkeypatch):
+    monkeypatch.setenv("KAISTA_OUT", str(tmp_path / "nope"))
+    monkeypatch.setattr(main, "run_monitor", lambda: None)
+    response = TestClient(main.app).post("/api/fetch-check")
+    assert response.status_code == 503
+    assert "monitor.py" in response.json()["detail"]
+
+
+def test_page_follows_the_runs_latest_pointer(tmp_path, monkeypatch):
+    monkeypatch.delenv("KAISTA_OUT", raising=False)
+    monkeypatch.setattr(main, "REPO_ROOT", tmp_path)
+    run = tmp_path / "runs" / "3075"
+    run.mkdir(parents=True)
+    (run / "cases.json").write_text("[]", encoding="utf-8")
+    (tmp_path / "runs" / "latest").symlink_to("3075")
+    assert main.out_dir().resolve() == run.resolve()
+    assert TestClient(main.app).get("/api/cases").json() == []
 
 
 @pytest.mark.data

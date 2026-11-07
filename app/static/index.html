@@ -24,6 +24,8 @@
   .funnel-line { margin: 8px 0 0; font-size: 14px; line-height: 1.4; }
   .status { margin: 8px 0 0; font-size: 14px; line-height: 1.4; color: var(--accent); }
   .status:empty { display: none; }
+  .fetch { display: flex; align-items: center; gap: 16px; margin: 8px 0 0; font-size: 14px; line-height: 1.4; }
+  .fetch p { margin: 0; color: var(--muted); }
   main { flex: 1; display: grid; grid-template-columns: 20rem 24rem 1fr; min-height: 0; }
   section { padding: 16px 24px; overflow: auto; border-right: 1px solid var(--line); min-height: 0; }
   section:last-child { border-right: 0; }
@@ -61,6 +63,8 @@
   .src { font-size: 12px; line-height: 1.6; color: var(--muted); }
   .btn { font: inherit; font-size: 14px; font-weight: 600; min-height: 40px; padding: 8px 16px; background: var(--accent); color: #fff; border: 0; cursor: pointer; }
   .btn:hover { background: var(--accent-hover); }
+  .btn:disabled { background: var(--surface); color: var(--muted); cursor: default; }
+  .btn-sm { min-height: 32px; padding: 4px 12px; }
   details.calc { margin-top: 8px; border-top: 1px solid var(--line); }
   details.calc summary { cursor: pointer; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--accent); }
   details.calc pre { margin: 0 0 8px; white-space: pre-wrap; font: 400 14px/1.45 var(--mono); color: var(--fg); }
@@ -80,6 +84,10 @@
   <h1>Kaista</h1>
   <p class="sub">ITU:n taajuusilmoitusten seulonta</p>
   <p class="funnel-line" id="funnel-line">ladataan...</p>
+  <div class="fetch">
+    <p id="fetch-status">Hakua ei ole vielä tarkistettu.</p>
+    <button class="btn btn-sm" id="fetch-check" type="button">Tarkista nyt</button>
+  </div>
   <p class="status" id="status" role="status" aria-live="polite"></p>
 </header>
 <main>
@@ -231,6 +239,60 @@ function sourceLine(item) {
 
 function setStatus(message) {
   document.getElementById("status").textContent = message || "";
+}
+
+// The monitor's last answer (out/fetch_status.json): no_new, new or error.
+function renderFetch(status) {
+  const line = document.getElementById("fetch-status");
+  if (!status || !status.status || status.status === "unknown") {
+    line.textContent = "Hakua ei ole vielä tarkistettu.";
+    return;
+  }
+  const when = status.run_at || status.checked_at || "";
+  if (status.status === "new") {
+    const n = status.counts && status.counts.notices;
+    line.textContent = "Uusi IFIC " + status.ific + " haettu ja ajettu " + fmtRun(when) +
+      (n === undefined ? "" : " · " + n + " ilmoitusta") + ".";
+  } else if (status.status === "error") {
+    line.textContent = "Tarkistus epäonnistui " + fmtRun(when) + ": " + (status.message || "") +
+      (status.last_ific ? " Viimeisin hyvä ajo on IFIC " + status.last_ific + "." : "");
+  } else {
+    line.textContent = "Uutta IFIC:iä ei ole vielä julkaistu (viimeisin " + status.last_ific +
+      "). Tarkistettu " + fmtRun(when) +
+      (status.next_check ? " · seuraava tarkistus " + fmtRun(status.next_check) : "") + ".";
+  }
+}
+
+async function loadFetch() {
+  try {
+    renderFetch(await get("/api/fetch-status"));
+  } catch (error) {
+    renderFetch(null);
+  }
+}
+
+async function checkNow() {
+  const button = document.getElementById("fetch-check");
+  button.disabled = true;
+  button.textContent = "Tarkistetaan...";
+  setStatus("Tarkistetaan ITU:lta uutta IFIC-pakettia...");
+  try {
+    const response = await fetch("/api/fetch-check", { method: "POST" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.detail || "HTTP " + response.status);
+    renderFetch(body);
+    if (body.status === "new") {
+      setStatus("Uusi IFIC " + body.ific + " ajettu. Päivitetään näkymä...");
+      location.reload();
+      return;
+    }
+    setStatus(body.status === "error" ? "Tarkistus epäonnistui: " + (body.message || "") : "");
+  } catch (error) {
+    setStatus("Tarkistus ei onnistunut: " + error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Tarkista nyt";
+  }
 }
 
 function copyText(text, button) {
@@ -434,6 +496,7 @@ async function showCase(caseId) {
 }
 
 async function start() {
+  loadFetch();
   try {
     renderFunnel(await get("/api/funnel"));
     renderQueue(await get("/api/queue"));
@@ -444,6 +507,7 @@ async function start() {
   }
 }
 
+document.getElementById("fetch-check").addEventListener("click", checkNow);
 start();
 </script>
 </html>

@@ -2,10 +2,11 @@
 
 Seulontatyökalu ITU:n BR IFIC -ilmoituksille: mikä 196 ilmoituksesta voi osua Suomen taajuuksiin.
 
-Kaista lukee yhden BR IFIC -paketin, johtaa suojellut kaistat Traficomin taajuusrekisteristä ja
-laskee jokaiselle osumalle PFD:n ylärajan ITU RR Art. 21 Table 21-4 -rajaa vasten. Jokainen luku
-tulee koodista. Kielimalli kirjoittaa selosteen ja kirjeluonnoksen, ja numerovartija hylkää lauseen,
-jossa on luku jota kortilla ei ole. Ihminen päättää.
+Kaista hakee uuden BR IFIC -paketin itse ITU:lta kahden viikon välein (`scripts/monitor.py`),
+johtaa suojellut kaistat Traficomin taajuusrekisteristä ja laskee jokaiselle osumalle PFD:n ylärajan
+ITU RR Art. 21 Table 21-4 -rajaa vasten. Jokainen luku tulee koodista. Kielimalli kirjoittaa
+selosteen ja kirjeluonnoksen, ja numerovartija hylkää lauseen, jossa on luku jota kortilla ei ole.
+Ihminen päättää.
 
 **Et ole kehittäjä?** [docs/kaytto.md](docs/kaytto.md): viisi askelta, ei komentoriviä.
 **Olet kehittäjä?** Asennus ja ajo: [Run it](#run-it). Sanasto: [docs/sanasto.md](docs/sanasto.md).
@@ -22,8 +23,9 @@ notices and 95 865 frequency rows, and the check is done by hand.
 
 ## What this does
 
-A deterministic triage pipeline that shows its work. It reads one IFIC package, derives the
-protected bands from Traficom's table of frequencies of interest, keeps the space-to-Earth notices
+A deterministic triage pipeline that shows its work. `scripts/monitor.py` fetches the IFIC package
+from ITU on the two-week cadence; the run derives the protected bands from Traficom's table of
+frequencies of interest, keeps the space-to-Earth notices
 that overlap those bands and can be seen from Finland, and computes an upper-bound power flux
 density (PFD) against the ITU Radio Regulations Article 21, Table 21-4 limit.
 

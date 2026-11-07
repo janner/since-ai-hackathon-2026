@@ -2,16 +2,18 @@
 
 Tämä sivu on Traficomin taajuusasiantuntijalle. Viisi askelta, ei yhtään komentoriviä.
 
-**Ennen kuin alat.** Työkalu avataan selaimessa. Toistaiseksi kehittäjä käynnistää sen ja antaa
-osoitteen, ja uuden BR IFIC -paketin tuonti selaimesta (askel 2) on vielä kesken. Siihen asti
-kehittäjä ajaa paketin kerran ja antaa sinulle osoitteen, josta jono avautuu.
+**Ennen kuin alat.** Työkalu avataan selaimessa. Palvelu hakee uuden BR IFIC -paketin itse ITU:lta
+kahden viikon välein, joten sinun ei tarvitse tuoda tiedostoa. Yläpalkin "Tarkista nyt" -nappi kysyy
+ITU:lta heti (komentoriviltä sama on `python scripts/monitor.py --check`). Jos automaattihaku ei
+toimi tai sinulla on paketti kädessä, tiedoston tuonti on varatie.
 
 ## Viisi askelta
 
 1. **Avaa osoite selaimessa.** Yläpalkki näyttää suppilon luvut ja jonon pituuden. Vasemman
    sarakkeen Suppilo kertoo, montako ilmoitusta seulottiin ja miksi loput putosivat pois.
-2. **Tuo uusi BR IFIC -paketti.** Rekisteri ja M4 eivät vaihdu joka paketissa, joten ne ovat
-   palvelimella eikä niitä tuoda. *Tämä askel on vielä kesken: katso "Ennen kuin alat".*
+2. **Tarkista uusi aineisto.** Palvelu hakee uuden BR IFIC -paketin ITU:lta itse; sinä et tuo
+   tiedostoa. Yläpalkin "Tarkista nyt" -nappi kertoo, onko uutta pakettia, ja ajaa sen. Rekisteri ja
+   M4 eivät vaihdu joka paketissa, joten ne ovat palvelimella.
 3. **Katso jono kohdasta 2.** Ylittävät ensin, sitten lähellä rajaa olevat. Etujulkaisu ja
    koordinaatiopyyntö tulevat ennen MIFR-kirjattuja, koska niihin voi vielä vaikuttaa.
 4. **Avaa tapaus.** Lue "Mitä tämä tarkoittaa" ja "Mitä tietoa puuttuu". Laskelma on piilossa

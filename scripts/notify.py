@@ -7,8 +7,8 @@ incoming-webhook message per run. No bot, no Graph, no cron, no LLM: one message
     uv run python scripts/notify.py --dry-run --html     # ...plus a Teams-styled HTML preview
     TEAMS_WEBHOOK_URL=... uv run python scripts/notify.py --send
 
-KAISTA_OUT points at another output directory (default out), KAISTA_URL at the UI
-(default http://localhost:8000).
+KAISTA_OUT points at another output directory; the default is the monitor's runs/latest,
+or out/ when no run has been ingested. KAISTA_URL is the UI (default http://localhost:8000).
 """
 
 from __future__ import annotations
@@ -202,12 +202,21 @@ def send(url: str, payload: dict) -> int:
     return 0
 
 
+def default_out() -> Path:
+    """The digest reads the run the UI shows: KAISTA_OUT, else runs/latest, else out/."""
+    pinned = os.environ.get("KAISTA_OUT")
+    if pinned:
+        return Path(pinned)
+    latest = Path(__file__).resolve().parent.parent / "runs" / "latest"
+    return latest if latest.is_dir() else Path("out")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Yksi Teams-digest per IFIC-ajo.")
     parser.add_argument("--dry-run", action="store_true", help="tulosta ja kirjoita tiedostot")
     parser.add_argument("--send", action="store_true", help="POSTaa TEAMS_WEBHOOK_URLiin")
     parser.add_argument("--html", action="store_true", help="kirjoita myös Teams-esikatselu")
-    parser.add_argument("--out", default=os.environ.get("KAISTA_OUT", "out"), type=Path)
+    parser.add_argument("--out", default=default_out(), type=Path)
     parser.add_argument("--url", default=os.environ.get("KAISTA_URL", "http://localhost:8000"))
     args = parser.parse_args(argv)
 
