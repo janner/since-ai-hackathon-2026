@@ -36,6 +36,10 @@
   .row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.4; }
   .row .k { color: var(--muted); }
   .row .v { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  button.row { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 0; border-bottom: 1px solid var(--line); border-left: 2px solid transparent; padding: 8px 8px 8px 10px; cursor: pointer; text-align: left; }
+  button.row:hover { background: var(--surface); }
+  button.row[aria-pressed="true"] { border-left-color: var(--accent); background: var(--accent-tint); }
+  button.row .k { color: var(--accent); }
   .note { margin: 0 0 8px; font-size: 12px; line-height: 1.33; color: var(--muted); }
   ul { list-style: none; margin: 0; padding: 0; }
   button.queue-item {
@@ -71,7 +75,7 @@
   .card li { margin-bottom: 4px; }
   .prose p { margin: 0 0 8px; }
   .src { font-size: 12px; line-height: 1.6; color: var(--muted); }
-  .undecided li { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+  .undecided li, li.u-row { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
   .btn { font: inherit; font-size: 14px; font-weight: 600; min-height: 40px; padding: 8px 16px; background: var(--accent); color: #fff; border: 0; cursor: pointer; }
   .btn:hover { background: var(--accent-hover); }
   .btn:disabled { background: var(--surface); color: var(--muted); cursor: default; }
@@ -108,6 +112,7 @@
   </section>
   <section id="queue-section" aria-labelledby="h-queue">
     <h2 id="h-queue">Queue</h2>
+    <p class="note" id="queue-filter"></p>
     <div class="queue-controls">
       <label for="group-by">Group by</label>
       <select id="group-by">
@@ -119,7 +124,6 @@
         <option value="none">None</option>
       </select>
     </div>
-    <p class="note">Notices that cannot be decided do not produce a card; they keep a row in queue.md and the CSV with the missing value.</p>
     <ul id="queue"></ul>
   </section>
   <section aria-labelledby="h-card">
@@ -381,16 +385,40 @@ function undecidedRows(data) {
       parts.push("the " + field + " would need at least " + num(d.required_db, unit) +
         " to reach the limit");
     }
-    list.append(el("li", parts.join(" \u00b7 ")));
+    list.append(el("li", parts.join(" \u00b7 "), "u-row"));
   }
   return [
-    el("h3", "Cannot decide (" + ids.length + ")"),
-    list,
-    el("p", "No card: a missing value keeps the PFD undecided.", "note"),
+    el("li", "Notices that cannot be decided do not produce a card; they keep a row in queue.md and the CSV with the missing value.", "note"),
+    ...list.children,
   ];
 }
 
+// Funnel rows that are a class: a click filters the queue to that class (again clears it).
+function filterRows(pairs) {
+  const box = el("div", null, "rows");
+  for (const [label, value, klass] of pairs) {
+    const button = el("button", null, "row");
+    button.type = "button";
+    button.dataset.filter = klass;
+    button.setAttribute("aria-pressed", String(queueFilter === klass));
+    button.append(el("span", label, "k"), el("span", num(value), "v"));
+    button.addEventListener("click", () => setFilter(queueFilter === klass ? null : klass));
+    box.append(button);
+  }
+  return box;
+}
+
+function setFilter(klass) {
+  queueFilter = klass;
+  for (const button of document.querySelectorAll("button.row[data-filter]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.filter === klass));
+  }
+  renderQueue(queueItems);
+  setStatus("");
+}
+
 function renderFunnel(data) {
+  funnelData = data;
   const c = data.counts;
   document.getElementById("funnel-line").textContent =
     c.notices + " \u2192 " + c.g1 + " \u2192 " + c.g2 + " \u2192 " + c.g3 + " + " +
@@ -401,15 +429,16 @@ function renderFunnel(data) {
       ["Band overlap", c.g1],
       ["Visible from Finland", c.g2],
       ["Computed", c.g3],
-      ["Cannot decide", c.cannot_decide],
-      ["Exceeds limit", c.exceeds],
-      ["Near limit", c.near],
-      ["No satellite use in Finland", c.not_space],
-      ["Clear", c.clear],
+    ]),
+    filterRows([
+      ["Exceeds limit", c.exceeds, "exceeds"],
+      ["Near limit", c.near, "near"],
+      ["No satellite use in Finland", c.not_space, "not_space"],
+      ["Clear", c.clear, "clear"],
+      ["Cannot decide", c.cannot_decide, "cannot_decide"],
     ]),
     el("h3", "Drops"),
     rows(Object.entries(data.drops).map(([key, value]) => [DROP_LABEL[key] || key, value])),
-    ...undecidedRows(data),
     el("h3", "Run"),
     rows([
       ["Mode", data.mode],
@@ -593,15 +622,32 @@ function groupRow(items, by) {
 
 let queueItems = [];
 let queueGroup = "network";
+let queueFilter = null;
+let funnelData = {};
 let currentCaseId = null;
 
 function renderQueue(items) {
   queueItems = items;
   const ul = document.getElementById("queue");
-  // Clear cases are not the queue: the queue is the cases a human looks at.
-  const queue = items.filter((item) => item["class"] !== "clear").sort(compareQueue);
+  const label = document.getElementById("queue-filter");
+  label.replaceChildren();
+  if (queueFilter) {
+    const all = el("button", "Show all", "btn btn-sm");
+    all.type = "button";
+    all.addEventListener("click", () => setFilter(null));
+    label.append(document.createTextNode("Showing: " + (CLASS_EN[queueFilter] || queueFilter) + " "), all);
+  }
+  // Cannot-decide notices have no card, so the queue lists their missing values instead.
+  if (queueFilter === "cannot_decide") {
+    const undecided = undecidedRows(funnelData);
+    ul.replaceChildren(...(undecided.length ? undecided : [el("li", "Nothing is undecided.")]));
+    return;
+  }
+  // Clear cases are not the queue: the queue is the cases a human looks at (unless asked for).
+  const queue = items.filter((item) => queueFilter
+    ? item["class"] === queueFilter : item["class"] !== "clear").sort(compareQueue);
   if (!queue.length) {
-    ul.replaceChildren(el("li", "The queue is empty."));
+    ul.replaceChildren(el("li", queueFilter ? "No cases in this class." : "The queue is empty."));
     return;
   }
   if (queueGroup === "none") {

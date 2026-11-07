@@ -434,7 +434,9 @@ which holds cards only, so a
 `funnel.json::undecided_detail` with the missing field and the value it would need to reach the
 limit. The fetch line names the document series (`space`), so an IFIC number alone cannot be
 mistaken for the terrestrial series. The "Show calculation" block carries the formula, the limit
-source and the input keys, so a reader can recompute the number.
+source and the input keys, so a reader can recompute the number. Below it, "Show raw data (JSON)"
+shows the card exactly as `cases.json` holds it, field for field, for a reader who wants the
+unrendered record.
 
 Tests (`tests/test_api.py`, 16): the page, the fetch status and its lock, the `runs/latest` pointer,
 the funnel numbers, every card, one card and its 404, the queue order, and the 503/504 error paths.
