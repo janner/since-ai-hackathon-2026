@@ -33,8 +33,9 @@ Every notice that survives the gates and gets a number becomes a case card with 
 the calculation, the Finnish allocation from Regulation M4, the regulatory stage of the filing, the
 missing data, and one question for the other administration. A notice that passes G1 and G2 but
 cannot be computed is not a card: it keeps its row in `queue.md` and `3074_results.csv` under class
-`cannot_decide`, and its count is in `funnel.json`. The demo slice therefore has 18 cards and one
-notice without (limitation 15). The queue lists every case a human should look at: exceedances
+`cannot_decide`, and its count is in `funnel.json`. The accuracy slice (IFIC 3074) therefore has 18
+cards and one notice without (limitation 15); the auto-fetch demo (IFIC 3075) has 7 cards and two
+undecidables. The queue lists every case a human should look at: exceedances
 first, then the near-limit cases, then the ones that cannot be decided, and inside a class the
 stage another administration can still influence (advance publication, coordination request) comes
 before a filing already recorded in the MIFR. It is not capped. A separate accuracy file covers all
@@ -62,7 +63,7 @@ Two runs are on record and their numbers are not interchangeable. The auto-fetch
 the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 4 near, 2 `cannot_decide`,
 9 queue rows and the first card `3075-108501259`. The accuracy dataset is the challenge's IFIC 3074
 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026: `make check`
-160 tests (116 passed, 44 skipped without `data/`). The deterministic pipeline is offline; the
+163 tests (119 passed, 44 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
@@ -170,8 +171,8 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 160 passed |
-| Clean clone, no `data/` | 116 passed, 44 skipped |
+| With `data/` | 163 passed |
+| Clean clone, no `data/` | 119 passed, 44 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
