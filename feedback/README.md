@@ -1,7 +1,24 @@
 # Palaute­lomake (Kaista-demo)
 
-Asiakas kirjoittaa palautteen suoraan lomakkeeseen. Palautteet tallentuvat
+Lomake on pieni käyttäjätesti, ei pelkkä palautelomake. Asiakas tekee tehtävät
+itse demo auki. Älä selitä demoa etukäteen. Lomake ohjaa; sinä istut vieressä ja
+kirjaat havainnot. Aikaa noin 15 minuuttia.
+
+Asiakas kirjoittaa vastaukset suoraan lomakkeeseen. Vastaukset tallentuvat
 Hermeksen kotihakemistoon, eivät repoon eivätkä kolmannelle osapuolelle.
+
+## Tehtävät
+
+1. Tausta: miten työ tehdään tänään, kuka hakee IFIC:n ja kuinka kauan se kestää.
+2. Automaattihaku: mikä IFIC on viimeksi haettu ja montako ilmoitusta siinä oli.
+3. Tapaus: miksi jonon ylin tapaus on listalla ja mitä tietoa siitä puuttuu.
+4. Seuraava askel: mistä löytyy kysymys toiselle hallinnolle.
+5. Ei-päätettävät: etsi kaksi ilmoitusta, joita työkalu ei voi päättää.
+6. Laskelma ja luottamus: PFD, raja ja marginaali; luottamus 1–5.
+
+Lopuksi: hyödyllisyys, ymmärrys, pilottihalukkuus, UI-kieli, "mitä työkalu ei
+tee", vapaa palaute ja yhteystieto. Lomakkeen pakolliset kentät ovat "Tehtävä 2:
+tapaus" ja "Tehtävä 3: seuraava askel"; muut ovat valinnaisia.
 
 ## Osoite
 

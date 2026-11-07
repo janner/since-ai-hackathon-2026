@@ -2,7 +2,7 @@
 <html lang="fi">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Palaute – Kaista</title>
+<title>Pieni käyttäjätesti – Kaista</title>
 <style>
   :root {
     --bg: #ffffff; --fg: #161616; --muted: #525252; --line: #e0e0e0;
@@ -20,8 +20,14 @@
   header p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
   main { max-width: 720px; margin: 0 auto; padding: 24px; }
   h2 { margin: 0 0 8px; font-size: 20px; font-weight: 600; line-height: 1.3; }
+  h3 { margin: 24px 0 8px; font-size: 18px; font-weight: 600; line-height: 1.3; }
   p { margin: 0 0 16px; }
   .note { color: var(--muted); font-size: 14px; }
+  .btn {
+    display: inline-block; min-height: 48px; padding: 10px 24px;
+    background: var(--accent); color: #fff; text-decoration: none; font-weight: 600;
+  }
+  .btn:hover { background: var(--accent-hover); }
   form { margin-top: 24px; }
   fieldset { margin: 0 0 24px; padding: 0; border: 0; }
   legend { margin-bottom: 8px; font-weight: 600; }
@@ -33,6 +39,7 @@
     font: inherit; font-size: 16px; line-height: 1.5;
   }
   textarea { min-height: 112px; resize: vertical; }
+  textarea.short { min-height: 64px; }
   input[type="text"]:focus, input[type="email"]:focus, textarea:focus {
     outline: 2px solid var(--accent); outline-offset: -2px;
   }
@@ -51,11 +58,12 @@
 </style>
 <header>
   <h1>Kaista</h1>
-  <p>Palaute demosta</p>
+  <p>Pieni käyttäjätesti</p>
 </header>
 <main>
-  <h2>Kerro, mitä jäit kaipaamaan</h2>
-  <p class="note">Tämä lomake on tarkoitettu asiakaspalautteelle. Vastaukset tallentuvat suoraan Janne Rosaman Hermes-agentille. Voit kirjoittaa suomeksi.</p>
+  <h2>Pieni käyttäjätesti: Kaista-demo</h2>
+  <p class="note">Tämä ei ole koe. Haluamme nähdä, miten työkalu toimii ilman opastusta. Tee tehtävät itse. Älä lue dokumentaatiota. Minä en auta. Jos et löydä jotain, kirjoita se. Aikaa noin 15 minuuttia. Demo avautuu uuteen välilehteen; palaa tähän lomakkeeseen jokaisen tehtävän jälkeen.</p>
+  <p><a class="btn" href="https://hermesagent.hamster-herring.ts.net:8450" target="_blank" rel="noopener">Avaa demo uuteen välilehteen</a></p>
 
   <form method="post" action="/api/feedback">
     <fieldset>
@@ -65,6 +73,47 @@
       <input id="org" name="org" type="text" maxlength="160">
     </fieldset>
 
+    <h3>Tausta</h3>
+    <p>Miten teette tämän työn tänään? Kuka hakee IFIC:n, kuinka kauan yhden paketin läpikäynti kestää ja montako pakettia viikossa?</p>
+    <label for="baseline">Vastaus</label>
+    <textarea class="short" id="baseline" name="baseline" maxlength="2000"></textarea>
+
+    <h3>Tehtävä 1: automaattihaku</h3>
+    <p>Katso yläpalkkia. Mikä IFIC-paketti on viimeksi haettu, ja montako ilmoitusta siinä oli?</p>
+    <label for="t1_status">Vastaus</label>
+    <textarea class="short" id="t1_status" name="t1_status" maxlength="2000"></textarea>
+
+    <h3>Tehtävä 2: tapaus</h3>
+    <p>Valitse jonon ylin tapaus. Kirjoita omin sanoin: miksi se on listalla ja mitä tietoa siitä puuttuu?</p>
+    <label for="t2_card">Vastaus <span class="hint">Pakollinen. Jos et löydä, kirjoita se.</span></label>
+    <textarea id="t2_card" name="t2_card" maxlength="2000" required></textarea>
+
+    <h3>Tehtävä 3: seuraava askel</h3>
+    <p>Mitä tekisit seuraavaksi? Mistä löydät kysymyksen toiselle hallinnolle?</p>
+    <label for="t3_next">Vastaus <span class="hint">Pakollinen. Jos et löydä, kirjoita se.</span></label>
+    <textarea id="t3_next" name="t3_next" maxlength="2000" required></textarea>
+
+    <h3>Tehtävä 4: ei-päätettävät</h3>
+    <p>Etsi kaksi ilmoitusta, joita työkalu ei voi päättää. Missä ne näkyvät? Jos et löydä, kirjoita se.</p>
+    <label for="t4_undecided">Vastaus</label>
+    <textarea class="short" id="t4_undecided" name="t4_undecided" maxlength="2000"></textarea>
+
+    <h3>Tehtävä 5: laskelma ja luottamus</h3>
+    <p>Avaa kortin "Show calculation". Onko PFD, raja ja marginaali mielestäsi oikein? Mistä tarkistaisit?</p>
+    <label for="t5_calc">Vastaus</label>
+    <textarea class="short" id="t5_calc" name="t5_calc" maxlength="2000"></textarea>
+    <fieldset>
+      <legend>Kuinka paljon luottaisit tähän lukuun?</legend>
+      <div class="choice">
+        <label><input type="radio" name="trust" value="1"> 1 – en lainkaan</label>
+        <label><input type="radio" name="trust" value="2"> 2</label>
+        <label><input type="radio" name="trust" value="3"> 3</label>
+        <label><input type="radio" name="trust" value="4"> 4</label>
+        <label><input type="radio" name="trust" value="5"> 5 – täysin</label>
+      </div>
+    </fieldset>
+
+    <h3>Lopuksi</h3>
     <fieldset>
       <legend>Miten hyödyllinen demo oli?</legend>
       <div class="choice">
@@ -85,18 +134,36 @@
       </div>
     </fieldset>
 
-    <label for="missing">Mitä jäit kaipaamaan? <span class="hint">Valinnainen. Esimerkiksi puuttuva tieto, kysymys tai seuraava askel.</span></label>
-    <textarea id="missing" name="missing" maxlength="2000"></textarea>
+    <fieldset>
+      <legend>Voisimmeko kokeilla tätä seuraavalla IFIC-paketilla?</legend>
+      <div class="choice">
+        <label><input type="radio" name="pilot" value="kylla"> Kyllä</label>
+        <label><input type="radio" name="pilot" value="ehka"> Ehkä</label>
+        <label><input type="radio" name="pilot" value="ei"> Ei</label>
+      </div>
+    </fieldset>
 
-    <label for="feedback">Vapaa palaute <span class="hint">Pakollinen. Kirjoita omin sanoin.</span></label>
-    <textarea id="feedback" name="feedback" maxlength="2000" required></textarea>
+    <fieldset>
+      <legend>Kumpi kieli UI:ssa olisi teille parempi?</legend>
+      <div class="choice">
+        <label><input type="radio" name="language" value="suomi"> Suomi</label>
+        <label><input type="radio" name="language" value="englanti"> Englanti</label>
+        <label><input type="radio" name="language" value="ei_valia"> Ei väliä</label>
+      </div>
+    </fieldset>
+
+    <label for="feedback">Vapaa palaute <span class="hint">Valinnainen. Sana on vapaa.</span></label>
+    <textarea id="feedback" name="feedback" maxlength="2000"></textarea>
+
+    <label for="does_not">Mitä työkalu ei mielestänne tee? <span class="hint">Valinnainen. Sana on vapaa.</span></label>
+    <textarea id="does_not" name="does_not" maxlength="2000"></textarea>
 
     <label class="check"><input type="checkbox" name="contact_ok" value="yes"> Saa ottaa minuun yhteyttä</label>
     <label for="contact">Sähköposti tai puhelin <span class="hint">Valinnainen. Vain jos haluat yhteydenoton.</span></label>
     <input id="contact" name="contact" type="text" autocomplete="email" maxlength="160">
 
-    <button type="submit">Lähetä palaute</button>
-    <p class="privacy">Palaute tallennetaan tälle laitteelle ja lähetetään Janne Rosaman omaan Matrix-viestiin. Älä kirjoita salaisuuksia.</p>
+    <button type="submit">Lähetä vastaukset</button>
+    <p class="privacy">Vastaukset tallennetaan tälle laitteelle ja lähetetään Janne Rosaman omaan Matrix-viestiin. Älä kirjoita salaisuuksia.</p>
   </form>
 </main>
 </html>

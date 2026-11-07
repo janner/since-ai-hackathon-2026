@@ -26,7 +26,27 @@ STORE = Path(os.environ.get("KAISTA_FEEDBACK_DIR", Path.home() / ".hermes" / "ha
 TARGET = os.environ.get("KAISTA_FEEDBACK_TARGET", "matrix")
 NOTIFY = os.environ.get("KAISTA_FEEDBACK_NOTIFY", "1") != "0"
 MAX_BODY = 16 * 1024
-FIELDS = ("name", "org", "useful", "understood", "missing", "feedback", "contact_ok", "contact")
+FIELDS = (
+    "name",
+    "org",
+    "useful",
+    "understood",
+    "pilot",
+    "language",
+    "baseline",
+    "t1_status",
+    "t2_card",
+    "t3_next",
+    "t4_undecided",
+    "t5_calc",
+    "trust",
+    "feedback",
+    "does_not",
+    "contact_ok",
+    "contact",
+)
+PILOT_LABEL = {"kylla": "Kyllä", "ehka": "Ehkä", "ei": "Ei"}
+LANG_LABEL = {"suomi": "Suomi", "englanti": "Englanti", "ei_valia": "Ei väliä"}
 CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
@@ -42,12 +62,18 @@ def entry_from(form: dict[str, list[str]]) -> tuple[dict | None, str | None]:
         )
         for key in FIELDS
     }
-    if not data["feedback"] and not data["missing"]:
-        return None, "Kirjoita palaute tai kerro, mitä jäit kaipaamaan."
+    if not any(data[key] for key in ("t2_card", "t3_next", "feedback", "does_not")):
+        return None, "Täytä vähintään tehtävä 2 tai kerro vapaasti."
     if data["useful"] and data["useful"] not in {"1", "2", "3", "4", "5"}:
         return None, "Valitse hyödyllisyys asteikolla 1–5."
     if data["understood"] and data["understood"] not in {"kylla", "osittain", "en"}:
         return None, "Valitse ymmärsitkö työkalun käytön."
+    if data["pilot"] and data["pilot"] not in PILOT_LABEL:
+        return None, "Valitse pilottihalukkuus."
+    if data["language"] and data["language"] not in LANG_LABEL:
+        return None, "Valitse UI-kieli."
+    if data["trust"] and data["trust"] not in {"1", "2", "3", "4", "5"}:
+        return None, "Valitse luottamus asteikolla 1–5."
     data["contact_ok"] = "yes" if data["contact_ok"] == "yes" else "no"
     data["id"] = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(2)
     data["received_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -64,7 +90,16 @@ def markdown(entry: dict) -> str:
         ("Organisaatio ja rooli", entry["org"]),
         ("Hyödyllisyys", entry["useful"] + "/5" if entry["useful"] else ""),
         ("Ymmärsikö", understood),
-        ("Mitä jäi kaipaamaan", entry["missing"]),
+        ("Pilottihalukkuus", PILOT_LABEL.get(entry["pilot"], entry["pilot"])),
+        ("UI-kieli", LANG_LABEL.get(entry["language"], entry["language"])),
+        ("Tehtävä 1: automaattihaku", entry["t1_status"]),
+        ("Tausta: nykytila", entry["baseline"]),
+        ("Tehtävä 2: tapaus", entry["t2_card"]),
+        ("Tehtävä 3: seuraava askel", entry["t3_next"]),
+        ("Tehtävä 4: ei-päätettävät", entry["t4_undecided"]),
+        ("Tehtävä 5: laskelma", entry["t5_calc"]),
+        ("Luottamus lukuun", entry["trust"] + "/5" if entry["trust"] else ""),
+        ("Mitä työkalu ei tee", entry["does_not"]),
         ("Vapaa palaute", entry["feedback"]),
     ]
     for label, value in pairs:
