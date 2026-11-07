@@ -81,7 +81,7 @@ def top_cases(cases: list[dict], limit: int = 3) -> list[dict]:
 
 
 def queue_size(counts: dict) -> int:
-    return sum(counts.get(klass, 0) for klass in ("exceeds", "near", "cannot_decide"))
+    return sum(counts.get(klass, 0) for klass in ("exceeds", "near", "not_space", "cannot_decide"))
 
 
 def case_line(case: dict) -> str:

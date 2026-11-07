@@ -456,7 +456,8 @@ still influence is at the top and the margin is shown but never orders.
 of `app/config.REGULATORY_STAGES`, marked `shortcut` in the code), and computes nothing: the counts
 are the ones in `funnel.json` and the three lines are the first three decidable rows of `queue.md`,
 ordered by stage, then class, then the Resolution 35 deadline, then case id; the margin does not
-order. `--dry-run` writes `out/teams_message.md`
+order. The queue size counts every class except `clear`, so a `not_space` case is in the headline
+too. `--dry-run` writes `out/teams_message.md`
 and `out/teams_message.json` (the Adaptive Card envelope) and, with `--html`,
 `out/teams_message.html`; `--send` POSTs the card to `TEAMS_WEBHOOK_URL` and returns 1 with one line
 on stderr when the variable is unset. A run whose queue is empty gets the single line `Käsitelty, ei
