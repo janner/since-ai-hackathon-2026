@@ -576,11 +576,11 @@ margin in its stage); `tests/test_cards.py::test_deadline_line_marks_a_passed_de
 `test_queue_md_carries_a_deadline_column` (synthetic) and
 `test_the_demo_card_shows_its_res35_deadline` (data).
 
-Known limit: the order lives in three places (`gate4`, `scripts/notify.py::top_cases`, and
-`app/static/index.html`'s `compareQueue`); only `gate4` gained the deadline key here, so the digest
-and the UI still sort by stage then margin. `out/queue.md` is the queue of record. Updating the two
-copies is a separate change, because a new key can reorder the UI and invalidate the committed
-screenshot.
+Known limit: the order lives in four places (`gate4`, `app/main.py::queue`,
+`scripts/notify.py::top_cases` and `app/static/index.html`'s `queueKey`). All four carry the same
+stage, class, deadline key since 7 Nov 2026; the copies exist because `notify.py` stays stdlib-only
+and the page sorts what the API sends. `out/queue.md` is the queue of record. A new key changes
+four files and the committed screenshot.
 
 ### T1. The P.1546 table is generated once and committed
 

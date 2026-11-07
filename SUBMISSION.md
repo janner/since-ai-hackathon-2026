@@ -29,7 +29,7 @@ Everything before the card text is deterministic: `mdb-export` reads the BR IFIC
 
 Finding the package is the other half, so the tool does it too. `scripts/monitor.py` asks ITU for the next space BR IFIC, and the page shows the last package checked, when it was checked and, when nothing new is out yet, when the next check falls. "Check now" asks ITU again and ingests what it finds; a clean run writes its own `runs/<ific>/` and moves the `runs/latest` pointer. The check pulled IFIC 3075, the automatic path's demo: 129 notices to 19 to 9, seven cards and two undecidable notices. The first queue row is 125520114, a near case at a coordination request that Finland can still influence; the APSTAR-92E exceedance (0,43 dB over the limit) is fifth because its filing is already in the MIFR. IFIC 3074 stays the accuracy material.
 
-The tool is one module per feature, each with its own test file, 180 tests in all, 132 of them in a clean clone. A slice run takes about 4 seconds; every Finnish allocation about 22, because every GEO notice is evaluated at 552 points on the edge of Finnish territory. A side feature applies the same style to terrestrial land-mobile notices: `python -m app.pipeline --terrestrial` runs it in the same pass and into the same output directory, with the same `source` and `audit` blocks on every file it writes, and only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates.
+The tool is one module per feature, each with its own test file, 180 tests in all, 131 of them in a clean clone. A slice run takes about 4 seconds; every Finnish allocation about 22, because every GEO notice is evaluated at 552 points on the edge of Finnish territory. A side feature applies the same style to terrestrial land-mobile notices: `python -m app.pipeline --terrestrial` runs it in the same pass and into the same output directory, with the same `source` and `audit` blocks on every file it writes, and only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates.
 
 Two things the build met on the way. Beam geometry is empty in IFIC 3074 (`s_beam.bore_long`, `bore_lat`, `maj_axis`, `min_axis`), and following Traficom's Q3 answer the tool does not try to decide coverage from the beam: the worst case is always assumed, with the notice's own peak gain aimed at the edge of Finnish territory. A card states that on a `Coverage` line and asks the administration to confirm the worst-case PFD, so the `s_beam` fields no longer appear under `missing`. And the customer's later rule (Traficom, 7 Nov 2026) moved the screen off the delivered register: the bands now come from the Finnish allocation, the PFD from the territory edge, and a band Finland has not allocated to satellite use is a finding of its own even below the limit. The register stays on the card as a reference row. The demo slice's 3,47 to 3,78 GHz is `MOBILE AND FIXED` in Finland, so every one of its 20 cards carries that frequency finding.
 
@@ -196,7 +196,7 @@ Measured evidence, 7 Nov 2026, sandbox `janner-1-dev`. The raw output is in
 - The cluster slice run: the same gates and the same counts as the local run at that commit. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
   the 17 drafts it saw. One call per card, 36.6 s to 120.3 s, median 86.9 s, whole run 25.6 min. The
   deterministic part of the same run took 1.19 s.
-- `make check` green: 137 tests passed in that run; 168 at the final commit. The tests never need
+- `make check` green: 137 tests passed in that run; 180 at the final commit. The tests never need
   the network.
 - One card fell back to the template. The slowest call measured 120.3 s, right at the 120 s
   client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer. After the
@@ -223,8 +223,8 @@ Sandbox facts (verified 6 and 7 Nov 2026, namespace `janner-1-dev`):
 
 Automated, done in the repository
 
-- [x] `make check` green: ruff check, ruff format --check, 168 tests passed
-- [x] README run steps work in a clean clone (123 passed, 45 skipped without `data/`)
+- [x] `make check` green: ruff check, ruff format --check, 180 tests passed
+- [x] README run steps work in a clean clone (131 passed, 49 skipped without `data/`)
 - [x] Pre-existing work and outside assets stated in README and About (template commit `6fe98b9`)
 - [x] No secrets or challenge data committed; `data/` and `out/` are gitignored
 - [x] `make submission-zip` builds `dist/kaista-submission.zip`, tracked files at HEAD only, no data
