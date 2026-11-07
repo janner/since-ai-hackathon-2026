@@ -283,7 +283,14 @@ at all: open `out/teams_message.html`.
     value is not confirmed. The report names the three tiers in its criterion line (ITU RR Art. 21
     Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4) and applies the ECC
     threshold per notice.
-11. Not implemented: the labelled evaluation set (plan R16) and the LUMI run (R20). The OpenShift AI
+11. The labelled evaluation set is the project's own reading, not ground truth (R16;
+    `docs/decisions.md` D15): `docs/eval-3074.md` records the method and the
+    21 cases that get a class from the 3074 run, each with an own label and a reason in
+    `docs/eval-3074.csv`, and `scripts/eval_3074.py` prints the agreement. On the 7 Nov 2026 slice
+    run it is 16/21 (76.2 %): five rows (three notices, two filed twice) between +0.82 and
+    +1.74 dB are `exceeds` under the tool's 0 dB rule and `near` under the analyst's ±3 dB
+    decision band. Both classes are queued; the difference is the class and the letter set. No
+    accuracy claim against Traficom follows. Not implemented: the LUMI run (R20). The OpenShift AI
     part (R19) was built and used: Granite 3.3 2B Instruct served by KServe and the vLLM CPU runtime
     in the sandbox, called by the prose step (`deploy/openshift/README.md`); and the funnel itself ran
     in the cluster as an OpenShift AI Data Science Pipeline, a three-stage KFP v2 run
