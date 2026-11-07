@@ -171,8 +171,9 @@ step kept two cards in the cluster: a CPU-throughput limit there, not a correctn
 `deploy/openshift/pipeline/README.md` has the run and the four limitations.
 
 - [x] The drafting LLM (Granite 3.3 2B Instruct modelcar) served by KServe + vLLM CPU runtime in
-  OpenShift AI. `oc get isvc granite` reads READY True, the pod is 3/3 Running, and the route
-  answers over HTTPS.
+  OpenShift AI. `oc get isvc granite` read READY True and the pod 3/3 Running when the evidence
+  below was taken on 7 Nov 2026, and the route answered over HTTPS then (503 on a later attempt,
+  see the screenshot entry).
 - [x] The app calls it through the OpenAI-compatible endpoint, and the numeric guard ran on its output:
   in that slice run the guard rejected 12 of the 17 drafts it saw (the `prose.source` line
   below). That run predates the guard's list-marker fix (`docs/decisions.md` I11). The guard's own
