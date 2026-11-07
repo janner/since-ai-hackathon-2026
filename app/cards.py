@@ -13,12 +13,15 @@ from pathlib import Path
 from app import prose
 from app.config import (
     ADM_NAMES,
+    DIRECTIVE_GAIN_DB,
     M4_SERVICES,
     M4_SOURCE,
     M4_SUB_HI,
     M4_SUB_LO,
+    THRESHOLD_NOTE,
     fmt_mhz,
     fmt_num,
+    regulatory_stage,
 )
 from app.gates import Case, GateResult
 from app.ingest import IficData
@@ -56,6 +59,23 @@ def m4_lookup(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> dict:
         "services_in_finland": ", ".join(service for service in services if service),
         "source": M4_SOURCE,
     }
+
+
+def _regulatory_stage(notice) -> dict:
+    """The stage a filing stands in, for the card (no `rank`; that is a queue concern)."""
+    stage = regulatory_stage(notice.prov)
+    return {key: stage[key] for key in ("provision", "label", "source")}
+
+
+def _threshold_note(victim) -> str | None:
+    """A directive, high-gain station may be protected at a lower level: say so, change nothing."""
+    if (
+        victim.gain_db is not None
+        and victim.gain_db >= DIRECTIVE_GAIN_DB
+        and victim.directivity != "ND"
+    ):
+        return THRESHOLD_NOTE
+    return None
 
 
 def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> dict:
@@ -99,6 +119,7 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             "gain_db": case.victim.gain_db,
             "power_w": case.victim.power_w,
             "direction_deg": case.victim.direction_deg,
+            "directivity": case.victim.directivity,
         },
         "synthetic_data_warning": (
             "victim received power is above 1 GW (synthetic register artefact); "
@@ -121,6 +142,9 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
         },
         "m4": m4_lookup(m4_rows, case.band_lo_mhz, case.band_hi_mhz),
         "class": case.klass,
+        "adjacent": case.adjacent,
+        "regulatory_stage": _regulatory_stage(notice),
+        "threshold_note": _threshold_note(case.victim),
         "missing": missing_fields(case, geometry),
         "next_action": {
             "counterparty": notice.adm,
@@ -165,12 +189,15 @@ def _missing_geometry(geometry: dict) -> bool:
 
 def render_card_md(card: dict) -> str:
     calc, band, victim = card["calculation"], card["band"], card["victim"]
+    stage = card["regulatory_stage"]
+    marker = " — adjacent" if card["adjacent"] else ""
     lines = [
-        f"# {card['case_id']} — {card['class']}",
+        f"# {card['case_id']} — {card['class']}{marker}",
         "",
         f"- **Satellite:** {card['coverage']['sat_name']} ({card['coverage']['orbit']}, "
         f"{card['parties']['admin']}), beam {card['coverage']['beam']}",
         f"- **Band:** {fmt_mhz(band['freq_min_mhz'])}-{fmt_mhz(band['freq_max_mhz'])} MHz",
+        f"- **Stage:** {stage['provision']} — {stage['label']}",
         f"- **Victim:** station {victim['station']} ({victim['class']}), "
         f"elevation {fmt_num(card['coverage']['elevation_deg'])}°",
         f"- **PFD:** {fmt_num(calc['pfd_dbw_m2_hz'])} dB(W/m²/Hz) vs limit "
@@ -178,9 +205,10 @@ def render_card_md(card: dict) -> str:
         f"- **Limit:** {calc['limit_source']}",
         f"- **M4 in Finland:** {card['m4']['services_in_finland']}",
         f"- **Missing:** {', '.join(card['missing']) or 'nothing'}",
-        f"- **Question:** {card['next_action']['question']}",
-        "",
     ]
+    if card["threshold_note"]:
+        lines.append(f"- **Threshold:** {card['threshold_note']}")
+    lines += [f"- **Question:** {card['next_action']['question']}", ""]
     return "\n".join(lines)
 
 
@@ -195,10 +223,10 @@ def render_queue_md(result: GateResult) -> str:
         f"# Queue ({len(result.queue)})\n\n"
         f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
         f"{counts['g3']} + {counts['cannot_decide']}\n\n"
-        "| # | case | class | margin dB | reason |\n|---|---|---|---|---|\n"
+        "| # | case | class | stage | margin dB | reason |\n|---|---|---|---|---|---|\n"
     )
     rows = [
-        f"| {index} | {item.ntc_id} | {item.klass} | "
+        f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
         f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | {item.reason} |"
         for index, item in enumerate(result.queue, start=1)
     ]
@@ -238,6 +266,7 @@ def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[
                 "class": case.klass
                 if case is not None
                 else ("" if stage else ("cannot_decide" if reason else "")),
+                "regulatory_stage": regulatory_stage(notice.prov)["provision"],
                 "freq_min_mhz": case.band_lo_mhz if case is not None else "",
                 "freq_max_mhz": case.band_hi_mhz if case is not None else "",
                 "station": case.victim.id if case is not None else "",
@@ -262,6 +291,7 @@ RESULT_COLUMNS = (
     "dropped_at",
     "reason",
     "class",
+    "regulatory_stage",
     "freq_min_mhz",
     "freq_max_mhz",
     "station",

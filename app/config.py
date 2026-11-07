@@ -27,6 +27,50 @@ RULES_VERSION = "1.1.0"
 EXCEEDS_DB = 0.0
 NEAR_DB = -3.0
 
+# Adjacent-channel guard, in MHz. 0.0 keeps G1 at plain band overlap (the default: it keeps
+# the run comparable). Raise it when Traficom confirms a channel-spacing threshold; a case
+# that only enters through the guard is marked adjacent and is capped at class `near`, because
+# the Table 21-4 limit does not apply outside the notified band.
+GUARD_MHZ = 0.0
+
+# A register station this directive (gain at or above this, and not non-directional) can be
+# protected at a lower trigger level; the card says so but changes no number and no class.
+DIRECTIVE_GAIN_DB = 20.0
+THRESHOLD_NOTE = (
+    "the station has a directive antenna; the trigger level may be lower if the source is in "
+    "the main beam direction"
+)
+
+# The regulatory stage carried in notice.prov (ITU RR 2024 Vol 1). `rank` orders the queue: a
+# stage another administration can still influence (advance publication, coordination request)
+# comes before a filing already recorded in the MIFR.
+REGULATORY_STAGES = {
+    "9.1/IA": {
+        "provision": "No. 9.1",
+        "label": "advance publication; another administration can still influence the filing",
+        "source": "ITU RR 2024, Vol 1, No. 9.1",
+        "rank": 0,
+    },
+    "9.6": {
+        "provision": "No. 9.6",
+        "label": "coordination request; another administration can still influence the filing",
+        "source": "ITU RR 2024, Vol 1, No. 9.6",
+        "rank": 0,
+    },
+    "11.2": {
+        "provision": "No. 11.2",
+        "label": "notification recorded in the MIFR",
+        "source": "ITU RR 2024, Vol 1, No. 11.2",
+        "rank": 1,
+    },
+    "RS49": {
+        "provision": "Resolution 49",
+        "label": "Resolution 49 filing",
+        "source": "ITU RR 2024, Vol 1, Resolution 49",
+        "rank": 2,
+    },
+}
+
 M4_SOURCE = "opendata.traficom.fi/api/v13/Taajuusjakotaulukko"
 
 # Table of frequency allocations (M4) sub-band columns, in Hz.
@@ -47,3 +91,16 @@ def fmt_mhz(value: float) -> str:
 def fmt_num(value: float) -> str:
     """-184.78 -> '-184,78' (Finnish decimal comma)."""
     return f"{value:g}".replace(".", ",")
+
+
+def regulatory_stage(prov: str) -> dict:
+    """notice.prov -> the stage dict, with a last-place fallback for an unknown provision."""
+    known = REGULATORY_STAGES.get(prov)
+    if known is not None:
+        return known
+    return {
+        "provision": prov or "unknown",
+        "label": "unknown provision",
+        "source": "",
+        "rank": len(REGULATORY_STAGES),
+    }

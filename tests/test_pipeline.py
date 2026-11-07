@@ -37,7 +37,7 @@ def test_mini_results_csv_has_one_row_per_notice(mini_out):
         rows = list(reader)
     assert reader.fieldnames == list(RESULT_COLUMNS)
     assert len(rows) == 9
-    assert len(rows[0]) == 18
+    assert len(rows[0]) == 19
 
 
 def test_mini_funnel_json_mini_out(mini_out):

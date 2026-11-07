@@ -18,6 +18,9 @@ CARD_FIELDS = (
     "calculation",
     "m4",
     "class",
+    "adjacent",
+    "regulatory_stage",
+    "threshold_note",
     "missing",
     "next_action",
     "audit",
@@ -140,6 +143,7 @@ def test_golden_case_103500417(challenge):
         "gain_db": 40.0,
         "power_w": 145.0,
         "direction_deg": 253.0,
+        "directivity": "D",
     }
     calc = card["calculation"]
     assert calc["psd_dbw_hz"] == -50.0
@@ -174,3 +178,36 @@ def test_golden_case_103500417(challenge):
     )
     assert len(card["audit"]["input_sha256"]) == 64
     assert card["audit"]["rules_version"] == "1.1.0"
+
+
+def test_directive_antenna_gets_a_threshold_note(mini):
+    """A high-gain directive victim names the lower trigger level; nothing else changes."""
+    case = mini.result.case_by_id()["900000001"]
+    assert case.victim.directivity == "ND"  # the mini register has no directive station
+    assert build_card(case, mini.ific, mini.m4, _audit())["threshold_note"] is None
+
+    directive = replace(case, victim=replace(case.victim, directivity="D"))
+    card = build_card(directive, mini.ific, mini.m4, _audit())
+    assert "directive antenna" in card["threshold_note"]
+    assert card["class"] == case.klass  # no class change
+    assert card["calculation"]["margin_db"] == case.margin_db  # no number change
+
+    low_gain = replace(case, victim=replace(case.victim, directivity="D", gain_db=10.0))
+    assert build_card(low_gain, mini.ific, mini.m4, _audit())["threshold_note"] is None
+
+
+@pytest.mark.data
+def test_prov_distribution_and_the_card_stage(challenge):
+    """notice.prov is the regulatory stage: the four provisions and their counts, and the card."""
+    from collections import Counter
+
+    provs = Counter(notice.prov for notice in challenge.slice.ific.notices.values())
+    assert provs == {"9.6": 76, "11.2": 65, "9.1/IA": 50, "RS49": 5}
+
+    case = challenge.slice.result.case_by_id()["103500417"]
+    card = build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
+    assert card["regulatory_stage"] == {
+        "provision": "No. 11.2",
+        "label": "notification recorded in the MIFR",
+        "source": "ITU RR 2024, Vol 1, No. 11.2",
+    }

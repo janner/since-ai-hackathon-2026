@@ -1,6 +1,6 @@
 # How it works, and how to see it
 
-Everything below was run on 6 Nov 2026 against commit `26187c3`; the output blocks are the real
+Everything below was run on 7 Nov 2026; the output blocks are the real
 output, not illustrations. Numbers may move by a second or two between runs, and the timestamps and
 `run_at` fields change with the clock.
 
@@ -45,28 +45,32 @@ connection with no LLM configured.
 
 Funnel: 196 → 41 → 19 → 18 + 1
 
-| # | case | class | margin dB | reason |
-|---|---|---|---|---|
-| 1 | 124545403 | exceeds | 60,44 | exceeds |
-| 2 | 125500066 | exceeds | 21,32 | exceeds |
-| 3 | 125500277 | exceeds | 16,33 | exceeds |
-| 4 | 103500417 | exceeds | 3,24 | exceeds |
-| 5 | 303500417 | exceeds | 3,24 | exceeds |
-| 6 | 124520183 | exceeds | 2,95 | exceeds |
+| # | case | class | stage | margin dB | reason |
+|---|---|---|---|---|---|
+| 1 | 124545403 | exceeds | No. 9.1 | 60,44 | exceeds |
+| 2 | 124520183 | exceeds | No. 9.6 | 2,95 | exceeds |
+| 3 | 124520184 | exceeds | No. 9.6 | 1,03 | exceeds |
+| 4 | 125500066 | exceeds | No. 11.2 | 21,32 | exceeds |
+| 5 | 125500277 | exceeds | No. 11.2 | 16,33 | exceeds |
+| 6 | 103500417 | exceeds | No. 11.2 | 3,24 | exceeds |
 ```
 
-(9 more rows follow; the file lists all 15.)
+(9 more rows follow; the file lists all 15.) Inside a class the stage comes first, then the margin:
+the `exceeds` rows in the advance publication and coordination request stages are listed before the
+MIFR notifications, whose margins do not put them second.
 
 `out/cases.md` holds one card per computed notice. The one from the plan's test vector:
 
 ```
 - **Satellite:** COMPASS-80E (GSO, CHN), beam CDN
 - **Band:** 3 642-3 678 MHz
+- **Stage:** No. 11.2 — notification recorded in the MIFR
 - **Victim:** station 983816 (MVV), elevation 4,85°
 - **PFD:** -184,78 dB(W/m²/Hz) vs limit -188,02 dB(W/m²/Hz) → margin 3,24 dB
 - **Limit:** ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287
 - **M4 in Finland:** MOBILE AND FIXED
 - **Missing:** s_beam.bore_long, s_beam.bore_lat, s_beam.maj_axis, s_beam.min_axis
+- **Threshold:** the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction
 - **Question:** Can China confirm the service area of the COMPASS-80E CDN beam and whether it illuminates Finland in the 3 642-3 678 MHz range?
 ```
 
@@ -75,13 +79,15 @@ block (max PSD −50,0 dBW/Hz, beam gain 28,5 dBi, distance 41 143 km, free-spac
 The limit is a citation, not a constant: `rules/rr21_table21_4.csv` holds the row. The `Missing`
 line is why the case exists at all: IFIC 3074 does not declare the beam geometry, so the tool cannot
 say whether Finland is inside the beam, and the card asks instead of concluding. `Question` is the
-draft the administration would receive.
+draft the administration would receive. `Stage` names the provision the filing stands under, and
+`Threshold` (here the anchor's station is directive at 40 dBi) restates Traficom's point that a
+directive antenna can be protected at a lower level without changing any number.
 
 `out/3074_results.csv` has one row per notice in the input, including the 177 the funnel dropped
 (155 at G1, 22 at G2), each with its stage and reason. The same notice as a row:
 
 ```
-103500417,CHN,COMPASS-80E,G,GSO,,,exceeds,3642.0,3678.0,983816,4.85,-184.78,-188.02,3.24,"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287",MOBILE AND FIXED,s_beam.bore_long;s_beam.bore_lat;s_beam.maj_axis;s_beam.min_axis
+103500417,CHN,COMPASS-80E,G,GSO,,,exceeds,No. 11.2,3642.0,3678.0,983816,4.85,-184.78,-188.02,3.24,"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287",MOBILE AND FIXED,s_beam.bore_long;s_beam.bore_lat;s_beam.maj_axis;s_beam.min_axis
 ```
 
 `out/run.log` is the audit line:
@@ -222,10 +228,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 119 passed with data/
+make check        # ruff check, ruff format --check, pytest: 125 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 106 passed, 13 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 111 passed, 14 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. Three-minute demo script

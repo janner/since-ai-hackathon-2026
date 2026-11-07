@@ -18,13 +18,15 @@ that overlap those bands and can be seen from Finland, and computes an upper-bou
 density (PFD) against the ITU Radio Regulations Article 21, Table 21-4 limit.
 
 Every notice that survives the gates and gets a number becomes a case card with the source rows,
-the calculation, the Finnish allocation from Regulation M4, the missing data, and one question for
-the other administration. A notice that passes G1 and G2 but cannot be computed is not a card: it
-keeps its row in `queue.md` and `3074_results.csv` under class `cannot_decide`, and its count is in
-`funnel.json`. The demo slice therefore has 18 cards and one notice without (limitation 15). The
-queue lists every case a human should look at: exceedances first, then the near-limit cases, then
-the ones that cannot be decided. It is not capped. A separate accuracy file covers all 196 notices,
-the dropped ones included. A human decides.
+the calculation, the Finnish allocation from Regulation M4, the regulatory stage of the filing, the
+missing data, and one question for the other administration. A notice that passes G1 and G2 but
+cannot be computed is not a card: it keeps its row in `queue.md` and `3074_results.csv` under class
+`cannot_decide`, and its count is in `funnel.json`. The demo slice therefore has 18 cards and one
+notice without (limitation 15). The queue lists every case a human should look at: exceedances
+first, then the near-limit cases, then the ones that cannot be decided, and inside a class the
+stage another administration can still influence (advance publication, coordination request) comes
+before a filing already recorded in the MIFR. It is not capped. A separate accuracy file covers all
+196 notices, the dropped ones included. A human decides.
 
 The language model writes the card summary and, for each case above the limit, the correspondence
 letter. Every number comes from code, and a numeric guard rejects a sentence that carries a number
@@ -42,7 +44,7 @@ selected card 124545403.
 
 ## Verified numbers
 
-Measured 7 Nov 2026 on IFIC 3074: `make check` 119 tests passed, the slice run takes about 1.3 s,
+Measured 7 Nov 2026 on IFIC 3074: `make check` 125 tests passed, the slice run takes about 1.3 s,
 the seven-band run about 5.5 s. The deterministic pipeline is offline; the optional LLM prose step
 is the only part that opens a connection, and only when `LLM_BASE_URL` is set.
 
@@ -124,9 +126,9 @@ anything, and only when called by hand.
 |---|---|
 | `cases.json` | One card per computed case, full schema, plus the prose block |
 | `cases.md` | The same cards as Markdown |
-| `queue.md` | The queue in decision order: class first, then margin |
+| `queue.md` | The queue in decision order: class first, then stage, then margin |
 | `funnel.json` | Counts per gate, drop reasons, queue state, input hash, rules version, mode |
-| `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 18 columns, dropped notices with stage and reason |
+| `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 19 columns, dropped notices with stage and reason, plus the regulatory stage of every notice |
 | `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, the letter count, elapsed time |
 | `letters/<case_id>.md` | One correspondence letter per `exceeds` case, drafted by the model or the template |
 
@@ -148,8 +150,8 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 119 passed |
-| Clean clone, no `data/` | 106 passed, 13 skipped |
+| With `data/` | 125 passed |
+| Clean clone, no `data/` | 111 passed, 14 skipped |
 
 `tests/fixtures/` holds the small committed inputs: a nine-notice synthetic IFIC package, an
 eight-station register, a five-row M4 table, and the synthetic terrestrial fixture. The tests that
@@ -222,12 +224,22 @@ row; the funnel endpoint carries their count.
     the plan's F7/F10 expects. The row, the reason and the count stay in the files, so nothing drops
     out of the audit trail, but the notice has no card in the web UI. Recorded as I15 in
     `docs/decisions.md`.
+16. The adjacent-channel guard is off by default (`GUARD_MHZ = 0.0` in `app/config.py`), so G1 still
+    needs a real band overlap and every number above stays comparable with the plan. Raise that one
+    constant when Traficom confirms a channel-spacing threshold: a notice that then enters only
+    through the guard is marked `adjacent: true` on its card and is capped at class `near`, because
+    the Table 21-4 limit is a property of the notified band and does not apply outside it.
+17. A card's `threshold_note` (a directive station with gain at or above 20 dBi, `victim.directivity`
+    not `ND`) names a lower possible trigger level and changes no number and no class. It does not
+    compare the station's azimuth with the direction of the satellite: the register carries an
+    azimuth but no beam width, so a direction-to-source claim would be a guess (I18 in
+    `docs/decisions.md`).
 
 ## Layout
 
 ```
 app/            one module per feature, each with tests/test_<feature>.py
-  config.py     seven space bands, demo slice, rules version, number formatting
+  config.py     space bands, demo slice, rules version, adjacent guard, stages, formatting
   ingest.py     IFIC tables, register, M4, unit parsing, input SHA256
   bands.py      protected bands derived from the register
   pfd.py        geometry, free-space loss, Table 21-4 limits

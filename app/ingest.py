@@ -128,6 +128,7 @@ class Station:
     direction_deg: float | None
     ant_asl_m: float | None
     ground_m: float | None
+    directivity: str = ""
 
     @property
     def centre_mhz(self) -> float:
@@ -168,6 +169,7 @@ class Notice:
     adm: str
     ntc_type: str
     act_code: str
+    prov: str
     ntwk_org: str
     adm_ref_id: str
     tgt_ntc_id: str
@@ -271,6 +273,7 @@ def load_register(path: Path) -> tuple[list[Station], dict[str, int]]:
                 direction_deg=num(row.get("Radiation direction (°)")),
                 ant_asl_m=num(row.get("Ant height ASL (m)")),
                 ground_m=num(row.get("Ground height (m)")),
+                directivity=row.get("Directivity", "").strip(),
             )
         )
     counts = {"rows": len(data), "stations": len(stations), "skipped_no_freq": no_freq}
@@ -309,6 +312,7 @@ def load_ific(ific_dir: Path) -> IficData:
             adm=row["adm"].strip(),
             ntc_type=row["ntc_type"].strip(),
             act_code=row["act_code"].strip(),
+            prov=row.get("prov", "").strip(),
             ntwk_org=row.get("ntwk_org", "").strip(),
             adm_ref_id=row.get("adm_ref_id", "").strip(),
             tgt_ntc_id=row.get("tgt_ntc_id", "").strip(),

@@ -364,6 +364,49 @@ what the endpoint fails to produce. The gap is stated in README limitation 7 and
 
 Tests: `tests/test_prose.py::test_an_empty_llm_answer_falls_back`.
 
+### I17. The queue reads the regulatory stage from `notice.prov`
+
+`app/config.py::REGULATORY_STAGES` and `app/gates.py::gate4()`. The BR IFIC carries the stage of a
+filing in `notice.prov`: `9.1/IA` (advance publication, ITU RR 2024 No. 9.1), `9.6` (coordination
+request, No. 9.6), `11.2` (notification, No. 11.2) and `RS49` (Resolution 49). In IFIC 3074 the
+counts are 50 / 76 / 65 / 5. The card shows the stage as `{provision, label, source}` and the queue
+orders inside a class by stage rank before the margin: an advance publication or coordination
+request, where another administration can still influence the filing, is worth more to a specialist
+than a filing already recorded in the MIFR. The stage is a property of the notice, not a deadline:
+no window length is computed or guessed, and `label` is one sentence of what the stage means.
+
+Tests: `tests/test_cards.py::test_prov_distribution_and_the_card_stage` (data) locks the 50 / 76 / 65
+/ 5 distribution and the card block;
+`tests/test_gates.py::test_queue_puts_coordination_before_notification` locks the order (coordination
+request before notification at the same margin).
+
+### I18. The adjacent-channel guard is one constant, off by default
+
+`app/gates.py::gate1()` with `app/config.py::GUARD_MHZ = 0.0`. Traficom's Discord answer (7 Nov
+2026) says a close-by exceedance or a semi-high PFD near the frequency can also be a concern, but
+the current G1 needs a real band overlap, so such a notice never reaches a card. Rather than widen
+the gate now, the spacing is one constant: `0.0` leaves G1 exactly as it was and keeps the run
+comparable with the plan and the vectors, and raising it is a one-line change once Traficom confirms
+a threshold. A notice that then enters only through the guard is marked `adjacent: true` and its
+class is capped at `near`, because the Table 21-4 limit is a property of the notified band and does
+not apply outside it. The deliberate default is 0.0; the number stays unset until it is confirmed.
+
+Tests: `tests/test_gates.py::test_guard_mhz_zero_is_the_plain_overlap` (the default changes nothing),
+`test_guard_mhz_lets_an_adjacent_notice_through` (a 5 MHz guard brings the in-hole notice in),
+`test_an_adjacent_case_is_capped_at_near` (the cap, with the margin unchanged).
+
+### I19. The directive-antenna note states a possibility, not a number
+
+`app/cards.py::_threshold_note()` with `app/config.py::DIRECTIVE_GAIN_DB = 20.0`. Traficom says the
+trigger level can fall when a Finnish station has a large antenna gain aimed at the transmitter. The
+register carries a per-station gain and a directivity code, so the card adds one sentence when the
+victim is directive (`victim.directivity` not `ND`) and its gain is at or above 20 dBi. It changes
+no number and no class, and it does not compare the registration's azimuth with the direction of the
+satellite: the register has an azimuth but no beam width, so a direction-to-source claim would be a
+guess rather than a measurement (README limitation 17).
+
+Test: `tests/test_cards.py::test_directive_antenna_gets_a_threshold_note`.
+
 ### T1. The P.1546 table is generated once and committed
 
 `rules/p1546_land.csv`. Generated with the ITU reference implementation (eeveetza/Py1546, commit

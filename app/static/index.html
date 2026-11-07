@@ -143,6 +143,11 @@ function renderQueue(items) {
       button.append(
         el("span", item.case_id),
         el("span", item["class"], "klass " + item["class"]),
+        el(
+          "span",
+          item.regulatory_stage && item.regulatory_stage.provision,
+          "margin",
+        ),
         el("span", num(item.calculation && item.calculation.margin_db, "dB"), "margin"),
       );
       button.addEventListener("click", () => showCase(item.case_id));
@@ -167,6 +172,12 @@ function renderCard(item) {
     list([
       ["Tunniste", item.case_id],
       ["Luokka", item["class"]],
+      [
+        "S\u00e4\u00e4ntelyvaihe",
+        item.regulatory_stage && item.regulatory_stage.provision
+          ? item.regulatory_stage.provision + " \u2014 " + item.regulatory_stage.label
+          : null,
+      ],
       ["Hallinto", item.parties && item.parties.admin],
       ["Satelliitti", [coverage.sat_name, coverage.orbit].filter(Boolean).join(" / ")],
       ["Keila", coverage.beam],

@@ -8,19 +8,28 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app import pfd
+from app import config, pfd
 from app.bands import Band
 from app.config import EXCEEDS_DB, NEAR_DB
-from app.ingest import Freq, IficData, Station
+from app.ingest import Freq, IficData, Notice, Station
 
 CLASS_ORDER = ("exceeds", "near", "cannot_decide", "clear")
 STAGES = ("G1", "G2")
 
 
-def classify(margin_db: float) -> str:
+def classify(margin_db: float, adjacent: bool = False) -> str:
+    """exceeds above 0 dB, near above -3 dB, clear otherwise.
+
+    An adjacent-channel case is capped at `near`: the Table 21-4 limit is a property of the
+    notified band and does not apply outside it, so a guard-only case must not read as `exceeds`.
+    """
     if margin_db > EXCEEDS_DB:
-        return "exceeds"
-    return "near" if margin_db > NEAR_DB else "clear"
+        klass = "exceeds"
+    elif margin_db > NEAR_DB:
+        klass = "near"
+    else:
+        klass = "clear"
+    return "near" if adjacent and klass == "exceeds" else klass
 
 
 @dataclass(frozen=True)
@@ -47,6 +56,7 @@ class Case:
     perigee_km: float | None
     limit: pfd.LimitRow
     klass: str
+    adjacent: bool = False
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,8 @@ class QueueItem:
     reason: str
     margin_db: float | None
     case: Case | None = None
+    stage_rank: int = 0
+    stage: str = ""
 
 
 @dataclass
@@ -98,12 +110,12 @@ def run(
     limits: list[pfd.LimitRow],
     mode: str = "slice",
 ) -> GateResult:
-    found, g1_dropped = gate1(ific, bands)
+    found, g1_dropped, adjacent = gate1(ific, bands)
     visible, g2_dropped = gate2(ific, found, stations)
-    cases, undecided = gate3(ific, visible, stations, limits)
+    cases, undecided = gate3(ific, visible, stations, limits, adjacent)
     cases.sort(key=lambda case: -case.margin_db)
     dropped = {**g1_dropped, **g2_dropped}
-    queue = gate4(cases, undecided)
+    queue = gate4(cases, undecided, ific.notices)
 
     counts = {
         "notices": len(ific.notices),
@@ -133,29 +145,42 @@ def run(
     return result
 
 
-def gate1(ific: IficData, bands: list[Band]) -> tuple[dict[str, list[Freq]], dict]:
-    """Do the notice's space-to-Earth rows overlap a protected band?"""
+def gate1(ific: IficData, bands: list[Band]) -> tuple[dict[str, list[Freq]], dict, set[str]]:
+    """Do the notice's space-to-Earth rows overlap a protected band?
+
+    With `GUARD_MHZ > 0` a row that only comes within that distance of a band also passes, and
+    the notice is returned in `adjacent` so its case can be capped at class `near`.
+    """
+    guard = config.GUARD_MHZ
     wanted = [(band.lo_mhz, band.hi_mhz) for band in bands]
     found: dict[str, list[Freq]] = {}
+    strictly_matched: set[str] = set()
     for freq in ific.freqs:
         if freq.emi_rcp != "E":
             continue
-        if not any(freq.freq_min_mhz <= hi and freq.freq_max_mhz >= lo for lo, hi in wanted):
+        overlap = any(freq.freq_min_mhz <= hi and freq.freq_max_mhz >= lo for lo, hi in wanted)
+        near = guard > 0 and any(
+            freq.freq_min_mhz <= hi + guard and freq.freq_max_mhz >= lo - guard for lo, hi in wanted
+        )
+        if not overlap and not near:
             continue
         found.setdefault(freq.ntc_id, []).append(freq)
+        if overlap:
+            strictly_matched.add(freq.ntc_id)
 
     earth_notices = {n for n in found if ific.notices[n].ntc_type == "S"}
     for ntc_id in earth_notices:
         # An earth station notice sending "E" is the station transmitting, not a downlink.
         del found[ntc_id]
 
+    adjacent = {ntc_id for ntc_id in found if ntc_id not in strictly_matched}
     dropped: dict[str, tuple[str, str]] = {}
     for ntc_id in ific.notices:
         if ntc_id in found:
             continue
         reason = "earth_station_notice" if ntc_id in earth_notices else "no_band_overlap"
         dropped[ntc_id] = ("G1", reason)
-    return found, dropped
+    return found, dropped, adjacent
 
 
 def gate2(
@@ -186,12 +211,16 @@ def gate3(
     visible: dict[str, list[Freq]],
     stations: list[Station],
     limits: list[pfd.LimitRow],
+    adjacent: set[str] | None = None,
 ) -> tuple[list[Case], dict[str, str]]:
     """Worst-case PFD against the Table 21-4 limit, per notice."""
+    adjacent = adjacent or set()
     cases: list[Case] = []
     undecided: dict[str, str] = {}
     for ntc_id, freqs in visible.items():
-        worst, missing = _worst_for_notice(ific, ntc_id, freqs, stations, limits)
+        worst, missing = _worst_for_notice(
+            ific, ntc_id, freqs, stations, limits, ntc_id in adjacent
+        )
         if worst is None:
             undecided[ntc_id] = missing or "no_station"
         else:
@@ -205,6 +234,7 @@ def _worst_for_notice(
     freqs: list[Freq],
     stations: list[Station],
     limits: list[pfd.LimitRow],
+    adjacent: bool = False,
 ) -> tuple[Case | None, str | None]:
     geo = ific.geo.get(ntc_id)
     sat_lon = geo.long_nom if geo is not None else None
@@ -292,7 +322,8 @@ def _worst_for_notice(
                 offset_db=round(offset, 2),
                 perigee_km=perigee,
                 limit=limit,
-                klass=classify(margin),
+                klass=classify(margin, adjacent),
+                adjacent=adjacent,
             )
     return worst, missing
 
@@ -311,19 +342,30 @@ def _beam_gain(ific: IficData, freq: Freq) -> float | None:
     return max(candidates) if candidates else None
 
 
-def gate4(cases: list[Case], undecided: dict[str, str]) -> list[QueueItem]:
-    """Queue every concern, in class order then margin descending; clear stays out.
+def gate4(
+    cases: list[Case], undecided: dict[str, str], notices: dict[str, Notice]
+) -> list[QueueItem]:
+    """Queue every concern: class, then stage, then margin descending; clear stays out.
 
-    No cap: the challenge brief names no target number, so nothing is cut.
+    No cap: the challenge brief names no target number, so nothing is cut. Within a class a
+    stage another administration can still influence (advance publication, coordination request)
+    comes before a filing already recorded in the MIFR.
     """
+    stages = {ntc_id: config.regulatory_stage(notice.prov) for ntc_id, notice in notices.items()}
+    unknown = config.regulatory_stage("")
+
+    def item(ntc_id, klass, reason, margin, case=None) -> QueueItem:
+        stage = stages.get(ntc_id, unknown)
+        return QueueItem(ntc_id, klass, reason, margin, case, stage["rank"], stage["provision"])
+
     items = [
-        QueueItem(c.ntc_id, c.klass, c.klass, c.margin_db, c) for c in cases if c.klass != "clear"
+        item(case.ntc_id, case.klass, case.klass, case.margin_db, case)
+        for case in cases
+        if case.klass != "clear"
     ]
-    items += [
-        QueueItem(ntc_id, "cannot_decide", reason, None) for ntc_id, reason in undecided.items()
-    ]
+    items += [item(ntc_id, "cannot_decide", reason, None) for ntc_id, reason in undecided.items()]
     queue: list[QueueItem] = []
     for klass in CLASS_ORDER:
-        same = [item for item in items if item.klass == klass]
-        queue += sorted(same, key=lambda item: (-(item.margin_db or 0.0), item.ntc_id))
+        same = [row for row in items if row.klass == klass]
+        queue += sorted(same, key=lambda row: (row.stage_rank, -(row.margin_db or 0.0), row.ntc_id))
     return queue

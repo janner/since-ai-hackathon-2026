@@ -40,7 +40,7 @@ def test_missing_perigee_cannot_be_decided(mini):
     ntc_id = "900000002"
     orbits = [replace(orbit, perig_km=None) for orbit in mini.ific.orbits[ntc_id]]
     ific = replace(mini.ific, orbits={**mini.ific.orbits, ntc_id: orbits})
-    found, _ = gates.gate1(ific, mini.bands)
+    found, _, _ = gates.gate1(ific, mini.bands)
     cases, undecided = gates.gate3(ific, {ntc_id: found[ntc_id]}, mini.result.stations, mini.limits)
     assert cases == []
     assert undecided == {ntc_id: "no_perigee"}
@@ -90,9 +90,68 @@ def test_gate4_queues_every_concern_and_no_clear(mini):
         replace(base, ntc_id="900000002", klass="near", margin_db=-1.0),
         replace(base, ntc_id="900000009", klass="clear", margin_db=-9.0),
     ]
-    queue = gates.gate4(cases, {"900000003": "no_power"})
+    queue = gates.gate4(cases, {"900000003": "no_power"}, mini.ific.notices)
     assert [item.klass for item in queue] == ["exceeds", "near", "cannot_decide"]
     assert [item.ntc_id for item in queue] == ["900000001", "900000002", "900000003"]
+
+
+def test_queue_puts_coordination_before_notification(mini):
+    """Same class and same margin: the stage another administration can still influence wins."""
+    from app.ingest import Notice
+
+    base = mini.result.cases[0]
+    cases = [
+        replace(base, ntc_id="900000001", klass="near", margin_db=-1.0),
+        replace(base, ntc_id="900000002", klass="near", margin_db=-1.0),
+    ]
+    notices = {
+        "900000001": Notice("900000001", "TST", "N", "A", "11.2", "", "", ""),
+        "900000002": Notice("900000002", "TST", "N", "A", "9.6", "", "", ""),
+    }
+    queue = gates.gate4(cases, {}, notices)
+    assert [item.ntc_id for item in queue] == ["900000002", "900000001"]
+    assert [item.stage for item in queue] == ["No. 9.6", "No. 11.2"]
+
+
+def test_guard_mhz_zero_is_the_plain_overlap(mini, monkeypatch):
+    from app import config
+
+    monkeypatch.setattr(config, "GUARD_MHZ", 0.0)
+    found, dropped, adjacent = gates.gate1(mini.ific, mini.bands)
+    assert adjacent == set()
+    assert "900000009" not in found  # sits in the hole, no overlap and no guard
+    assert dropped["900000009"] == ("G1", "no_band_overlap")
+    assert mini.result.counts == {
+        "notices": 9,
+        "g1": 6,
+        "g2": 4,
+        "g3": 2,
+        "cannot_decide": 2,
+        "exceeds": 2,
+        "near": 0,
+        "clear": 0,
+    }
+
+
+def test_guard_mhz_lets_an_adjacent_notice_through(mini, monkeypatch):
+    from app import config
+
+    monkeypatch.setattr(config, "GUARD_MHZ", 5.0)
+    found, dropped, adjacent = gates.gate1(mini.ific, mini.bands)
+    assert adjacent == {"900000009"}  # 3,6 MHz below the lower band, inside a 5 MHz guard
+    assert "900000009" in found
+    assert "900000009" not in dropped
+
+
+def test_an_adjacent_case_is_capped_at_near(mini):
+    """A guard-only case keeps its computed margin but never reads as `exceeds`."""
+    ntc_id = "900000001"  # margin +3,24 dB: exceeds on its own
+    freqs = {ntc_id: [f for f in mini.ific.freqs if f.ntc_id == ntc_id and f.emi_rcp == "E"]}
+    cases, _ = gates.gate3(mini.ific, freqs, mini.result.stations, mini.limits, {ntc_id})
+    case = {c.ntc_id: c for c in cases}[ntc_id]
+    assert case.adjacent is True
+    assert case.margin_db == pytest.approx(3.24, abs=0.01)
+    assert case.klass == "near"
 
 
 @pytest.mark.data

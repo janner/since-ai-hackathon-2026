@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `26187c3`, verified on 6 Nov 2026 with `make check` (114 passed) and a clean clone
-(102 passed, 12 skipped).
+commit `26187c3`, verified on 7 Nov 2026 with `make check` (125 passed) and a clean clone
+(111 passed, 14 skipped).
 
 Read a feature row in the tables below as: the module that owns the job, the tests that would fail
 if the behaviour changed, and the number the tests lock in.
@@ -39,7 +39,9 @@ that is missing stays `None` and the caller decides what that means.
 | `input_digest()` | one SHA256 over the 15 CSV files (name plus bytes), so a rerun on other data is visible |
 
 `Station.centre_mhz` is RX when it exists and TX otherwise, `lo_mhz` and `hi_mhz` are the centre
-plus or minus half the channel bandwidth.
+plus or minus half the channel bandwidth. `Notice.prov` carries the regulatory stage of the filing
+and `Station.directivity` the register's `Directivity` code (`D`, `ND` or empty); neither is read by
+a gate, and only the card uses them.
 
 Tests (`tests/test_ingest.py`, 21 collected): `test_mhz_normalises_units` (parametrised over nine
 unit forms), `test_watts_converts_units`, `test_load_register_skips_rows_without_frequency`,
@@ -73,10 +75,12 @@ Tests (`tests/test_bands.py`, 9): `test_overlaps_rejects_touching_bands`,
 ## F3: G1 band overlap and G2 visibility
 
 `app/gates.py::gate1()` keeps a frequency row when `emi_rcp == "E"` (space transmits, Earth
-receives) and the row overlaps a protected band. A notice whose `ntc_type` is `S` (an earth
-station) is removed again: when such a notice sends "E" it is the station transmitting, not a
-downlink. Every notice that does not survive gets a reason, `earth_station_notice` or
-`no_band_overlap`, in the `dropped` map as `(stage, reason)`.
+receives) and the row overlaps a protected band. With `GUARD_MHZ > 0` (`app/config.py`, default
+0.0) a row that only comes within that distance of a band also passes, and the notice is returned in
+an `adjacent` set: its card is marked `adjacent: true` and its class is capped at `near`. A notice
+whose `ntc_type` is `S` (an earth station) is removed again: when such a notice sends "E" it is the
+station transmitting, not a downlink. Every notice that does not survive gets a reason,
+`earth_station_notice` or `no_band_overlap`, in the `dropped` map as `(stage, reason)`.
 
 `gate2()` asks whether the satellite is visible from Finland at all. For a GEO notice with
 `long_nom`, the elevation is computed from every register station and the notice is dropped as
@@ -87,7 +91,9 @@ apogee or inclination is never dropped here. A notice with neither a `geo` nor a
 G2 and carries the reason `no_orbit` at G3.
 
 Tests (`tests/test_gates.py`): `test_mini_funnel_counts_and_reasons` walks the synthetic funnel,
-`test_mini_vector_1_is_reproduced` reproduces the GEO vector on the fixture, and the data tests
+`test_mini_vector_1_is_reproduced` reproduces the GEO vector on the fixture,
+`test_guard_mhz_zero_is_the_plain_overlap` and `test_guard_mhz_lets_an_adjacent_notice_through`
+walk the adjacent-channel guard both ways, and the data tests
 `test_demo_slice_funnel`, `test_all_bands_funnel` and `test_case_126590032_cannot_be_decided` lock
 the real counts (41 from 196 in the slice, 101 in the full run, 1 earth-station drop in the full
 run) and the `ngso_never_visible` case 124520197.
@@ -132,22 +138,36 @@ PFD = psd_max + beam_gain_max - fspl(d),   margin = PFD - limit_hz(row, elevatio
 A notice with nothing computable lands in `undecided` with one reason: `no_orbit`, `no_perigee`,
 `no_limit_for_band`, `no_power`, `no_gain`, `x_needs_nv` or `no_station`. Classification uses the
 margin rounded to two decimals: `exceeds` above 0 dB, `near` between −3 and 0 dB, `clear` at or
-below −3 dB.
+below −3 dB. An adjacent-channel case (see F3) keeps its margin but is capped at `near`: the
+Table 21-4 limit belongs to the notified band and does not apply outside it.
 
-`gate4()` orders the queue `exceeds`, `near`, `cannot_decide` and sorts by margin inside a class.
-`clear` cases stay in `cases.json` and the CSV but out of the queue. There is no cap.
+`gate4()` orders the queue `exceeds`, `near`, `cannot_decide`, and inside a class by stage rank
+(advance publication and coordination request before the MIFR notification, then Resolution 49),
+then by margin. A stage another administration can still influence therefore comes before a filing
+already recorded. `clear` cases stay in `cases.json` and the CSV but out of the queue. There is no
+cap. The stage itself comes from `notice.prov` through `app/config.py::regulatory_stage()`.
 
 Tests: `test_class_boundaries`, `test_mini_funnel_counts_and_reasons`,
 `test_mini_non_gso_case_uses_the_pass_sweep`, `test_queue_order`,
-`test_gate4_queues_every_concern_and_no_clear`, `test_demo_slice_funnel`, `test_all_bands_funnel`,
+`test_gate4_queues_every_concern_and_no_clear`, `test_queue_puts_coordination_before_notification`,
+`test_an_adjacent_case_is_capped_at_near`, `test_demo_slice_funnel`, `test_all_bands_funnel`,
 `test_vector_2_from_the_real_data`, `test_case_126590032_cannot_be_decided`.
 
 ## F6: case cards and the M4 allocation
 
 `app/cards.py::build_card()` turns a `Case` into the card: `case_id`, `same_network`, `source`
 (file, tables, keys), `parties`, `band`, `direction`, `coverage`, `victim`, `calculation`, `m4`,
-`class`, `missing`, `next_action`, `audit`. The audit block carries `input_sha256`,
-`rules_version` and `run_at`.
+`class`, `adjacent`, `regulatory_stage`, `threshold_note`, `missing`, `next_action`, `audit`. The
+audit block carries `input_sha256`, `rules_version` and `run_at`.
+
+`regulatory_stage` restates `notice.prov` as `{provision, label, source}`, for example `No. 11.2` /
+"notification recorded in the MIFR" / `ITU RR 2024, Vol 1, No. 11.2`. It carries no deadline and no
+window length; `label` is the one sentence of what the stage means (advance publication and
+coordination request are stages another administration can still influence, the notification is a
+recording in the MIFR). `adjacent` is the guard flag from G1. `threshold_note` is set when the
+victim is directive (`victim.directivity` not `ND`) and its gain is at or above 20 dBi: it names a
+lower possible trigger level and changes no number and no class. It never compares the station's
+azimuth with the satellite direction (see I18 in `docs/decisions.md`).
 
 The `victim` block carries `power_w`, and the card carries a top-level `synthetic_data_warning`
 that is set when the victim received power is above 1 GW: the register value is a synthetic
@@ -164,16 +184,19 @@ target. The card shows them; every notice is still decided on its own.
 `min_axis`) and a register row without gain or power. `render_card_md()` and `render_queue_md()`
 write the Markdown, `results_rows()` writes the CSV rows, `render_run_log()` the log. In the CSV,
 `results_rows()` leaves `class` empty for a notice dropped at G1 or G2 and writes `cannot_decide`
-only for a case that reached G3 and could not be computed; `dropped_at` and `reason` carry the gate
-and the cause. `render_run_log()` writes the `ific=` id of the input package alongside the hash and
-the counts.
+only for a case that reached G3 and could not be computed; the `regulatory_stage` column carries the
+provision for every notice (dropped included); `dropped_at` and `reason` carry the gate and the
+cause. `render_run_log()` writes the `ific=` id of the input package alongside the hash and the
+counts.
 
-Tests (`tests/test_cards.py`, 7): `test_mini_card_has_the_whole_schema`,
+Tests (`tests/test_cards.py`, 9): `test_mini_card_has_the_whole_schema`,
 `test_m4_lookup_is_context_not_a_gate`, `test_missing_register_field_is_reported`,
 `test_results_rows_cover_every_notice` (asserts one row per notice, the empty `class` for a gate
 drop and the `dropped_at` plus `reason`), `test_a_too_large_victim_power_is_flagged`,
-`test_a_normal_victim_power_has_no_warning`, and the data test `test_golden_case_103500417`, which
-locks every field of the plan's test vector including the band label 3 642–3 678 MHz.
+`test_a_normal_victim_power_has_no_warning`, `test_directive_antenna_gets_a_threshold_note`, and the
+data tests `test_golden_case_103500417`, which locks every field of the plan's test vector including
+the band label 3 642–3 678 MHz, and `test_prov_distribution_and_the_card_stage`, which locks the
+`prov` distribution (50 / 76 / 65 / 5) and the card stage block.
 
 ## F7: the output files and the CLI
 
@@ -310,7 +333,8 @@ state. The page keeps working when the API fails and shows the error in a status
 
 The page is Finnish, three panels wide (Suppilo, Jono, Kortti), styled with plain CSS and no
 external request. Every value from `out/` is written with `textContent`, so a case id or a
-satellite name cannot inject markup. The queue endpoint reads `cases.json`, which holds cards only,
+satellite name cannot inject markup. The queue row and the card also show the regulatory stage
+(`Sääntelyvaihe`) from `cases.json`. The queue endpoint reads `cases.json`, which holds cards only,
 so a `cannot_decide` notice has no row there; its count appears in the funnel panel.
 
 Tests (`tests/test_api.py`, 9): `test_index_serves_the_finnish_page`, `test_health`,
