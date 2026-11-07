@@ -33,6 +33,7 @@ CARD_FIELDS = (
     "deadline",
     "deadline_passed",
     "regulatory_stage",
+    "publication",
     "filing_action",
     "filing_follows",
     "threshold_note",
@@ -59,6 +60,15 @@ def test_card_has_the_whole_schema(challenge):
     assert card["direction"] == "space-to-Earth"
     assert card["coverage"]["beam_geometry"] == "missing"
     assert card["calculation"]["method"] == "PFD_peak_upper_bound"
+    assert card["calculation"]["limit_a_db"] == -152
+    assert card["calculation"]["limit_k_db"] == 10
+    assert card["calculation"]["limit_ref_hz"] == 4000
+    assert card["publication"] == {
+        "refs": [],
+        "part": "PART II-S",
+        "label": "notification recorded in the MIFR (BR IFIC Part II-S)",
+        "sessions": [],
+    }
     assert card["missing"] == [
         "s_beam.bore_long",
         "s_beam.bore_lat",
@@ -71,6 +81,8 @@ def test_card_has_the_whole_schema(challenge):
     assert f"{card['point']['lat']:g}".replace(".", ",") in md  # the level point, not a station
     assert "- **Coverage:**" in md
     assert "- **Finland allocation:**" in md
+    assert "notification recorded in the MIFR (BR IFIC Part II-S)" in md
+    assert "- **Limit row:** A -152 dB(W/m²) at 0–5°, K 10 dB, reference bandwidth 4 kHz" in md
     assert "s_beam." not in md  # beam geometry is not a blocking gap, the worst case covers it
 
 
@@ -306,8 +318,30 @@ def test_card_carries_the_filing_chain_and_the_queue_action(challenge):
     assert "This filing follows 100543885 (advance publication, No. 9.1)" in render_card_md(card)
 
     queue = render_queue_md(challenge.slice.result)
-    assert "| # | case | class | stage | action |" in queue
-    assert "| 103500417 | exceeds | No. 11.2 | M |" in queue
+    assert "| # | case | class | stage | action | publication |" in queue
+    assert "| 103500417 | exceeds | No. 11.2 | M | PART II-S |" in queue
+
+
+@pytest.mark.data
+def test_publication_parts_and_sessions(challenge):
+    """pub_ssn names the exact BR IFIC part and session; the card prints both."""
+    cr_case = challenge.slice.result.case_by_id()["124520183"]
+    cr_card = build_card(cr_case, challenge.slice.ific, challenge.slice.m4, _audit())
+    assert cr_card["publication"]["refs"] == ["CR/D", "CR/C"]
+    assert cr_card["publication"]["part"] == "CR"
+    assert [item["session"] for item in cr_card["publication"]["sessions"]] == ["5378", "6324"]
+    md = render_card_md(cr_card)
+    assert "coordination request, part D; coordination request, part C (CR/D, CR/C)" in md
+    assert "BR IFIC CR/D 5378; CR/C 6324" in md
+
+    api_case = challenge.slice.result.case_by_id()["124545403"]
+    api_card = build_card(api_case, challenge.slice.ific, challenge.slice.m4, _audit())
+    assert api_card["publication"]["refs"] == ["API/B", "API/A"]
+    assert api_card["publication"]["part"] == "API"
+    assert (
+        "advance publication, part B; advance publication, part A (API/B, API/A)"
+        in render_card_md(api_card)
+    )
 
 
 def test_deadline_line_marks_a_passed_deadline():
@@ -338,10 +372,10 @@ def test_queue_md_carries_a_deadline_column():
         counts={"notices": 3, "g1": 3, "g2": 3, "g3": 3, "cannot_decide": 0},
     )
     md = render_queue_md(result)
-    assert "| # | case | class | stage | action | deadline | margin dB |" in md
-    assert "| 1 | 1 | exceeds |  | - | 19.12.2026 |" in md
-    assert "| 2 | 2 | exceeds |  | - | 18.12.2019 (passed) |" in md
-    assert "| 3 | 3 | exceeds |  | - | - |" in md
+    assert "| # | case | class | stage | action | publication | deadline | margin dB |" in md
+    assert "| 1 | 1 | exceeds |  | - | - | 19.12.2026 |" in md
+    assert "| 2 | 2 | exceeds |  | - | - | 18.12.2019 (passed) |" in md
+    assert "| 3 | 3 | exceeds |  | - | - | - |" in md
 
 
 @pytest.mark.data

@@ -133,12 +133,16 @@ third and not first, and 125500277 (group due 19.12.2026) moves ahead of a large
 - **Satellite:** COMPASS-80E (GSO, CHN), beam CDN
 - **Band:** 3 442-3 478 MHz
 - **Stage:** No. 11.2 — notification recorded in the MIFR
+- **Publication:** notification recorded in the MIFR (BR IFIC Part II-S)
+- **Filing action:** modification
 - **Point:** 64,3496 N 22,9884 E (territorial sea outer limit), elevation 4,96°
 - **PFD:** -184,78 dB(W/m²/Hz) vs limit -188,02 dB(W/m²/Hz) → margin 3,25 dB
 - **Limit:** ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287
-- **Finland allocation:** MOBILE AND FIXED (no satellite service)
+- **Limit row:** A -152 dB(W/m²) at 0–5°, K 10 dB, reference bandwidth 4 kHz (p. 287)
+- **Criterion:** ITU RR Art. 21 Table 21-4 is the primary PFD limit (Traficom Q2); CEPT/ECC elaborations are not applied in this build.
+- **Finland allocation:** MOBILE AND FIXED (no satellite service on 3 442-3 478 MHz)
 - This filing follows 100543885 (advance publication, No. 9.1)
-- **Reference:** station 986805 (MVV), directive, 58 dBi
+- **Reference:** station 986805 (MVV), 66,1172 N 28,5729 E, directive, 58 dBi
 - **Coverage:** beam name CDN; worst case assumed: peak beam gain toward the Finnish territory
 - **Missing:** nothing
 - **Threshold:** the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction
@@ -155,7 +159,10 @@ the computation. `Point` is the border vertex where the level is highest; `Refer
 register row on the band, context only. `Finland allocation` is the second screen (Traficom,
 7 Nov 2026): 3 442-3 478 MHz is `MOBILE AND FIXED` in Finland, so a downlink there is a finding
 whatever the margin. `Question` is the draft the administration would receive, and it asks to
-confirm that worst-case PFD. `Stage` names the provision the filing stands under, and `Threshold`
+confirm that worst-case PFD. `Stage` names the provision the filing stands under, `Publication`
+names the BR IFIC part and session (here Part II-S, a notification), and `Filing action` plus the
+`This filing follows` line say what the filing does and what it follows. The web card also lists
+the earlier complaints for the same administration or network, with the reply note. `Threshold`
 (here the reference station is directive at 58 dBi) restates Traficom's point that a directive
 antenna can be protected at a lower level without changing any number.
 
@@ -342,10 +349,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 192 passed with data/
+make check        # ruff check, ruff format --check, pytest: 196 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 140 passed, 52 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 142 passed, 54 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. The optional Teams digest (15 seconds)

@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app import guard
-from app.config import fmt_mhz, fmt_num
+from app.config import allocation_text, fmt_mhz, fmt_num
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
 PROMPT = (
@@ -68,8 +68,7 @@ def template(card: dict, template_name: str = "case_en.md") -> str:
         "limit": fmt_num(calc["limit_dbw_m2_hz"]),
         "margin": f"{calc['margin_db']:+.2f}".replace(".", ","),
         "class": card["class"],
-        "allocation": card["m4"]["services_in_finland"]
-        + ("" if card["m4"]["satellite_use"] else " (no satellite service)"),
+        "allocation": allocation_text(card["m4"]),
         "question": card["next_action"]["question"],
     }
     return (TEMPLATES / template_name).read_text(encoding="utf-8").format(**values)

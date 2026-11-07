@@ -77,12 +77,17 @@ tehtävät itsenäisesti. Raakavastaukset ovat repon ulkopuolella:
 - Molemmat: ei-päätettäviä ei löydy listana, vain lukuna. Worst case -sijainti Suomessa puuttuu.
 
 Näiden pohjalta 7.11. tehdyt muutokset: hakuteksti kertoo dokumenttisarjan (space), kortti
-näyttää sääntelyvaiheen ITU-lyhenteellä ja suojaavan aseman koordinaatit, suppilo listaa
-ei-päätettävät ilmoitukset syineen ja tarvittavine arvoineen, laskelman avaus näyttää kaavan ja
-lähtötiedot, ja kortin teksti on englanniksi.
+näyttää sääntelyvaiheen ITU-lyhenteellä, julkaisutyypin ja BR IFIC -session (API/A, API/B,
+CR/C, CR/D, CR/E, RES4, RES49; ilmoitus ilman pub_ssn-riviä on Part II-S), suojaavan aseman
+koordinaatit ja worst case -pisteen, suppilo listaa ei-päätettävät ilmoitukset syineen ja
+tarvittavine arvoineen, laskelman avaus näyttää kaavan, Table 21-4 -rivin (A, K,
+referenssikaista, sivu) ja lähtötiedot, kortti listaa aiemmat valitukset samalle hallinnolle
+tai verkolle vastausmuistiinpanoineen, ja kortin teksti on englanniksi.
 
-Avoinna: P:n vaatima viittaustarkkuus, O:n CRD/Part II -tarkennus ja aiempien valitusten
-historia.
+Avoinna: CEPT/ECC-vertailu. Q2:n mukaan Table 21-4 on ensisijainen raja eikä CEPT ole erillinen
+raja tässä buildissa; kortti sanoo tämän criterion-rivillä. P:n viittaustarkkuus on nyt
+Table 21-4 -rivin ja BR IFIC -session tasolla, O:n CRD/Part II -tarkennus on pub_ssn-taulussa,
+ja aiempien valitusten historia on kortin listassa.
 
 ## Testi
 

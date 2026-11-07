@@ -36,6 +36,22 @@ def test_without_an_endpoint_the_template_is_used():
     assert draft["source"] == "template"
     assert "3074-103500417" in draft["text"]
     assert "-184,78" in draft["text"]
+    assert "(no satellite service)" in draft["text"]
+    assert "no satellite service on" not in draft["text"]
+
+
+def test_a_partial_m4_gap_names_the_gap():
+    """A mixed band says which part has no satellite service, not that the whole band has none."""
+    card = {
+        **CARD,
+        "m4": {
+            "services_in_finland": "FIXED SATELLITE (SPACE-TO-EARTH), MOBILE AND FIXED",
+            "satellite_use": False,
+            "gaps": [[3600.0, 3800.0]],
+        },
+    }
+    text = prose.draft_summary(card)["text"]
+    assert "no satellite service on 3\u00a0600-3\u00a0800 MHz" in text
 
 
 def test_letter_template_asks_the_question():

@@ -230,6 +230,24 @@ def test_exported_rows_are_mapped_to_ific_data(tmp_path, monkeypatch):
         "emiss": [{"grp_id": "9", "pwr_ds_max": "-50.0"}],
         "geo": [{"ntc_id": "1", "sat_name": "COMPASS-80E", "long_nom": "80"}],
         "orbit": [{"ntc_id": "1", "apog_km": "35786", "perig_km": "35786", "inclin_ang": "0"}],
+        "pub_ssn": [
+            {
+                "ntc_id": "1",
+                "seq_no": "1",
+                "ssn_ref": "CR/D",
+                "ssn_no": "5378",
+                "ssn_rev": "",
+                "ssn_rev_no": "",
+            },
+            {
+                "ntc_id": "1",
+                "seq_no": "2",
+                "ssn_ref": "CR/C",
+                "ssn_no": "6324",
+                "ssn_rev": "M",
+                "ssn_rev_no": "1",
+            },
+        ],
     }
     monkeypatch.setattr(ingest, "_export", lambda path, table: tables.get(table, []))
     ific = ingest.load_ific(mdb)
@@ -239,6 +257,12 @@ def test_exported_rows_are_mapped_to_ific_data(tmp_path, monkeypatch):
     assert ific.counts["orbit"] == 1
     assert ific.counts["grp"] == 0  # an absent optional table is not an error
     assert ific.counts["grp_res35"] == 0
+    assert ific.counts["pub_ssn"] == 2
+    assert ific.publications["1"] == [
+        ingest.Publication("1", "1", "CR/D", "5378", "", ""),
+        ingest.Publication("1", "2", "CR/C", "6324", "M", "1"),
+    ]
+    assert ific.notices["1"].pub_refs == ("CR/D", "CR/C")
     assert ific.res35 == {}  # an absent grp_res35 leaves every notice without a deadline
     assert ific.notices["1"].adm == "CHN"
     assert ific.notices["1"].tgt_ntc_id == "2"
@@ -288,6 +312,15 @@ def test_real_mdb_row_counts(challenge):
     assert counts["non_geo"] == 112
     assert counts["orbit"] == 11221
     assert counts["grp_res35"] == 254
+    assert counts["pub_ssn"] == 225
+
+
+@pytest.mark.data
+def test_real_publication_parts(challenge):
+    """pub_ssn names the exact BR IFIC part; a notification has no pub_ssn row."""
+    assert challenge.slice.ific.notices["124520183"].pub_refs == ("CR/D", "CR/C")
+    assert challenge.slice.ific.notices["124545403"].pub_refs == ("API/B", "API/A")
+    assert challenge.slice.ific.notices["103500417"].pub_refs == ()
 
 
 @pytest.mark.data

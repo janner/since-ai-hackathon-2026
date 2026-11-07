@@ -26,9 +26,14 @@
   .status:empty { display: none; }
   .fetch { display: flex; align-items: center; gap: 16px; margin: 8px 0 0; font-size: 14px; line-height: 1.4; }
   .fetch p { margin: 0; color: var(--muted); }
-  main { flex: 1; display: grid; grid-template-columns: 20rem 24rem 1fr; min-height: 0; }
+  main { flex: 1; display: flex; min-height: 0; }
   section { padding: 16px 24px; overflow: auto; border-right: 1px solid var(--line); min-height: 0; }
-  section:last-child { border-right: 0; }
+  #left-column { width: 20rem; flex: none; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); }
+  #left-column > section { border-right: 0; }
+  #funnel-section { flex: 0 0 auto; max-height: 60%; overflow: auto; border-bottom: 1px solid var(--line); }
+  #stats-section { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  #queue-section { width: 24rem; flex: none; overflow: auto; border-right: 1px solid var(--line); }
+  #card-section { flex: 1; min-width: 0; overflow: auto; border-right: 0; }
   h2 { margin: 0 0 8px; font-size: 20px; font-weight: 600; line-height: 1.3; }
   h3 { margin: 24px 0 8px; font-size: 14px; font-weight: 600; line-height: 1.4; }
   p { margin: 0 0 8px; }
@@ -83,6 +88,7 @@
   .btn-sm { min-height: 32px; padding: 4px 12px; }
   details.calc { margin-top: 8px; border-top: 1px solid var(--line); }
   details.calc summary { cursor: pointer; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--accent); }
+  details.calc summary .btn { margin-left: 8px; vertical-align: middle; }
   details.calc pre { margin: 0 0 8px; white-space: pre-wrap; font: 400 14px/1.45 var(--mono); color: var(--fg); }
   footer { padding: 16px 24px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.33; color: var(--muted); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -92,6 +98,10 @@
     header, #queue-section { display: none; }
     main { display: block; }
     section { border: 0; padding: 0; overflow: visible; }
+    #left-column { display: block; width: auto; border: 0; }
+    #funnel-section { max-height: none; border: 0; }
+    #stats-section { overflow: visible; }
+    #card-section { width: auto; }
     .tag { background: #fff; border: 1px solid #000; color: #000; }
     a { color: #000; }
   }
@@ -107,10 +117,24 @@
   <p class="status" id="status" role="status" aria-live="polite"></p>
 </header>
 <main>
-  <section id="funnel-section" aria-labelledby="h-funnel">
-    <h2 id="h-funnel">Funnel</h2>
-    <div id="funnel"></div>
-  </section>
+  <div id="left-column">
+    <section id="funnel-section" aria-labelledby="h-funnel">
+      <h2 id="h-funnel">Funnel</h2>
+      <div id="funnel"></div>
+    </section>
+    <section id="stats-section" aria-labelledby="h-stats">
+      <h2 id="h-stats">Complaint register</h2>
+      <p class="note" id="stats-banner">loading...</p>
+      <div class="queue-controls">
+        <label for="stats-year">Year</label>
+        <select id="stats-year">
+          <option value="">All years</option>
+        </select>
+        <a class="btn btn-sm" id="stats-csv" href="/api/stats.csv">Download CSV</a>
+      </div>
+      <div id="stats"></div>
+    </section>
+  </div>
   <section id="queue-section" aria-labelledby="h-queue">
     <h2 id="h-queue">Queue</h2>
     <p class="note" id="queue-filter"></p>
@@ -127,21 +151,9 @@
     </div>
     <ul id="queue"></ul>
   </section>
-  <section aria-labelledby="h-card">
+  <section id="card-section" aria-labelledby="h-card">
     <h2 id="h-card">Card</h2>
     <div id="card">Select a card from the queue.</div>
-  </section>
-  <section id="stats-section" aria-labelledby="h-stats">
-    <h2 id="h-stats">Complaint register</h2>
-    <p class="note" id="stats-banner">loading...</p>
-    <div class="queue-controls">
-      <label for="stats-year">Year</label>
-      <select id="stats-year">
-        <option value="">All years</option>
-      </select>
-      <a class="btn btn-sm" id="stats-csv" href="/api/stats.csv">Download CSV</a>
-    </div>
-    <div id="stats"></div>
   </section>
 </main>
 <footer>The tool does not decide. Every number comes from code, not from a language model.</footer>
@@ -170,6 +182,14 @@ function signed(value, unit) {
   return (n >= 0 ? "+" : "") + num(n, unit);
 }
 
+function hzText(value) {
+  const n = Number(value);
+  if (!isFinite(n)) return "unknown";
+  if (n >= 1e6) return num(n / 1e6, "MHz");
+  if (n >= 1e3) return num(n / 1e3, "kHz");
+  return num(n, "Hz");
+}
+
 function rows(pairs) {
   const box = el("div", null, "rows");
   for (const [label, value] of pairs) {
@@ -189,6 +209,13 @@ const CLASS_EN = {
 };
 // notice.act_code: what the filing does to the record.
 const ACTION_EN = { A: "New filing", M: "Modification", S: "Suppression" };
+// ntc_lnk.lnkntf_rsn: the nature of the notice a filing follows.
+const NTF_REASON_EN = {
+  N: "notification, No. 11.2",
+  C: "coordination request, No. 9.6",
+  A: "advance publication, No. 9.1",
+  U: "Resolution 49 filing",
+};
 const STAGE_EN = {
   "No. 9.1": { name: "Advance publication", short: "API", meaning: "Can still be influenced." },
   "No. 9.6": { name: "Coordination request", short: "CRC", meaning: "Can still be influenced." },
@@ -224,7 +251,8 @@ function stageOf(item) {
 function filingStage(item) {
   const prov = (item.regulatory_stage && item.regulatory_stage.provision) || "unknown stage";
   const stage = STAGE_EN[prov] || {};
-  const name = [prov, stage.name].filter(Boolean).join(" ");
+  const name = stage.name && !prov.toUpperCase().includes(stage.name.toUpperCase())
+    ? prov + " " + stage.name : (stage.name || prov);
   const short = stage.short && !name.toUpperCase().includes(stage.short.toUpperCase())
     ? " (" + stage.short + ")" : "";
   return [name + short, stage.meaning].filter(Boolean).join(". ");
@@ -283,6 +311,10 @@ function calculationText(item) {
     "Formula: PFD = PSD + beam gain - free-space loss; limit = Table 21-4 value at " +
       "elevation - 10 log10(reference bandwidth).",
     "Limit source: " + (c.limit_source || "unknown"),
+    "Limit row: A " + num(c.limit_a_db, "dB(W/m\u00b2)") + " at 0-5\u00b0, K " +
+      num(c.limit_k_db, "dB") + ", reference bandwidth " + hzText(c.limit_ref_hz) +
+      " (" + (c.limit_page || "page unknown") + ").",
+    "Criterion: " + (c.criterion || "Table 21-4"),
     "Input: notice " + (keys.ntc_id || "unknown") + ", group " + (keys.grp_id || "unknown") +
       ", beam " + (keys.beam_name || "unknown") + ", file " + (s.file || "unknown") +
       ", tables " + ((s.tables || []).join(", ") || "unknown") + ".",
@@ -364,13 +396,16 @@ async function checkNow() {
   }
 }
 
-function copyText(text, button) {
+function copyText(text, button, what = "Question") {
   if (!text) return;
+  const label = button.dataset.label || button.textContent;
+  button.dataset.label = label;
   const done = () => {
     button.textContent = "Copied";
-    setStatus("Question copied to the clipboard.");
+    setStatus(what + " copied to the clipboard.");
+    setTimeout(() => { button.textContent = label; }, 1600);
   };
-  const fail = () => setStatus("Copy failed. Select the question manually.");
+  const fail = () => setStatus("Copy failed. Select the " + what.toLowerCase() + " manually.");
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done, fail);
   } else {
@@ -529,6 +564,10 @@ function queueRow(item) {
 
   const stage = stageOf(item);
   button.append(el("span", [stage.name, stage.meaning].filter(Boolean).join(". "), "q-stage"));
+  const publication = item.publication || {};
+  if (publication.refs && publication.refs.length) {
+    button.append(el("span", "Publication: " + publication.refs.join(" + "), "q-stage"));
+  }
   const action = ACTION_EN[item.filing_action];
   if (action) button.append(el("span", action, "q-action"));
   button.append(el("span", item.case_id, "q-id"));
@@ -547,6 +586,7 @@ function noticeRow(row) {
   const detail = row["class"] === "cannot_decide" ? undecidedText(row)
     : (row.reason_text || row.reason || "");
   if (detail) li.append(el("span", detail, "q-stage"));
+  if (row.publication) li.append(el("span", "Publication: " + row.publication, "q-stage"));
   return li;
 }
 
@@ -736,13 +776,6 @@ const DONE_EN = {
   no_action_decided: "No action decided",
 };
 
-// One fetch for the register, shared by the statistics view and the card's history line.
-let registerCache = null;
-async function registerSummary() {
-  if (!registerCache) registerCache = await get("/api/stats");
-  return registerCache;
-}
-
 function outcomeText(outcomes) {
   return Object.entries(outcomes || {})
     .map(([key, value]) => key.replace(/_/g, " ") + ": " + value)
@@ -817,20 +850,54 @@ async function loadStats() {
   }
 }
 
-// The card's own history: how often this administration and this network have come up before.
-function cardHistoryLine(item) {
-  const line = el("p", "", "note");
-  registerSummary().then((summary) => {
-    const adm = (item.parties && item.parties.admin) || "";
-    const network = (item.coverage && item.coverage.sat_name) || "";
-    const admRow = (summary.admins || []).find((row) => row.key === adm);
-    const netRow = (summary.networks || []).find((row) => row.key === network);
-    const parts = [];
-    if (admRow) parts.push(adminName(adm) + ": " + admRow.count + " complaints, " + admRow.open + " open");
-    if (netRow) parts.push(network + ": " + netRow.count + " complaints, " + netRow.open + " open");
-    if (parts.length) line.textContent = "In the register " + parts.join(" \u00b7 ") + ".";
-  }).catch(() => {});
-  return line;
+// The card's own history: the earlier complaints for this administration and network,
+// with the reply note the register holds. The aggregate stays in the register section.
+function cardComplaints(item) {
+  const box = el("div");
+  const line = el("p", "Earlier complaints: loading...", "note");
+  box.append(line);
+  const adm = (item.parties && item.parties.admin) || "";
+  const network = (item.coverage && item.coverage.sat_name) || "";
+  const queries = [];
+  if (adm) queries.push(get("/api/complaints?adm=" + encodeURIComponent(adm)));
+  if (network) queries.push(get("/api/complaints?sat_name=" + encodeURIComponent(network)));
+  Promise.all(queries).then((groups) => {
+    const seen = new Set();
+    const rows = [];
+    for (const group of groups) {
+      for (const row of group) {
+        if (seen.has(row.complaint_id)) continue;
+        seen.add(row.complaint_id);
+        rows.push(row);
+      }
+    }
+    rows.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    if (!rows.length) {
+      line.textContent = "No earlier complaints in the register for this administration or network.";
+      return;
+    }
+    const open = rows.filter((row) => row.status === "open").length;
+    line.textContent = "Earlier complaints: " + rows.length + " (" + open + " open).";
+    const list = el("ul", null, "undecided");
+    for (const row of rows.slice(0, 5)) {
+      const reply = (row.events || []).filter((event) => event.type === "reply_received").pop();
+      const note = reply && reply.payload && reply.payload.note ? " \u2014 " + reply.payload.note : "";
+      const outcome = row.outcome && row.outcome !== "pending"
+        ? " \u00b7 " + row.outcome.replace(/_/g, " ") : "";
+      const days = row.days_to_reply !== null && row.days_to_reply !== undefined
+        ? " \u00b7 " + row.days_to_reply + " d" : "";
+      const synthetic = row.synthetic ? " \u00b7 synthetic" : "";
+      const issue = ISSUE_EN[row.issue_type] || row.issue_type || "issue";
+      const who = row.sat_name || row.case_id || "case";
+      list.append(el("li", row.at.slice(0, 10) + " \u00b7 " + who + " \u00b7 " + issue +
+        " \u00b7 " + row.status + outcome + days + synthetic + note));
+    }
+    if (rows.length > 5) list.append(el("li", (rows.length - 5) + " more in the register."));
+    box.append(list);
+  }).catch(() => {
+    line.textContent = "Could not load the complaint register.";
+  });
+  return box;
 }
 
 function renderCard(item) {
@@ -856,7 +923,22 @@ function renderCard(item) {
     coverage.beam ? "beam " + coverage.beam : "",
   ].filter(Boolean).join(" \u00b7 "), "card-sub"));
   card.append(el("p", "Filing stage: " + filingStage(item), "note"));
-  card.append(cardHistoryLine(item));
+  const publication = item.publication || {};
+  const pubRefs = (publication.refs || []).join(", ");
+  const pubSessions = (publication.sessions || []).map((entry) =>
+    entry.ref + " " + entry.session +
+    (entry.revision ? " " + entry.revision + (entry.revision_no || "") : "")
+  ).join("; ");
+  card.append(el("p", "Publication: " + (publication.label || "unknown") +
+    (pubRefs ? " (" + pubRefs + ")" : "") +
+    (pubSessions ? ". BR IFIC " + pubSessions + "." : ""), "note"));
+  const action = ACTION_EN[item.filing_action];
+  if (action) card.append(el("p", "Filing action: " + action + ".", "note"));
+  for (const link of item.filing_follows || []) {
+    const reason = NTF_REASON_EN[link.reason] || link.reason;
+    card.append(el("p", "This filing follows " + link.ntc_id + " (" + reason + ").", "note"));
+  }
+  card.append(cardComplaints(item));
   const at = point.lat !== undefined && point.lat !== null
     ? point.lat + " N, " + point.lon + " E (" + (point.place || "") + ")"
     : (point.place || "Finnish territory");
@@ -864,8 +946,10 @@ function renderCard(item) {
     num(coverage.elevation_deg, "\u00b0") + ".", "note"));
   const victim = item.victim || {};
   if (victim.station) {
+    const where = victim.lat !== undefined && victim.lat !== null && victim.lon !== undefined && victim.lon !== null
+      ? " at " + victim.lat + " N, " + victim.lon + " E" : "";
     card.append(el("p", "Reference row: station " + victim.station +
-      (victim.class ? " (" + victim.class + ")" : "") +
+      (victim.class ? " (" + victim.class + ")" : "") + where +
       (victim.gain_db !== undefined && victim.gain_db !== null ? ", " + victim.gain_db + " dBi" : "") +
       " \u2014 the register is a reference, not the whole use.", "note"));
   }
@@ -894,8 +978,9 @@ function renderCard(item) {
   card.append(el("h3", "What is on the band in Finland"));
   card.append(el("p", (item.m4 && item.m4.services_in_finland) || "no information"));
   if (item.m4 && item.m4.satellite_use === false) {
-    card.append(el("p", "No satellite service in Finland's allocation: a satellite " +
-      "transmitting here is a finding on its own, whatever the PFD says.", "note"));
+    const gaps = (item.m4.gaps || []).map(([lo, hi]) => num(lo) + "-" + num(hi) + " MHz").join(", ");
+    card.append(el("p", "No satellite service on " + (gaps || "part of the band") +
+      ": a satellite transmitting there is a finding on its own, whatever the PFD says.", "note"));
   }
   if (item.m4 && item.m4.source) card.append(el("p", "M4: " + item.m4.source, "src"));
 
@@ -912,8 +997,20 @@ function renderCard(item) {
   card.append(details);
 
   // The card exactly as cases.json holds it: every value behind the rendering above.
+  // The raw JSON is also the thing a specialist pastes into their own tools.
+  const rawText = JSON.stringify(item, null, 2);
   const raw = el("details", null, "calc");
-  raw.append(el("summary", "Show raw data (JSON)"), el("pre", JSON.stringify(item, null, 2)));
+  const rawSummary = el("summary");
+  rawSummary.append("Show raw data (JSON)");
+  const copyRaw = el("button", "Copy data", "btn btn-sm");
+  copyRaw.type = "button";
+  copyRaw.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    copyText(rawText, copyRaw, "Raw JSON");
+  });
+  rawSummary.append(" ", copyRaw);
+  raw.append(rawSummary, el("pre", rawText));
   card.append(raw);
 
   card.append(el("p", sourceLine(item), "src"));

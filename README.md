@@ -27,16 +27,17 @@ A deterministic filtering pipeline that shows its work. `scripts/monitor.py` fet
 from ITU on the two-week cadence. The run screens every space-to-Earth notice, keeps the ones a
 satellite can bring over Finnish territory, and computes an upper-bound power flux
 density (PFD) at the edge of that territory against the ITU Radio Regulations Article 21, Table 21-4
-limit. Every band is also checked against Finland's own allocation (Regulation M4): a band with no
-satellite service at all is a finding on its own, even when the PFD is below the limit. The
+limit. Every band is also checked against Finland's own allocation (Regulation M4): a part of the
+band with no satellite service is a finding on its own, even when the PFD is below the limit. The
 delivered register is a reference, not the boundary of the analysis. That is Traficom's rule of
 7 Nov 2026 (`docs/traficom-qa.md` F5): a limit exceedance alone is not enough, the level over
 Finnish territory is what matters, and the band is what a case is about. The full run covers every
 Finnish allocation, not a hand-picked band list (D18).
 
 Every notice that survives the gates and gets a number becomes a case card with the source rows,
-the calculation, the Finnish allocation, the regulatory stage of the filing, the missing data, and one
-question for the other administration. A notice that passes G1 and G2 but cannot be computed is not
+the calculation, the Finnish allocation, the regulatory stage and the BR IFIC publication part of
+the filing, the filing chain, the earlier complaints for the same administration or network, the
+missing data, and one question for the other administration. A notice that passes G1 and G2 but cannot be computed is not
 a card: it keeps its row in `queue.md`, `queue.json`, `3074_results.csv` and the web queue under class
 `cannot_decide`, and its count is in `funnel.json`. The accuracy slice (IFIC 3074) therefore has 20
 cards and one notice without (limitation 14); the auto-fetch demo (IFIC 3075) has 7 cards and two
@@ -82,8 +83,8 @@ statistic can come from a free-text label.
 `app/stats.py` counts the same events without a stored aggregate: per administration and per network
 (the two "who"), per band and per issue type (the "what"), per action and outcome with the median
 days from letter to reply (the "what was done"). The page has a Complaint register section for that,
-with a year filter and a CSV export, and the card carries a line saying how often that administration
-and that network have come up before.
+with a year filter and a CSV export, and the card lists the earlier complaints for that administration
+and network, with the reply note the register holds.
 
 The history from 2021 to 2026 in the demo is generated and labelled: `python scripts/seed_history.py
 --seed 2026` writes `ledger/complaints.synthetic.jsonl` byte for byte from the seed (206 complaints,
@@ -100,7 +101,7 @@ the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 
 9 need attention out of 129 queue rows; the first queue row is `125520114`, a coordination-stage near case, and the APSTAR-92E
 exceedance is fifth because its filing is already in the MIFR. The accuracy dataset is the challenge's
 IFIC 3074 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026:
-`make check` 192 tests (140 passed, 52 skipped without `data/`). The deterministic pipeline is offline; the
+`make check` 196 tests (142 passed, 54 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
@@ -223,8 +224,8 @@ under a `kaista/` prefix, plus the accuracy files from the last run under `resul
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 192 passed |
-| Clean clone, no `data/` | 140 passed, 52 skipped |
+| With `data/` | 196 passed |
+| Clean clone, no `data/` | 142 passed, 54 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs

@@ -1,7 +1,7 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Verified on 7 Nov
-2026 with `make check` (192 passed) and a clean clone (140 passed, 52 skipped).
+2026 with `make check` (196 passed) and a clean clone (142 passed, 54 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
@@ -49,7 +49,7 @@ plus or minus half the channel bandwidth. `Notice.prov` carries the regulatory s
 and `Station.directivity` the register's `Directivity` code (`D`, `ND` or empty); neither is read by
 a gate, and only the card uses them.
 
-Tests (`tests/test_ingest.py`, 27 collected): `test_mhz_normalises_units` (parametrised over nine
+Tests (`tests/test_ingest.py`, 28 collected): `test_mhz_normalises_units` (parametrised over nine
 unit forms), `test_watts_converts_units`, `test_deadline_reads_the_exported_date` (the
 `grp_res35` date shape, and the empty and unparseable forms stay `None`),
 `test_load_register_skips_rows_without_frequency`,
@@ -158,7 +158,7 @@ which is a worst case over every latitude and needs no location.
 A notice with nothing computable lands in `undecided` with one reason: `no_orbit`, `no_perigee`,
 `no_limit_for_band`, `no_power`, `no_gain` or `x_needs_nv`. Classification uses the margin rounded to
 two decimals: `exceeds` above 0 dB, `near` between −3 and 0 dB, `not_space` at or below −3 dB when
-the band has no satellite service in Finland, `clear` otherwise. An adjacent-channel
+a part of the band has no satellite service in Finland, `clear` otherwise. An adjacent-channel
 case (see F3) keeps its margin but is capped at `near`: the Table 21-4 limit belongs to the notified
 band and does not apply outside it. The register's rows on the band are a reference only: the block
 names the one with the highest margin, and the number itself is taken at the territory edge.
@@ -195,15 +195,22 @@ sorts ahead of a larger margin in its stage), `test_an_adjacent_case_is_capped_a
 `app/cards.py::build_card()` turns a `Case` into the card: `case_id`, `same_network`, `source`
 (file, IFIC number, SHA256, tables, keys), `parties`, `band`, `direction`, `coverage`, `point`,
 `victim`, `calculation`, `m4`, `class`, `adjacent`, `deadline`, `deadline_passed`,
-`regulatory_stage`, `filing_action`, `filing_follows`, `threshold_note`, `missing`, `next_action`,
-`audit`. The audit block carries `input_sha256`, `rules_version` and `run_at`; the `input_sha256` is
+`regulatory_stage`, `publication`, `filing_action`, `filing_follows`, `threshold_note`, `missing`,
+`next_action`, `audit`. The audit block carries `input_sha256`, `rules_version` and `run_at`; the `input_sha256` is
 the SHA256 of the BR IFIC MDB the run read.
 
 `regulatory_stage` restates `notice.prov` as `{provision, label, source}`, for example `No. 11.2` /
 "notification recorded in the MIFR" / `ITU RR 2024, Vol 1, No. 11.2`. The stage itself carries no
 deadline and no window length; `label` is the one sentence of what the stage means (advance
 publication and coordination request are stages another administration can still influence, the
-notification is a recording in the MIFR). The Resolution 35 deadline has its own field:
+notification is a recording in the MIFR).
+
+`publication` restates `pub_ssn.ssn_ref` as `{refs, part, label, sessions}`: API/A, API/B, CR/C,
+CR/D, CR/E, RES4 or RES49, with the BR IFIC session number and revision. A notification (prov 11.2)
+without a `pub_ssn` row is `PART II-S`. The card prints the label, the refs and the session; the
+queue and the CSV carry the refs (or `PART II-S`). The calculation block prints the exact Table 21-4 row
+(`limit_a_db`, `limit_k_db`, `limit_ref_hz`, `limit_page`), and the criterion line says Table 21-4
+is the primary limit and CEPT/ECC is not applied (Q2). The Resolution 35 deadline has its own field:
 `deadline` is the notice's earliest upcoming group deadline from `grp_res35` (see F5) as a Finnish
 date, `deadline_passed` says whether it is already behind the run, and `render_card_md()` writes
 `- **Resolution 35 deadline:** <date>`, appending `(passed)` for a passed one. No group of the
@@ -224,9 +231,9 @@ anchor of the number (D17).
 
 M4 (`app/allocation.py::m4_lookup()`) is a finding, not only context: it lists the sub-band IDs that
 overlap the notified band, the merged band range in MHz, the Finnish services from the open data
-table, `satellite_use` and the source URL. `satellite_use` is true when any overlapping row names a
-satellite service, in either direction; only a band with no satellite service at all is a finding
-(D18). A band with no M4 row gets `rows: []`, `services_in_finland: "not allocated"` and the same
+table, `satellite_use` and the source URL. `satellite_use` is true only when every part of the
+notified band has a satellite service, in either direction; a part without one makes the notice a
+finding (D18). A band with no M4 row gets `rows: []`, `services_in_finland: "not allocated"` and the same
 `not_space` finding.
 
 `same_network()` lists other notices of the same satellite and administration, or a notified
@@ -235,7 +242,8 @@ target. The card shows them; every notice is still decided on its own.
 `missing_fields()` names every empty input, beam geometry (`s_beam.*`) included. `_blocking()`
 keeps the ones that decide a case: since Traficom's Q3 answer the beam geometry is not among them,
 because the worst case covers it. `render_card_md()` writes the card (its `filing_follows` links
-become a "This filing follows <ntc_id> (<reason>)" line) and `render_queue_md()`
+become a "This filing follows <ntc_id> (<reason>)" line, and the publication, filing action, limit
+row and criterion are their own lines) and `render_queue_md()`
 write the Markdown, `results_rows()` writes the CSV rows, `render_run_log()` the log. In the CSV,
 `results_rows()` leaves `class` empty for a notice dropped at G1 or G2 and writes `cannot_decide`
 only for a case that reached G3 and could not be computed; the `regulatory_stage` column carries the
@@ -243,7 +251,7 @@ provision for every notice (dropped included); `dropped_at` and `reason` carry t
 cause. `render_run_log()` writes the IFIC number, the input file name and the hash alongside the
 counts.
 
-Tests (`tests/test_cards.py`, 13): `test_card_has_the_whole_schema`,
+Tests (`tests/test_cards.py`, 16): `test_card_has_the_whole_schema`,
 `test_m4_lookup_names_the_service_and_the_downlink`, `test_missing_register_field_is_reported`,
 `test_results_rows_cover_every_notice` (asserts one row per notice, the empty `class` for a gate
 drop and the `dropped_at` plus `reason`), `test_a_too_large_victim_power_is_flagged`,
@@ -254,9 +262,10 @@ and the data tests `test_golden_case_103500417`, which locks every field of the 
 including the band label 3 442–3 478 MHz and the `source` block,
 `test_prov_distribution_and_the_card_stage`, which locks the `prov` distribution (50 / 76 / 65 / 5)
 and the card stage block, `test_card_carries_the_filing_chain_and_the_queue_action`, which locks the
-`filing_follows` link and the `action` column of `queue.md`, and
-`test_the_demo_card_shows_its_res35_deadline`, which locks 125500277's 19.12.2026 line and the
-marked passed form.
+`filing_follows` link and the `action` column of `queue.md`,
+`test_publication_parts_and_sessions`, which locks the CR/D + CR/C and API/B + API/A parts and
+their BR IFIC sessions, and `test_the_demo_card_shows_its_res35_deadline`, which locks
+125500277's 19.12.2026 line and the marked passed form.
 
 ## F7: the output files and the CLI
 
@@ -320,8 +329,9 @@ range separator (`3 662-3 698`), not a sign; any other sign must match the card.
 A pipeline run attaches the card summary to every card and writes the correspondence letter to
 `out/letters/<case_id>.md` for each `exceeds` case (see F7); the template is the floor for both.
 
-Tests: `tests/test_prose.py` 8 (`test_without_an_endpoint_the_template_is_used`,
-`test_letter_template_asks_the_question`, `test_a_failing_llm_falls_back_to_the_template`,
+Tests: `tests/test_prose.py` 10 (`test_without_an_endpoint_the_template_is_used`,
+`test_a_partial_m4_gap_names_the_gap`, `test_letter_template_asks_the_question`,
+`test_a_failing_llm_falls_back_to_the_template`,
 `test_an_empty_llm_answer_falls_back` (parametrised over an empty and a whitespace answer),
 `test_a_number_the_card_does_not_have_falls_back`, `test_a_clean_llm_answer_is_kept`,
 `test_a_configured_endpoint_is_called`), `tests/test_guard.py` 6
@@ -430,9 +440,12 @@ The page is English, three panels wide (Funnel, Queue, Card), styled with plain 
 external request. Every value from `out/` is written with `textContent`, so a case id or a
 satellite name cannot inject markup. The queue row and the card show the regulatory stage with
 the ITU short name (`No. 9.1` advance publication, API; `No. 9.6` coordination request, CRC;
-`No. 11.2` MIFR), the queue row spells out the filing action it reads from `filing_action`
-(`A` New filing, `M` Modification, `S` Suppression), and the card names the protected station and
-its coordinates: that is where the worst case is calculated. The page's queue is
+`No. 11.2` MIFR) and the BR IFIC publication part (`CR/C`, `CR/D`, `API/A`, ...; a notification
+without a `pub_ssn` row is `PART II-S`), the queue row spells out the filing action it reads from
+`filing_action` (`A` New filing, `M` Modification, `S` Suppression), and the card shows the filing
+action, the `filing_follows` chain, the protected station and its coordinates, and the worst-case
+point where the level was taken. The card also lists the earlier complaints for the same
+administration or network, with the reply note the register holds. The page's queue is
 `/api/queue/full`: every notice in the run, in queue order, split into `attention`, `checked` and
 `no_effect`, so a `cannot_decide` notice has a row even though it has no card; the funnel panel
 lists its missing field from `funnel.json::undecided_detail` with the value it would need to reach
@@ -441,8 +454,8 @@ Every funnel row is a filter button: a stage row shows the notices that passed t
 row narrows the queue to that class, and a drop row shows the notices that left with that reason;
 a second click on the row, or Show all, clears the filter. The fetch line names the document
 series (`space`), so an IFIC number alone cannot be mistaken for the terrestrial series. The
-"Show calculation" block carries the formula, the limit source and the input keys, so a reader
-can recompute the number. Below it, "Show raw data (JSON)" shows the card exactly as
+"Show calculation" block carries the formula, the limit source, the Table 21-4 row (A, K,
+reference bandwidth, page) and the input keys, so a reader can recompute the number. Below it, "Show raw data (JSON)" shows the card exactly as
 `cases.json` holds it, field for field, for a reader who wants the unrendered record.
 
 Tests (`tests/test_api.py`, 18): the page, the fetch status and its lock, the `runs/latest` pointer,
@@ -613,7 +626,7 @@ Tests (`tests/test_fetch_data.py`, 2): `test_html_instead_of_zip_is_rejected`,
 There are no committed data fixtures. The tests that need a real input are marked `data` and read
 `data/itu-ific-3074/ific3074.mdb`, `data/frequencies_of_interest.csv`, `data/taajuusjakotaulukko.json`
 and the two terrestrial BR IFIC MDBs; `tests/conftest.py` skips every one of them when
-`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (140 passed, 52 skipped).
+`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (142 passed, 54 skipped).
 The pure tests carry their own inputs in the test: the unit forms in `tests/test_ingest.py`, the band
 merging in `tests/test_bands.py`, the guard rows in `tests/test_gates.py`, the PFD vectors and the
 limit table in `tests/test_pfd.py`.
@@ -646,10 +659,12 @@ rows are `GET /api/stats` and `GET /api/stats.csv`; `GET /api/complaints` filter
 The demo history is generated, not hand-written: `scripts/seed_history.py --seed 2026` writes
 `ledger/complaints.synthetic.jsonl` (206 complaints, 695 events, Jan 2021 - Oct 2026) byte for byte
 from the seed, with `synthetic: true` on every line and invented network names (`SYN-`). The UI says
-so in its banner, and the card says how often that administration and that network have come up
-before.
+so in its banner, and the card lists the earlier complaints for that administration and network,
+with the reply note the register holds. The card calls `GET /api/complaints?adm=...` and
+`?sat_name=...`, merges the two lists and shows the five most recent.
 
-Tests (`tests/test_ledger.py`, 6): the closed lists reject anything else, the state is folded from the
+Tests (`tests/test_ledger.py`, 7): the closed lists reject anything else, the state is folded from the
 events, a reopened complaint is open again, a second notice of the same case opens nothing, the
-statistics answer the three questions on a two-complaint fixture, and the API refuses a loose event
-(422) and an unknown complaint (404).
+statistics answer the three questions on a two-complaint fixture, the API refuses a loose event
+(422) and an unknown complaint (404), and the API lists the complaints for a card with the reply
+note.

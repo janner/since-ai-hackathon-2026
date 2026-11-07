@@ -36,6 +36,7 @@ TABLES = (
     "ant_type",
     "ntc_lnk",
     "grp_res35",
+    "pub_ssn",
 )
 # Without notice and freq there is no analysis at all; the other tables may be absent.
 REQUIRED_TABLES = ("notice", "freq")
@@ -195,6 +196,7 @@ class Notice:
     ntwk_org: str
     adm_ref_id: str
     tgt_ntc_id: str
+    pub_refs: tuple[str, ...] = ()  # pub_ssn.ssn_ref: API/A, API/B, CR/C, CR/D, CR/E, RES49
 
 
 @dataclass(frozen=True)
@@ -229,6 +231,18 @@ class Link:
 
 
 @dataclass(frozen=True)
+class Publication:
+    """One pub_ssn row: the BR IFIC session and part the notice was published in."""
+
+    ntc_id: str
+    seq_no: str
+    ref: str  # ssn_ref: API/A, API/B, CR/C, CR/D, CR/E, RES49
+    session: str  # ssn_no: the BR IFIC number
+    revision: str  # ssn_rev: "", M or R
+    revision_no: str
+
+
+@dataclass(frozen=True)
 class IficData:
     notices: dict[str, Notice]
     freqs: list[Freq]
@@ -242,6 +256,7 @@ class IficData:
     file: str
     input_sha256: str
     res35: dict[str, date] = field(default_factory=dict)  # grp_id -> Resolution 35 deadline
+    publications: dict[str, list[Publication]] = field(default_factory=dict)  # ntc_id -> pub_ssn
 
     def sat_name(self, ntc_id: str) -> str:
         geo = self.geo.get(ntc_id)
@@ -358,7 +373,7 @@ def _export(mdb: Path, table: str) -> list[dict]:
 
 
 def load_ific(mdb_path: Path) -> IficData:
-    """Read the 17 IFIC tables straight from the BR IFIC Access database.
+    """Read the 18 IFIC tables straight from the BR IFIC Access database.
 
     `mdb-export <mdb> <table>` per table: no shell, no intermediate CSV directory. Only
     `notice` and `freq` are mandatory; a table the export cannot read is treated as absent.
@@ -388,6 +403,19 @@ def load_ific(mdb_path: Path) -> IficData:
                 raise DataError(f"{mdb.name}: table {name!r} missing column {column!r}")
         return data
 
+    publications: dict[str, list[Publication]] = {}
+    for row in table("pub_ssn", ("ntc_id", "ssn_ref", "ssn_no")):
+        publication = Publication(
+            ntc_id=row["ntc_id"],
+            seq_no=row.get("seq_no", "").strip(),
+            ref=row["ssn_ref"].strip(),
+            session=row["ssn_no"].strip(),
+            revision=row.get("ssn_rev", "").strip(),
+            revision_no=row.get("ssn_rev_no", "").strip(),
+        )
+        if publication.ref:
+            publications.setdefault(publication.ntc_id, []).append(publication)
+
     notices = {
         row["ntc_id"]: Notice(
             ntc_id=row["ntc_id"],
@@ -398,6 +426,7 @@ def load_ific(mdb_path: Path) -> IficData:
             ntwk_org=row.get("ntwk_org", "").strip(),
             adm_ref_id=row.get("adm_ref_id", "").strip(),
             tgt_ntc_id=row.get("tgt_ntc_id", "").strip(),
+            pub_refs=tuple(pub.ref for pub in publications.get(row["ntc_id"], [])),
         )
         for row in table("notice", ("ntc_id", "adm", "ntc_type", "act_code"))
     }
@@ -502,6 +531,7 @@ def load_ific(mdb_path: Path) -> IficData:
         file=mdb.name,
         input_sha256=sha256(mdb),
         res35=res35,
+        publications=publications,
     )
 
 

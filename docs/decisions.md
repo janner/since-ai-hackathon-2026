@@ -219,8 +219,8 @@ Reopen if: Traficom wants results at network level.
 
 ### D17. Baseline: the Finnish allocation and the territory edge, not the register's stations (7 Nov 2026)
 
-Choice: the baseline is the Finnish allocation (D18) and the edge of Finnish territory, and a band
-with no satellite service in Finland is a class of its own (`not_space`).
+Choice: the baseline is the Finnish allocation (D18) and the edge of Finnish territory, and a part
+of the band with no satellite service in Finland is a class of its own (`not_space`).
 
 Reason: Traficom's answer of 7 Nov 2026 (`docs/traficom-qa.md` F5) moved the criterion. A PFD
 above Table 21-4 is not enough on its own: if a frequency is, in Finland, one that does not relate
@@ -265,8 +265,8 @@ declared service areas; then the territory edge can be replaced by the real foot
 ### D18. Every Finnish allocation, any satellite service, stage-first queue (7 Nov 2026)
 
 Choice: `--all` screens every Finnish allocation (299 merged M4 intervals); a band is satellite use
-if any overlapping M4 row names a satellite service, in either direction; `not_space` is only a band
-with no satellite service at all. The queue orders by regulatory stage, then class, then the
+only when every part of the notified band has a satellite service, in either direction; a part
+without one makes the notice `not_space`. The queue orders by regulatory stage, then class, then the
 Resolution 35 deadline; the margin does not order.
 
 Reason: the customer's answers after the Q&A (7 Nov 2026): the screen must cover every band with a
@@ -283,6 +283,8 @@ What it changed:
   The seven-band list remains only as the `app.bands` reference set (F2), not as the run's scope.
 - `app/allocation.py::satellite_use` accepts any service containing `SATELLITE`; the 5 925-6 425 MHz
   uplink-only band is no longer `not_space`, and an inter-satellite allocation counts.
+- `app/allocation.py::m4_lookup` checks the band per sub-band: a notice at 3 625-4 200 MHz is a
+  finding when 3 625-3 800 MHz has no satellite service, even though 3 800-4 200 MHz carries FSS.
 - `app/allocation.py::finnish_bands` merges the M4 sub-bands into 299 intervals, so G1 stays linear.
 - `app/gates.py::queue_key` is stage → class → deadline; `gate4` no longer groups by class first.
 - The 65 cannot_decide are mostly `no_limit_for_band`: Table 21-4 has no row for their band, so the
@@ -301,6 +303,37 @@ Test: `tests/test_gates.py::test_all_bands_funnel`, `test_queue_order`,
 
 Reopen if: Traficom wants a second level criterion (CEPT), or wants the no-limit bands reported as
 band findings without a level.
+
+### D19. The publication part and the card's earlier complaints (7 Nov 2026)
+
+Choice: read `pub_ssn` and show the exact BR IFIC part and session on the card, the queue and the
+CSV: API/A, API/B, CR/C, CR/D, CR/E, RES4 or RES49. A notification (prov 11.2) without a `pub_ssn`
+row is `PART II-S`. The card also lists the earlier complaints for the same administration or
+network from the ledger, with the reply note.
+
+Reason: the usability test (O) asked for the publication type (API, CRC, CRD, Part II) and the
+earlier complaint history; the data has `pub_ssn`, and the ledger has the events. The card's
+calculation block also prints the exact Table 21-4 row (A, K, reference bandwidth, page) and the
+criterion line, which answers P's request for tighter references. CEPT/ECC is not a separate limit
+in this build (Q2).
+
+What it changed:
+
+- `app/ingest.py` reads `pub_ssn` into `IficData.publications` and `Notice.pub_refs`.
+- `app/cards.py` adds `publication` to the card, the queue and the CSV; `render_card_md()` prints
+  the publication, the filing action, the limit row and the criterion.
+- `app/static/index.html` shows the publication, the filing chain, the protected station's
+  coordinates and the earlier complaints list.
+- `app/prose.py` names the exact part of the band with no satellite service, not the whole band.
+
+Cost: one more table read; the card makes two `/api/complaints` calls.
+
+Test: `tests/test_ingest.py::test_real_publication_parts`,
+`tests/test_cards.py::test_publication_parts_and_sessions`,
+`tests/test_ledger.py::test_the_api_lists_the_complaints_for_a_card`,
+`tests/test_prose.py::test_a_partial_m4_gap_names_the_gap`.
+
+Reopen if: the ITU changes the `ssn_ref` codes, or the register moves to a database.
 
 ## Part 2: decisions taken while writing the code
 
@@ -402,8 +435,8 @@ Tests: `tests/test_gates.py::test_a_notice_type_s_sending_E_is_dropped` and the
 ### I10. M4 is a finding, not only context
 
 `app/allocation.py::m4_lookup()`. The Finnish allocation is looked up per notified band, shown on
-the card, and it decides one class: a band with no satellite service is `not_space`, queued even
-when the PFD is clear (D17, D18). A band without an allocation row gets
+the card, and it decides one class: a band with a part that has no satellite service is `not_space`,
+queued even when the PFD is clear (D17, D18). A band without an allocation row gets
 `services_in_finland: "not allocated"` and the same finding.
 
 Test: `tests/test_cards.py::test_m4_lookup_names_the_service_and_satellite_use`.

@@ -95,6 +95,7 @@ class QueueItem:
     unknown_field: str = ""  # "psd" or "gain" when the case cannot be computed
     required_db: float | None = None  # value of that field at which margin reaches 0
     filing_action: str = ""  # notice.act_code: A new, M modified, S suppressed
+    publication: str = ""  # notice.pub_refs joined with '+': API/A, CR/C, CR/D, ... or PART II-S
     deadline: date | None = None  # the notice's Resolution 35 deadline, from grp_res35
     deadline_passed: bool = False  # that deadline is already behind the run
     tier: str = "attention"  # attention, checked or no_effect: every notice is in the queue
@@ -542,6 +543,11 @@ def gate4(
             unknown_field=field_name,
             required_db=value,
             filing_action=notice.act_code if notice is not None else "",
+            publication=(
+                "+".join(notice.pub_refs)
+                if notice is not None and notice.pub_refs
+                else ("PART II-S" if notice is not None and notice.prov == "11.2" else "")
+            ),
             deadline=deadline,
             deadline_passed=passed,
             tier=tier,

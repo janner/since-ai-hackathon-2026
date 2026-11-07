@@ -15,11 +15,17 @@ from app.allocation import m4_lookup
 from app.config import (
     ADM_NAMES,
     DIRECTIVE_GAIN_DB,
+    FILING_ACTIONS,
     NTF_REASONS,
+    PFD_CRITERION,
     THRESHOLD_NOTE,
+    allocation_text,
     fmt_date,
+    fmt_hz,
     fmt_mhz,
     fmt_num,
+    publication_label,
+    publication_part,
     regulatory_stage,
 )
 from app.gates import Case, GateResult
@@ -56,6 +62,7 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
     beam = ific.beam(case.ntc_id, case.beam)
     geometry = beam.geometry if beam is not None else {}
     victim = case.victim
+    publications = ific.publications.get(case.ntc_id, [])
     return {
         "case_id": f"{ifact_tag(ific)}-{case.ntc_id}",
         "same_network": ific.same_network(case.ntc_id),
@@ -126,6 +133,12 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             "limit_dbw_m2_hz": case.limit_dbw_m2_hz,
             "margin_db": case.margin_db,
             "limit_source": case.limit.cite(),
+            "limit_a_db": case.limit.a_db,
+            "limit_k_db": case.limit.k_db,
+            "limit_ref_hz": case.limit.ref_hz,
+            "limit_offset": case.limit.offset,
+            "limit_page": case.limit.page,
+            "criterion": PFD_CRITERION,
             "offset_db": case.offset_db,
             "perigee_km": case.perigee_km,
         },
@@ -135,6 +148,24 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
         "deadline": fmt_date(case.deadline) if case.deadline else None,
         "deadline_passed": case.deadline_passed,
         "regulatory_stage": _regulatory_stage(notice),
+        "publication": {
+            "refs": [publication.ref for publication in publications],
+            "part": publication_part(
+                [publication.ref for publication in publications], notice.prov
+            ),
+            "label": publication_label(
+                [publication.ref for publication in publications], notice.prov
+            ),
+            "sessions": [
+                {
+                    "ref": publication.ref,
+                    "session": publication.session,
+                    "revision": publication.revision,
+                    "revision_no": publication.revision_no,
+                }
+                for publication in publications
+            ],
+        },
         "filing_action": notice.act_code,
         "filing_follows": [
             {"ntc_id": link.ntc_id, "reason": link.reason}
@@ -199,6 +230,8 @@ def deadline_lines(card: dict) -> list[str]:
 def render_card_md(card: dict) -> str:
     calc, band, victim = card["calculation"], card["band"], card["victim"] or {}
     stage = card["regulatory_stage"]
+    publication = card["publication"]
+    action = FILING_ACTIONS.get(card["filing_action"], card["filing_action"])
     point = card["point"]
     marker = " — adjacent" if card["adjacent"] else ""
     where = (
@@ -206,6 +239,16 @@ def render_card_md(card: dict) -> str:
         if point.get("lat") is not None and point.get("lon") is not None
         else point["place"]
     )
+    publication_line = f"- **Publication:** {publication['label']}"
+    if publication["refs"]:
+        publication_line += f" ({', '.join(publication['refs'])})"
+    if publication["sessions"]:
+        sessions = "; ".join(
+            f"{item['ref']} {item['session']}"
+            + (f" {item['revision']}{item['revision_no']}" if item["revision"] else "")
+            for item in publication["sessions"]
+        )
+        publication_line += f" · BR IFIC {sessions}"
     lines = [
         f"# {card['case_id']} — {card['class']}{marker}",
         "",
@@ -213,19 +256,26 @@ def render_card_md(card: dict) -> str:
         f"{card['parties']['admin']}), beam {card['coverage']['beam']}",
         f"- **Band:** {fmt_mhz(band['freq_min_mhz'])}-{fmt_mhz(band['freq_max_mhz'])} MHz",
         f"- **Stage:** {stage['provision']} — {stage['label']}",
+        publication_line,
+        f"- **Filing action:** {action}",
         *deadline_lines(card),
         f"- **Point:** {where}, elevation {fmt_num(card['coverage']['elevation_deg'])}°",
         f"- **PFD:** {fmt_num(calc['pfd_dbw_m2_hz'])} dB(W/m²/Hz) vs limit "
         f"{fmt_num(calc['limit_dbw_m2_hz'])} dB(W/m²/Hz) → margin {fmt_num(calc['margin_db'])} dB",
         f"- **Limit:** {calc['limit_source']}",
-        f"- **Finland allocation:** {card['m4']['services_in_finland']}"
-        + ("" if card["m4"]["satellite_use"] else " (no satellite service)"),
+        f"- **Limit row:** A {fmt_num(calc['limit_a_db'])} dB(W/m²) at 0–5°, "
+        f"K {fmt_num(calc['limit_k_db'])} dB, reference bandwidth "
+        f"{fmt_hz(calc['limit_ref_hz'])} ({calc['limit_page']})",
+        f"- **Criterion:** {calc['criterion']}",
+        f"- **Finland allocation:** {allocation_text(card['m4'])}",
     ]
     for link in card["filing_follows"]:
         reason = NTF_REASONS.get(link["reason"], link["reason"])
         lines.append(f"- This filing follows {link['ntc_id']} ({reason})")
     if victim.get("station"):
         bits = [f"station {victim['station']} ({victim['class']})"]
+        if victim.get("lat") is not None and victim.get("lon") is not None:
+            bits.append(f"{fmt_num(victim['lat'])} N {fmt_num(victim['lon'])} E")
         if victim.get("directivity") in ("D", "ND"):
             bits.append("directive" if victim["directivity"] == "D" else "non-directive")
         if victim.get("gain_db") is not None:
@@ -258,15 +308,15 @@ def render_queue_md(result: GateResult) -> str:
         f"the rest stay visible with their reason.\n\n"
     )
     header = (
-        "| # | case | class | stage | action | deadline | margin dB | Finland band | "
+        "| # | case | class | stage | action | publication | deadline | margin dB | Finland band | "
         "settles at | reason |\n"
-        "|---|---|---|---|---|---|---|---|---|---|\n"
+        "|---|---|---|---|---|---|---|---|---|---|---|\n"
     )
     parts = [head, f"## Needs attention ({tiers['attention']})\n\n", header]
     parts.append(
         "\n".join(
             f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
-            f"{item.filing_action or '-'} | {_deadline_cell(item)} | "
+            f"{item.filing_action or '-'} | {item.publication or '-'} | {_deadline_cell(item)} | "
             f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | "
             f"{item.band_use or '-'} | {_settles(item)} | {item.reason} |"
             for index, item in enumerate(_tier(result, "attention"), start=1)
@@ -276,7 +326,7 @@ def render_queue_md(result: GateResult) -> str:
     parts.append(
         "\n".join(
             f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
-            f"{item.filing_action or '-'} | {_deadline_cell(item)} | "
+            f"{item.filing_action or '-'} | {item.publication or '-'} | {_deadline_cell(item)} | "
             f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | "
             f"{item.band_use or '-'} | {_settles(item)} | {item.reason} |"
             for index, item in enumerate(_tier(result, "checked"), start=1)
@@ -284,11 +334,12 @@ def render_queue_md(result: GateResult) -> str:
     )
     parts.append(
         f"\n\n## No effect on Finland ({tiers['no_effect']})\n\n"
-        "| # | case | stage | reason |\n|---|---|---|---|\n"
+        "| # | case | stage | publication | reason |\n|---|---|---|---|---|\n"
     )
     parts.append(
         "\n".join(
-            f"| {index} | {item.ntc_id} | {item.stage or '-'} | {item.reason} |"
+            f"| {index} | {item.ntc_id} | {item.stage or '-'} | {item.publication or '-'} | "
+            f"{item.reason} |"
             for index, item in enumerate(_tier(result, "no_effect"), start=1)
         )
     )
@@ -372,6 +423,8 @@ def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[
                 if case is not None
                 else ("" if stage else ("cannot_decide" if reason else "")),
                 "regulatory_stage": regulatory_stage(notice.prov)["provision"],
+                "publication": "+".join(pub.ref for pub in ific.publications.get(ntc_id, []))
+                or ("PART II-S" if notice.prov == "11.2" else ""),
                 "freq_min_mhz": case.band_lo_mhz if case is not None else "",
                 "freq_max_mhz": case.band_hi_mhz if case is not None else "",
                 "bandwidth_mhz": (
@@ -412,6 +465,7 @@ def queue_json(result: GateResult, ific: IficData, cards: list[dict]) -> list[di
             "adm": rows[item.ntc_id]["adm"],
             "class": item.klass,
             "stage": item.stage,
+            "publication": item.publication,
             "action": item.filing_action,
             "deadline": item.deadline.isoformat() if item.deadline else "",
             "deadline_passed": item.deadline_passed,
@@ -437,6 +491,7 @@ RESULT_COLUMNS = (
     "reason",
     "class",
     "regulatory_stage",
+    "publication",
     "freq_min_mhz",
     "freq_max_mhz",
     "bandwidth_mhz",

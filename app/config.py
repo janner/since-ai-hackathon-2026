@@ -86,6 +86,59 @@ NTF_REASONS = {
     "U": "Resolution 49 filing",
 }
 
+# pub_ssn.ssn_ref: the BR IFIC part a notice was published in. API/A and API/B are the
+# advance-publication special sections, CR/C, CR/D and CR/E the coordination-request
+# special sections, RES49 the Resolution 49 section. A notification (prov 11.2) has no
+# pub_ssn row: it is recorded in the MIFR and published in BR IFIC Part II-S.
+PUBLICATION_LABELS = {
+    "API/A": "advance publication, part A",
+    "API/B": "advance publication, part B",
+    "CR/C": "coordination request, part C",
+    "CR/D": "coordination request, part D",
+    "CR/E": "coordination request, part E",
+    "RES4": "notification recorded in the MIFR (Resolution 4)",
+    "RES49": "Resolution 49",
+}
+PART_II_LABEL = "notification recorded in the MIFR (BR IFIC Part II-S)"
+FILING_ACTIONS = {"A": "new filing", "M": "modification", "S": "suppression"}
+PFD_CRITERION = (
+    "ITU RR Art. 21 Table 21-4 is the primary PFD limit (Traficom Q2); "
+    "CEPT/ECC elaborations are not applied in this build."
+)
+
+
+def publication_label(refs: list[str] | tuple[str, ...], prov: str) -> str:
+    """The human name of the publication part(s), or the stage label when no pub_ssn row."""
+    if refs:
+        return "; ".join(PUBLICATION_LABELS.get(ref, ref) for ref in refs)
+    if prov == "11.2":
+        return PART_II_LABEL
+    return REGULATORY_STAGES.get(prov, {}).get("label", prov or "unknown provision")
+
+
+def publication_part(refs: list[str] | tuple[str, ...], prov: str) -> str:
+    """The BR IFIC part family: API, CR, RES49 or PART II-S."""
+    if any(ref.startswith("API") for ref in refs):
+        return "API"
+    if any(ref.startswith("CR") for ref in refs):
+        return "CR"
+    if any(ref.startswith("RES49") for ref in refs):
+        return "RES49"
+    return "PART II-S" if prov == "11.2" else ""
+
+
+def allocation_text(m4: dict) -> str:
+    """The Finnish services, with the exact part that has no satellite service."""
+    services = m4.get("services_in_finland") or "no information"
+    if m4.get("satellite_use"):
+        return services
+    gaps = m4.get("gaps") or []
+    if not gaps:
+        return f"{services} (no satellite service)"
+    ranges = ", ".join(f"{fmt_mhz(lo)}-{fmt_mhz(hi)} MHz" for lo, hi in gaps)
+    return f"{services} (no satellite service on {ranges})"
+
+
 # Table of frequency allocations (M4) sub-band columns, in Hz.
 M4_SUB_LO = "Sub_band_lower_limit__Hz_"
 M4_SUB_HI = "Sub_band_upper_limit__Hz_"
@@ -104,6 +157,15 @@ def fmt_mhz(value: float) -> str:
 def fmt_num(value: float) -> str:
     """-184.78 -> '-184,78' (Finnish decimal comma)."""
     return f"{value:g}".replace(".", ",")
+
+
+def fmt_hz(value: float) -> str:
+    """4000 -> '4 kHz'; 1000000 -> '1 MHz'."""
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:g} MHz"
+    if value >= 1_000:
+        return f"{value / 1_000:g} kHz"
+    return f"{value:g} Hz"
 
 
 def fmt_date(value: date) -> str:

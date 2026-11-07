@@ -102,3 +102,18 @@ def test_the_api_refuses_a_loose_event(tmp_path, monkeypatch):
     no_reply = {"type": "closed", "payload": {"outcome": "no_reply"}}
     missing = client.post("/api/complaints/nope/events", json=no_reply)
     assert missing.status_code == 404
+
+
+def test_the_api_lists_the_complaints_for_a_card(tmp_path, monkeypatch):
+    """The card's history fetch: same administration or network, with the reply note."""
+    monkeypatch.setenv("KAISTA_LEDGER", str(tmp_path))
+    events = history()
+    events[2] = ev("C-1", "reply_received", events[2]["at"], note="we will coordinate")
+    ledger.append(events, directory=tmp_path)
+    client = TestClient(main.app)
+    rows = client.get("/api/complaints?adm=CHN&sat_name=SYN-ATLAS-3").json()
+    assert len(rows) == 1
+    assert rows[0]["complaint_id"] == "C-1"
+    assert rows[0]["status"] == "closed"
+    assert rows[0]["events"][2]["payload"]["note"] == "we will coordinate"
+    assert client.get("/api/complaints?adm=USA").json() == []

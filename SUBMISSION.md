@@ -21,7 +21,7 @@ From 95,865 frequency rows to every case that needs a human decision.
 
 Every two weeks the ITU publishes a BR IFIC: a package of new satellite filings. Traficom has to work out which can touch Finnish radio use, check them against Finland's frequency register, and write to the administration behind the filing. The challenge package, Space IFIC 3074, holds 196 notices and 95,865 frequency rows. Today a specialist reads it by hand.
 
-Kaista is the filter for that first pass. It reads one IFIC package, screens every space-to-Earth notice, keeps the ones a satellite can bring over Finnish territory, and computes an upper-bound power flux density at the edge of that territory against ITU Radio Regulations Article 21, Table 21-4. It also asks whether Finland allocates the band to satellite use at all (Regulation M4); a band that is MOBILE AND FIXED makes a transmitting satellite a case even below the limit. The full run covers every Finnish allocation. Whatever survives becomes a case card: source rows, calculation, Finnish allocation, regulatory stage, missing fields and one question for the other administration. A human decides. The queue is not capped and nothing is hidden: every notice has a row in one of three tiers, and the first tier puts the regulatory stage first because a filing another administration can still influence is worth acting on.
+Kaista is the filter for that first pass. It reads one IFIC package, screens every space-to-Earth notice, keeps the ones a satellite can bring over Finnish territory, and computes an upper-bound power flux density at the edge of that territory against ITU Radio Regulations Article 21, Table 21-4. It also asks whether Finland allocates the band to satellite use at all (Regulation M4); a part of the band that is MOBILE AND FIXED makes a transmitting satellite a case even below the limit. The full run covers every Finnish allocation. Whatever survives becomes a case card: source rows, calculation, Finnish allocation, regulatory stage, missing fields and one question for the other administration. A human decides. The queue is not capped and nothing is hidden: every notice has a row in one of three tiers, and the first tier puts the regulatory stage first because a filing another administration can still influence is worth acting on.
 
 On the demo slice (3 470-3 780 MHz) 196 notices become 41 on band overlap, 21 visible from Finland and 20 cards: 11 exceed, 5 near, 4 below the limit on a part of the band Finland has not allocated to satellite use, none clear, and one cannot be computed. Over every Finnish allocation the run goes 196 to 176 to 138 to 73 cards: 30 exceed, 19 near, 2 not_space, 22 clear and 65 cannot be decided, 63 because Table 21-4 has no row and two because the emission power is missing. Every notice that leaves carries a stage and a reason in 3074_results.csv. The run log carries the input SHA256 and the rules version; every card names the limit's source.
 
@@ -31,7 +31,7 @@ Finding the package is the other half. scripts/monitor.py asks ITU for the next 
 
 After the case, the tool keeps an append-only complaint register: what was complained about, whose operation it was, and what was done. The demo's 2021-2026 history is synthetic and labelled; the real rows come from the pipeline runs. A human records the outcome; no line is rewritten.
 
-The tool is one module per feature, 192 tests in all, 140 in a clean clone. A slice run takes about 5 seconds; every Finnish allocation about 50. The terrestrial side task reuses the same command, the same mdb-export step and the same source/audit/missing contract. It reads the 3075→3076 change, computes ITU-R P.1546-6 field strength (land, 50/50, no terrain) at points on Finland's land borders and territorial sea outer limit, and compares it with the ECC T/R 25-08 trigger: 28 land-mobile notices in reach, five above the threshold. Two things the build met: beam geometry is empty in IFIC 3074, so following Traficom's Q3 answer the tool assumes the worst case and says so on the card; and the customer's later rule moved the screen off the delivered register, so a band Finland has not allocated to satellite use is a finding of its own. What comes next: a machine-readable Table 21-4, which today is transcribed by hand. The repo also carries a labelled evaluation set (21 cases, docs/eval-3074.md), marked as our own labels, not Traficom ground truth. Every notice is screened, never sampled; an undecidable row names the missing field, and over-flagging is deliberate because Traficom said a false negative is worse.
+The tool is one module per feature, 196 tests in all, 142 in a clean clone. A slice run takes about 5 seconds; every Finnish allocation about 50. The terrestrial side task reuses the same command, the same mdb-export step and the same source/audit/missing contract. It reads the 3075→3076 change, computes ITU-R P.1546-6 field strength (land, 50/50, no terrain) at points on Finland's land borders and territorial sea outer limit, and compares it with the ECC T/R 25-08 trigger: 28 land-mobile notices in reach, five above the threshold. Two things the build met: beam geometry is empty in IFIC 3074, so following Traficom's Q3 answer the tool assumes the worst case and says so on the card; and the customer's later rule moved the screen off the delivered register, so a part of the band Finland has not allocated to satellite use is a finding of its own. What comes next: a machine-readable Table 21-4, which today is transcribed by hand. The repo also carries a labelled evaluation set (21 cases, docs/eval-3074.md), marked as our own labels, not Traficom ground truth. Every notice is screened, never sampled; an undecidable row names the missing field, and over-flagging is deliberate because Traficom said a false negative is worse.
 
 What was built during the hackathon, 6-8 Nov 2026, starts from a pre-event template (commit 6fe98b9). Everything after is new. The work was planned, implemented, documented and reviewed by Hermes Agent roles on a shared kanban board, with a human owner who chose the challenge, set the framing and makes the push decision. The demo video's narration was generated with ElevenLabs.
 
@@ -197,7 +197,7 @@ Measured evidence, 7 Nov 2026, sandbox `janner-1-dev`. The raw output is in
 - The cluster slice run: the same gates and the same counts as the local run at that commit. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
   the 17 drafts it saw. One call per card, 36.6 s to 120.3 s, median 86.9 s, whole run 25.6 min. The
   deterministic part of the same run took 1.19 s.
-- `make check` green: 137 tests passed in that run; 192 at the final commit. The tests never need
+- `make check` green: 137 tests passed in that run; 196 at the final commit. The tests never need
   the network.
 - One card fell back to the template. The slowest call measured 120.3 s, right at the 120 s
   client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer. After the
@@ -224,14 +224,14 @@ Sandbox facts (verified 6 and 7 Nov 2026, namespace `janner-1-dev`):
 
 Automated, done in the repository
 
-- [x] `make check` green: ruff check, ruff format --check, 192 tests passed
-- [x] README run steps work in a clean clone (140 passed, 52 skipped without `data/`)
+- [x] `make check` green: ruff check, ruff format --check, 196 tests passed
+- [x] README run steps work in a clean clone (142 passed, 54 skipped without `data/`)
 - [x] Pre-existing work and outside assets stated in README and About (template commit `6fe98b9`)
 - [x] No secrets or challenge data committed; `data/` and `out/` are gitignored
 - [x] `make submission-zip` builds `dist/kaista-submission.zip`, tracked files at HEAD only, no data
 - [x] `docs/architecture.md` present and linked from the README documentation table
 - [x] Submission-form field text lengths, re-measured 7 Nov 2026: name 6 and tagline 69 are inside
-      their limits; the About text is 4,925 characters, inside the form's 5,000 limit.
+      their limits; the About text is 4,939 characters, inside the form's 5,000 limit.
 
 Human steps, before submitting
 

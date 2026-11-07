@@ -36,8 +36,10 @@ its upper bound; the beam is assumed to point at the station. Recorded in `docs/
 **Answer.** Table 21-4 is the internationally agreed limit and the primary source. CEPT may elaborate
 the European "concern" thresholds. National limits are not relevant here.
 
-**What changed.** No code change. Table 21-4 stays the PFD limit. The −3 dB `near` class is a
-screening convention, not a CEPT threshold. Recorded in `docs/decisions.md` D4.
+**What changed.** No change to the limit. Table 21-4 stays the PFD limit. The −3 dB `near` class is
+a screening convention, not a CEPT threshold. The card now prints the exact Table 21-4 row (A, K,
+reference bandwidth, page) and a criterion line that says CEPT/ECC is not applied. Recorded in
+`docs/decisions.md` D4 and D19.
 
 ### Q3. Beam geometry and the worst-case assumption
 
@@ -256,9 +258,9 @@ and the justification.
 **What changed.** Done. Each row of `<ific>_results.csv` now opens with the IFIC tag, the
 `case_id` (our own data, `<ific>-<ntc_id>`) and the notice id, and carries the interferer's band
 (`freq_min_mhz`, `freq_max_mhz`) and its `bandwidth_mhz`, the protected station and its
-`victim_rx_mhz`, the PFD, the limit, the margin and the limit source. A dropped notice keeps its
-IFIC tag and notice id with the stage and reason, and leaves `case_id` empty because it has no
-card.
+`victim_rx_mhz`, the PFD, the limit, the margin, the limit source and the BR IFIC publication part
+(`publication`). A dropped notice keeps its IFIC tag and notice id with the stage, the publication
+part and the reason, and leaves `case_id` empty because it has no card.
 
 ## Open
 
@@ -278,9 +280,9 @@ toiminnasta on valitettu, vaikka viiden vuoden kuluttua: mitä on tehty ja mihin
 every case it would write a letter for, and a human records the rest: the letter, the reply, the
 action, the closing outcome. The three questions are answered from those events: what (band, Finnish
 allocation, issue type), whose operation (administration, network, operator) and what was done
-(action, outcome, days from letter to reply). The card carries a line saying how often that
-administration and that network have come up before. Nothing is deleted or rewritten, so the answer
-for 2021 is the same in 2031.
+(action, outcome, days from letter to reply). The card lists the earlier complaints for that
+administration and network, with the reply note the register holds. Nothing is deleted or rewritten,
+so the answer for 2021 is the same in 2031.
 
 The history from 2021 to 2026 in the demo is synthetic and labelled: it is seeded from
 `scripts/seed_history.py --seed 2026`, every line carries `synthetic: true`, the network names are
