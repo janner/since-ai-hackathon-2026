@@ -208,28 +208,32 @@ def test_tr2508_threshold_is_frequency_dependent_and_bandwidth_corrected():
 
 
 def test_distance_to_border_is_a_line_not_four_points():
-    assert t.distance_to_border_km(60.1699, 24.9384) < 10  # Helsinki sits on the coast
+    # Helsinki sits ~13 km inside the 12 nm territorial sea line, not on a test point
+    assert t.distance_to_border_km(60.1699, 24.9384) < 20
     assert 700 < t.distance_to_border_km(55.7558, 37.6173) < 900  # Moscow
     assert t.distance_to_border_km(-33.9, 18.4) > 9000  # Cape Town
-    # Maarianhamina is an island off the committed mainland ring, not a border city
-    assert t.distance_to_border_km(60.0971, 19.9348) > 50
+    # Maarianhamina is inside the 12 nm line around Åland, ~25 km from it
+    assert 15 < t.distance_to_border_km(60.0971, 19.9348) < 40
 
 
 def test_border_samples_cover_the_line_evenly():
-    ring = t.border_line()
+    lines = t.border_line()
     samples = t.border_samples()
-    assert len(samples) > len(ring) > 100
+    # Four polylines: SE, NO, RU land borders and the closed TS territorial-sea ring.
+    assert len(lines) == 4
+    assert len(samples) > 100
     steps = [
         t.haversine_km(a[0], a[1], b[0], b[1]) for a, b in zip(samples, samples[1:], strict=False)
     ]
-    assert max(steps) <= 2 * t.BORDER_STEP_KM
+    # The only allowed gap is the jump between two separate polylines.
+    gaps = [s for s in steps if s > 2 * t.BORDER_STEP_KM]
+    assert len(gaps) <= len(lines)
 
 
 def test_border_sections_cover_the_ring_and_pick_the_max_section(tmp_path):
-    """The split must cover the whole ring, and the section with the strongest
+    """The split must cover every section, and the section with the strongest
     value must be the one the notice's nearest border stretch belongs to."""
-    assert set(p[2] for p in t.border_line()) == {"SE", "NO", "RU", "EE"}
-    assert set(s for _, _, s in t.border_samples()) == {"SE", "NO", "RU", "EE"}
+    assert set(s for _, _, s in t.border_samples()) == {"SE", "NO", "RU", "TS"}
     # A notice just outside Lappeenranta faces the Russian border, so RU holds the maximum.
     notice = _notice(freq_min_mhz=450.0, freq_max_mhz=455.0, lat=60.9, lon=29.5)
     issue = _issue([notice])
@@ -383,7 +387,10 @@ def test_real_mdb_prints_the_example_finding(issue3075, issue3076, tmp_path):
     assert doc["diff"]["counts"]["ADD"] == 2905
     finding = next(n for n in doc["notices"] if n["terrakey"] == "92817506")
     assert finding["adm"] == "POL" and finding["band"] == "801-806 MHz"
-    assert finding["border"]["max_dbuv_m"] == pytest.approx(-51.1, abs=0.2)
+    # The 12 nm territorial-sea line is closer to the POL transmitter than the
+    # coastline was, so the border maximum rose from -51.1 to -46.9 dB(uV/m).
+    assert finding["border"]["max_dbuv_m"] == pytest.approx(-46.9, abs=0.2)
+    assert finding["border"]["section"] == "TS"
     # 803.5 MHz: Traficom extends the 400-470 MHz criterion above 470 MHz, 5 MHz channel
     assert finding["threshold_dbuv_m"] == pytest.approx(20.0 + 10 * math.log10(200.0))
     assert finding["coordination"] is False

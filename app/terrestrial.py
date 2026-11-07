@@ -26,10 +26,11 @@ kaikilla kolmella akselilla ja kiinnittyy taulukon reunaan sen ulkopuolella.
 
 Traficomin Q&A 7.11.2026: kenttävoimakkuus lasketaan **rajaviivan pisteissä**, ei
 neljässä kaupungissa, ja lisäksi merkitään ne rekisterin suomalaiset asemat, joiden
-kenttävoimakkuus ylittää koordinointikynnyksen. Rajaviiva on `rules/finland_border.csv`
-(Natural Earth 50m, mantereen ulkorengas), jaettu `section`-sarakkeella rajaosiin sen
-mukaan, minkä naapurin vastaista rajaa tai rannikkoa piste edustaa (SE, NO, RU, EE),
-jotta tuloksesta näkyy, **missä osassa** kenttävoimakkuus on suurin (Traficom 7.11.).
+kenttävoimakkuus ylittää koordinointikynnyksen. Rajaviiva on `rules/finland_border.csv`:
+maanrajat Ruotsin (SE), Norjan (NO) ja Venäjän (RU) kanssa sekä alueveden ulkoraja
+(TS, 12 mp:n viiva; Traficom 7.11.2026). Rantaviiva ei ole rajaviivaa. Pisteet
+jaetaan `section`-sarakkeella peräkkäisiin murtoviivoihin, jotta tuloksesta näkyy,
+**missä osassa** kenttävoimakkuus on suurin (Traficom 7.11.).
 Kynnys on CEPT/ECC T/R 25-08 A1.2.3
 (`rules/tr2508_thresholds.csv`); Traficomin 7.11.2026 mukaan sama kriteeri jatkuu
 yli 470 MHz:n, missä on 85 % aineiston maaliikenteen riveistä.
@@ -70,14 +71,15 @@ KM_PER_DEG = 111.32
 TR2508_REF_BW_KHZ = 25.0
 # BR IFIC -asemaluokat: FB = tukiasema, ML = maaliikenne, FL = maaliikenne (kiinteä).
 LAND_MOBILE_CLASSES = frozenset({"FB", "ML", "FL"})
-# Rajaosat (rules/finland_border.csv `section`): minkä naapurin vastaista rajaa tai
-# rannikkoa kukin osa edustaa. Kolmipisteet Kilpisjärvi (SE/NO) ja Muotkavaara
-# (NO/RU) sekä Suomenlahden rannikko (Viro) jakavat renkaan neljään osaan.
+# Rajaosat (rules/finland_border.csv `section`): maanrajat Ruotsin, Norjan ja
+# Venäjän kanssa sekä aluevesiraja. Traficom 7.11.2026: arviointi tehdään maanrajoja
+# ja alueveden ulkorajaa pitkin, ei pelkkää mantereen rantaviivaa. Alueveden
+# ulkoraja on 12 mp:n viiva (Marine Regions, Finnish 12 NM).
 SECTION_NAMES = {
-    "SE": "Ruotsi (Tornionlaakso, Perämeren–Saaristomeren rannikko)",
-    "NO": "Norja (Käsivarsi)",
-    "RU": "Venäjä (itäraja)",
-    "EE": "Viro (Suomenlahden rannikko)",
+    "SE": "Ruotsi (Tornionlaakso, maanraja)",
+    "NO": "Norja (Käsivarsi, maanraja)",
+    "RU": "Venäjä (itäraja, maanraja)",
+    "TS": "Aluevesiraja (12 mp:n ulkoraja)",
 }
 # Traficom 7.11.2026: T/R 25-08 päättyy 470 MHz:iin, ja sen yläpuolella sovelletaan
 # samaa kriteeriä kuin 400-470 MHz:n alueella (20 dB(uV/m) + kaistanleveyskorjaus).
@@ -137,13 +139,13 @@ def haversine_km(lat1, lon1, lat2, lon2):
 
 @lru_cache(maxsize=1)
 def border_line():
-    """Suomen rajaviiva suljettuna murtoviivana (lat, lon, section).
+    """Suomen raja: maanrajat ja alueveden ulkoraja (lat, lon, section).
 
-    `section` = rajaosa sen mukaan, minkä naapurin vastaista rajaa tai rannikkoa
-    piste edustaa: SE (Tornionlaakso ja Perämeren–Saaristomeren rannikko Ruotsia
-    vasten), NO (Norjan raja), RU (Venäjän raja), EE (Suomenlahden rannikko Viroa
-    vasten). Neljä osaa kattavat koko renkaan. Rajat on merkitty kolmen
-    kolmipisteen (Kilpisjärvi, Muotkavaara) ja Suomenlahden rannikon kohdalle.
+    `section` = rajaosa: SE (Tornionlaakso, Ruotsin maanraja), NO (Norjan
+    maanraja), RU (Venäjän maanraja), TS (alueveden ulkoraja, 12 mp:n viiva).
+    Traficom 7.11.2026: arviointi tehdään maanrajoja ja alueveden ulkorajaa
+    pitkin. Pisteet jaetaan peräkkäisiin murtoviivoihin `section`-arvon
+    vaihtuessa; TS on oma suljettu renkaansa. Rantaviiva ei ole rajaviivaa.
     """
     points = []
     with BORDER.open(encoding="utf-8", newline="") as f:
@@ -151,7 +153,15 @@ def border_line():
             points.append((float(row["lat"]), float(row["lon"]), row["section"]))
     if len(points) < 3:
         raise ValueError(f"{BORDER}: rajaviiva tarvitsee vähintään 3 pistettä")
-    return tuple(points)
+    lines, current = [], []
+    for point in points:
+        if current and point[2] != current[-1][2]:
+            lines.append(tuple(current))
+            current = []
+        current.append(point)
+    if current:
+        lines.append(tuple(current))
+    return tuple(lines)
 
 
 @lru_cache(maxsize=1)
@@ -159,16 +169,17 @@ def border_samples():
     """Rajaviiva tasavälein (`BORDER_STEP_KM`): kenttävoimakkuuden laskentapisteet.
 
     Jokainen näyte kantaa sen janan rajaosan, jolla se on, joten maksimi voidaan
-    laskea rajaosittain.
+    laskea rajaosittain. Murtoviivat ovat avoimia; TS sulkeutuu itsestään, koska
+    sen ensimmäinen ja viimeinen piste ovat samat.
     """
-    ring = border_line()
     samples = []
-    for i in range(len(ring)):
-        a, b = ring[i], ring[(i + 1) % len(ring)]
-        steps = max(1, int(haversine_km(a[0], a[1], b[0], b[1]) / BORDER_STEP_KM))
-        for j in range(steps):
-            w = j / steps
-            samples.append((a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w, a[2]))
+    for line in border_line():
+        for i in range(len(line) - 1):
+            a, b = line[i], line[i + 1]
+            steps = max(1, int(haversine_km(a[0], a[1], b[0], b[1]) / BORDER_STEP_KM))
+            for j in range(steps):
+                w = j / steps
+                samples.append((a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w, a[2]))
     return tuple(samples)
 
 
@@ -185,10 +196,11 @@ def _point_segment_km(lat, lon, a, b):
 
 
 def distance_to_border_km(lat, lon):
-    """Lyhin etäisyys Suomen rajaviivaan, ei neljään testipisteeseen (T2)."""
-    ring = border_line()
+    """Lyhin etäisyys Suomen rajaan: maanrajat ja alueveden ulkoraja (T2)."""
     return min(
-        _point_segment_km(lat, lon, ring[i], ring[(i + 1) % len(ring)]) for i in range(len(ring))
+        _point_segment_km(lat, lon, line[i], line[i + 1])
+        for line in border_line()
+        for i in range(len(line) - 1)
     )
 
 
@@ -535,8 +547,9 @@ def flag_stations(kept, stations):
     Kenttävoimakkuus lasketaan aseman omassa sijainnissa (Traficom Q&A 7.11.), ei
     rajalla: sama P.1546-arvo kuin rajalla, mutta aseman kohdalla, ja verrataan
     T/R 25-08 -kynnykseen. Asemaa kohti raportoidaan voimakkain ilmoitus ja
-    `exceeds`, kun kenttävoimakkuus ylittää kynnyksen. Ilmoitukset taajuusalueen
-    ulkopuolella (yli 470 MHz) ohitetaan, koska T/R 25-08 ei aseta niille kynnystä.
+    `exceeds`, kun kenttävoimakkuus ylittää kynnyksen. Kynnys jatkuu yli 470 MHz:n
+    (Traficom 7.11.2026), joten yli 470 MHz:n ilmoitukset eivät enää ohita
+    vertailua; `tr2508_threshold()` palauttaa niille 20 dB(uV/m).
     """
     worst = {}
     for notice, _ in kept:
@@ -672,15 +685,19 @@ def findings(prev, curr, register_path):
         "criterion": CRITERION,
         "border": {
             "source": (
-                "Natural Earth 50m admin-0 mainland ring (public domain), rules/finland_border.csv"
+                "Land borders: Natural Earth 50m admin-0 mainland ring; territorial sea "
+                "outer limit: Marine Regions Finnish 12 NM (12 nautical miles). "
+                "rules/finland_border.csv"
             ),
-            "points": len(border_line()),
+            "points": sum(len(line) for line in border_line()),
+            "lines": len(border_line()),
             "samples": len(border_samples()),
             "step_km": BORDER_STEP_KM,
             # Rajaviiva on jaettu rajaosiin (`section`); nimet kertovat, minkä
-            # naapurin vastaista rajaa tai rannikkoa osa edustaa.
+            # naapurin vastaista rajaa tai aluevesirajaa osa edustaa.
             "sections": {
-                name: SECTION_NAMES.get(name, name) for name in sorted(p[2] for p in border_line())
+                name: SECTION_NAMES.get(name, name)
+                for name in sorted({point[2] for line in border_line() for point in line})
             },
         },
         "audit": audit,
