@@ -17,19 +17,19 @@ terrestrial pass and the draft letter stay off the video.
 | 0:05 | same, still scrolling | This one has 196 notices and 95,865 frequency rows. |
 | 0:10 | same, end of scroll | A specialist at the regulator reads all of it by hand, to find the few that matter for Finnish radio use. |
 | 0:15 | Browser on `http://localhost:8000`, the funnel panel | Kaista does that first pass. |
-| 0:20 | the funnel | It keeps the notices that overlap a protected band and can be seen from Finland, then computes their power flux density against the ITU Radio Regulations. |
+| 0:20 | the funnel | It keeps the notices that overlap a band in the run's scope and can be seen from Finland, then computes their power flux density against the ITU Radio Regulations, and checks the band against Finland's own allocation. |
 | 0:28 | the funnel, hover the last stage | Every number is computed from the real ITU data. Nothing is simulated. |
 | 0:33 | top bar, the automatic-check panel | And the tool finds the next package by itself. |
 | 0:38 | the status line: "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices." Do not click "Check now", see below | This morning the tool asked ITU for the next package and processed it: 129 new notices. |
-| 0:45 | the funnel of the 3075 run | Of the 129, 19 overlap a protected band. Nine can be seen from Finland. |
+| 0:45 | the funnel of the 3075 run | Of the 129, 19 overlap a band in the scope. Nine can be seen from Finland. |
 | 0:52 | same funnel | Seven get a computed number. Two cannot be decided, and the tool says so. |
-| 0:58 | queue, open card `3075-108501259` | First case: APSTAR-92E, 3,520 to 3,560 megahertz. |
-| 1:05 | the card | Its power flux density is 0.38 decibels over the Article 21, Table 21-4 limit. |
+| 0:58 | queue, open card `3075-108501259` | First case: APSTAR-92E, 3,440 to 3,480 megahertz. |
+| 1:05 | the card | Its power flux density is 0.43 decibels over the Article 21, Table 21-4 limit, and the band is not a satellite allocation in Finland at all. |
 | 1:12 | "Show calculation" | Open the calculation: every input is on screen. |
-| 1:18 | the calculation block | Max power density, 26 decibels of beam gain, 41,441 kilometres of path, 163 decibels of free-space loss, against the limit row. |
-| 1:27 | the card's `Coverage` and `Missing` lines | The beam data is empty in this package, so the worst case is assumed: the peak gain is aimed at the Finnish station. Nothing is listed as missing. |
+| 1:18 | the calculation block | Max power density, 26 decibels of beam gain, 41,222 kilometres of path, 163 decibels of free-space loss, against the limit row. |
+| 1:27 | the card's `Coverage` and `Missing` lines | The beam data is empty in this package, so the worst case is assumed: the peak gain is aimed at the territory edge. Nothing is listed as missing. |
 | 1:33 | the drafted question | It drafts the question for the other administration: confirm the worst-case PFD on Finnish territory. The tool does not guess. |
-| 1:40 | `runs/3075-worstcase/queue.md` rows 8–9 (the two refused) or `out/cases.md` | On the challenge package the same pass turns 196 notices and 95,865 rows into 18 case cards, with the numbers already done. |
+| 1:40 | `runs/3075-worstcase/queue.md` rows 8–9 (the two refused) or `out/cases.md` | On the challenge package the same pass turns 196 notices and 95,865 rows into 20 case cards, with the numbers already done. |
 | 1:48 | same | Nothing is dropped silently: every notice keeps a stage and a reason. |
 | 1:52 | same | The specialist decides. The tool does the reading, and it repeats for free every two weeks. |
 | 1:58 | end card: **Kaista** — "From 95,865 frequency rows to every case that needs a human decision." | Kaista: from 95,865 frequency rows to every case that needs a human decision. |

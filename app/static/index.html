@@ -147,7 +147,7 @@ function rows(pairs) {
 const ADMIN_EN = { CHN: "China", USA: "United States", RUS: "Russia", EST: "Estonia" };
 const CLASS_EN = {
   exceeds: "Exceeds limit", near: "Near limit",
-  clear: "Clear", cannot_decide: "Cannot decide",
+  clear: "Clear", cannot_decide: "Cannot decide", not_space: "No satellite use in Finland",
 };
 const STAGE_EN = {
   "No. 9.1": { name: "Advance publication", short: "API", meaning: "Can still be influenced." },
@@ -162,6 +162,7 @@ const UNDECIDED_EN = {
   no_perigee: "no perigee",
   no_limit_for_band: "no limit for the band",
   no_station: "no Finnish station",
+  no_territory: "no point on Finnish territory",
 };
 const DROP_LABEL = {
   no_band_overlap: "No band overlap",
@@ -380,6 +381,7 @@ function renderFunnel(data) {
       ["Cannot decide", c.cannot_decide],
       ["Exceeds limit", c.exceeds],
       ["Near limit", c.near],
+      ["No satellite use in Finland", c.not_space],
       ["Clear", c.clear],
     ]),
     el("h3", "Drops"),
@@ -398,7 +400,7 @@ function renderFunnel(data) {
 // The queue order mirrors scripts/notify.py: class, then stage (a stage another
 // administration can still influence before one already recorded in the MIFR),
 // then margin descending, then case id.
-const QUEUE_CLASS = ["exceeds", "near", "cannot_decide", "clear"];
+const QUEUE_CLASS = ["exceeds", "near", "not_space", "cannot_decide", "clear"];
 const QUEUE_STAGE = { "No. 9.1": 0, "No. 9.6": 0, "No. 11.2": 1, "Resolution 49": 2 };
 const QUEUE_STAGE_UNKNOWN = 9;
 
@@ -477,9 +479,12 @@ function markCurrent(caseId) {
 function renderCard(item) {
   const c = item.calculation || {};
   const coverage = item.coverage || {};
+  const point = item.point || {};
   const klass = item["class"];
   const verb = klass === "exceeds" ? "exceeds the limit"
-    : klass === "near" ? "is near the limit" : "is clearly below the limit";
+    : klass === "near" ? "is near the limit"
+    : klass === "not_space" ? "is on a band Finland has not allocated to satellite downlink"
+    : "is clearly below the limit";
   const card = el("article", null, "card");
 
   card.append(el(
@@ -494,13 +499,17 @@ function renderCard(item) {
     coverage.beam ? "beam " + coverage.beam : "",
   ].filter(Boolean).join(" \u00b7 "), "card-sub"));
   card.append(el("p", "Filing stage: " + filingStage(item), "note"));
+  const at = point.lat !== undefined && point.lat !== null
+    ? point.lat + " N, " + point.lon + " E (" + (point.place || "") + ")"
+    : (point.place || "Finnish territory");
+  card.append(el("p", "Worst case at " + at + ", elevation " +
+    num(coverage.elevation_deg, "\u00b0") + ".", "note"));
   const victim = item.victim || {};
   if (victim.station) {
-    const where = victim.lat !== undefined && victim.lon !== undefined
-      ? ", " + victim.lat + " N, " + victim.lon + " E" : "";
-    card.append(el("p", "Worst case at station " + victim.station +
-      (victim.class ? " (" + victim.class + ")" : "") + where +
-      ", elevation " + num(coverage.elevation_deg, "\u00b0") + ".", "note"));
+    card.append(el("p", "Reference row: station " + victim.station +
+      (victim.class ? " (" + victim.class + ")" : "") +
+      (victim.gain_db !== undefined && victim.gain_db !== null ? ", " + victim.gain_db + " dBi" : "") +
+      " \u2014 the register is a reference, not the whole use.", "note"));
   }
 
   card.append(el("h3", "What this means"));
@@ -517,7 +526,7 @@ function renderCard(item) {
   card.append(el("h3", "What you need to decide"));
   const questions = el("ol");
   questions.append(el("li", "Confirm the worst case is assumed: the beam's peak gain points at " +
-    "the Finnish station, as Traficom advised (beam direction is not needed)."));
+    "a point in Finland, as Traficom advised (beam direction is not needed)."));
   questions.append(el("li", "Does the band match the use listed in Finland's M4 table?"));
   questions.append(el("li", (item.next_action && item.next_action.question) || "No question."));
   card.append(questions);
@@ -526,6 +535,10 @@ function renderCard(item) {
 
   card.append(el("h3", "What is on the band in Finland"));
   card.append(el("p", (item.m4 && item.m4.services_in_finland) || "no information"));
+  if (item.m4 && item.m4.space_to_earth === false) {
+    card.append(el("p", "No space-to-Earth service in Finland's allocation: a satellite " +
+      "transmitting here is a finding on its own, whatever the PFD says.", "note"));
+  }
   if (item.m4 && item.m4.source) card.append(el("p", "M4: " + item.m4.source, "src"));
 
   card.append(el("h3", "Question to the other administration"));

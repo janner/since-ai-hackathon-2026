@@ -6,6 +6,7 @@ import pytest
 
 from app import gates
 from app.bands import Band
+from app.config import NEAR_DB
 from app.ingest import Freq, IficData, Notice
 
 
@@ -84,68 +85,55 @@ def test_demo_slice_funnel(challenge):
     assert result.counts == {
         "notices": 196,
         "g1": 41,
-        "g2": 19,
-        "g3": 18,
+        "g2": 21,
+        "g3": 20,
         "cannot_decide": 1,
-        "exceeds": 9,
+        "exceeds": 11,
         "near": 5,
-        "clear": 4,
+        "not_space": 2,
+        "clear": 2,
     }
     assert result.reason_counts("G1") == {"no_band_overlap": 155}
-    assert result.reason_counts("G2") == {"geo_below_horizon": 21, "ngso_never_visible": 1}
+    assert result.reason_counts("G2") == {"geo_below_horizon": 19, "ngso_never_visible": 1}
     assert result.undecided == {"126590032": "no_power"}
     # sensitivity: with the unknown PSD at 0 the margin is -required, so no grid search is needed
     field, required = result.required["126590032"]
     assert field == "psd"
     row = {item.ntc_id: item for item in result.queue}["126590032"]
     assert (row.unknown_field, row.required_db) == ("psd", required)
-    assert (result.geo_visible, result.ngso_visible) == (16, 3)
-    assert len(result.queue) == 15  # 9 exceeds + 5 near + 1 cannot_decide; the 4 clear stay out
-    assert len(result.cases) == 18
-    assert len(result.stations) == 7
+    assert (result.geo_visible, result.ngso_visible) == (18, 3)
+    assert len(result.queue) == 19  # 11 exceeds + 5 near + 2 not_space + 1 cannot_decide
+    assert len(result.cases) == 20
+    assert len(result.places) == 552  # the territory edge, not the register's 871 rows
 
 
 @pytest.mark.data
 def test_all_bands_funnel(challenge):
-    """All seven bands.
+    """All seven bands, with the territory edge as the PFD anchor.
 
-    The plan's counts for this mode (100 / 74 / 10) come from the reference tool reading the
-    register's 25,2 GHz row "0,1G" as 0,1 MHz instead of the 0,1 GHz in its own
-    "Channel bandwidth" column. Parsed as the register intends, one more notice overlaps:
-    126545075, which cannot be decided because it has no orbit row. Everything else matches
-    the plan: 64 computed cases, 26 / 15 / 23 and the queue of 52.
+    G1 now passes every notice that has a space-to-Earth row in one of the seven allocations,
+    whether or not the register lists a station there: that is the point of the customer rule
+    that the Excel list is only a reference. The register still supplies the reference row.
     """
     result = challenge.all.result
     assert result.counts == {
         "notices": 196,
-        "g1": 101,
-        "g2": 75,
-        "g3": 64,
-        "cannot_decide": 11,
-        "exceeds": 26,
-        "near": 15,
-        "clear": 23,
+        "g1": 113,
+        "g2": 84,
+        "g3": 69,
+        "cannot_decide": 15,
+        "exceeds": 30,
+        "near": 18,
+        "not_space": 2,
+        "clear": 19,
     }
     assert result.drops == {
-        "no_band_overlap": 94,
+        "no_band_overlap": 82,
         "earth_station_notice": 1,
-        "geo_below_horizon": 25,
+        "geo_below_horizon": 28,
         "ngso_never_visible": 1,
     }
-    assert sorted(result.undecided) == [
-        "124520174",
-        "124520203",
-        "125545392",
-        "126545072",
-        "126545073",
-        "126545074",
-        "126545075",
-        "126545076",
-        "126590032",
-        "324520174",
-        "324520203",
-    ]
-    assert len(result.queue) == 52  # 26 exceeds + 15 near + 11 cannot_decide; 23 clear stay out
+    assert len(result.queue) == 65  # 30 + 18 + 2 + 15 cannot_decide; 19 clear stay out
 
 
 @pytest.mark.data
@@ -156,7 +144,12 @@ def test_missing_perigee_cannot_be_decided(challenge):
     ific = replace(challenge.slice.ific, orbits={**challenge.slice.ific.orbits, ntc_id: orbits})
     found, _, _ = gates.gate1(ific, challenge.slice.bands)
     cases, undecided, _ = gates.gate3(
-        ific, {ntc_id: found[ntc_id]}, challenge.slice.result.stations, challenge.slice.limits
+        ific,
+        {ntc_id: found[ntc_id]},
+        challenge.slice.stations,
+        challenge.slice.result.places,
+        challenge.slice.limits,
+        challenge.slice.m4,
     )
     assert cases == []
     assert undecided == {ntc_id: "no_perigee"}
@@ -172,13 +165,15 @@ def test_an_adjacent_case_is_capped_at_near(challenge):
     cases, _, _ = gates.gate3(
         challenge.slice.ific,
         freqs,
-        challenge.slice.result.stations,
+        challenge.slice.stations,
+        challenge.slice.result.places,
         challenge.slice.limits,
+        challenge.slice.m4,
         {ntc_id},
     )
     case = {c.ntc_id: c for c in cases}[ntc_id]
     assert case.adjacent is True
-    assert case.margin_db == pytest.approx(3.24, abs=0.01)
+    assert case.margin_db == pytest.approx(3.25, abs=0.01)
     assert case.klass == "near"
 
 
@@ -191,10 +186,28 @@ def test_queue_holds_every_concern_and_no_clear(challenge):
 
 
 @pytest.mark.data
+def test_a_clear_margin_on_a_non_satellite_band_is_still_a_finding(challenge):
+    """The customer rule: PFD below the limit does not clear a band Finland does not use
+    for satellite downlinks. Such a case is queued as `not_space`, not hidden as clear."""
+    result = challenge.slice.result
+    not_space = [case for case in result.cases if case.klass == "not_space"]
+    assert not_space, "the demo band 3 470-3 780 MHz is not a satellite allocation in Finland"
+    for case in not_space:
+        assert case.band_space is False
+        assert case.margin_db <= NEAR_DB
+        assert case.ntc_id in {item.ntc_id for item in result.queue}
+    # a clear case on a band Finland does allocate to a downlink stays out of the queue
+    clear = [case for case in result.cases if case.klass == "clear"]
+    for case in clear:
+        assert case.band_space is True
+        assert case.ntc_id not in {item.ntc_id for item in result.queue}
+
+
+@pytest.mark.data
 def test_queue_order(challenge):
     """Class order first, then within a class the margin descending."""
     queue = challenge.slice.result.queue
-    assert {item.klass for item in queue} == {"exceeds", "near", "cannot_decide"}  # no clear
+    assert {item.klass for item in queue} == {"exceeds", "near", "not_space", "cannot_decide"}
     ranks = [gates.CLASS_ORDER.index(item.klass) for item in queue]
     assert ranks == sorted(ranks)
     for stage_rank in {item.stage_rank for item in queue if item.klass == "exceeds"}:

@@ -11,13 +11,10 @@ import shutil
 from pathlib import Path
 
 from app import prose
+from app.allocation import m4_lookup
 from app.config import (
     ADM_NAMES,
     DIRECTIVE_GAIN_DB,
-    M4_SERVICES,
-    M4_SOURCE,
-    M4_SUB_HI,
-    M4_SUB_LO,
     THRESHOLD_NOTE,
     fmt_mhz,
     fmt_num,
@@ -31,36 +28,7 @@ REGISTER_GAIN = "frequencies_of_interest.Ant gain (dB)"
 REGISTER_POWER = "frequencies_of_interest.Radioation power"
 SYNTHETIC_POWER_W = 1e9  # above 1 GW the value is a synthetic artefact (plan 3.6)
 # Traficom Q&A Q3: beams are not assessed individually, the worst case is always assumed.
-WORST_CASE = "worst case assumed: peak beam gain toward the Finnish station"
-
-
-def m4_lookup(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> dict:
-    """The M4 allocation sub-bands that overlap the notified band.
-
-    M4 is context, not a gate: it never changes a class.
-    """
-    lo_hz, hi_hz = lo_mhz * 1e6, hi_mhz * 1e6
-    hits = [
-        row for row in m4_rows if row.get(M4_SUB_LO, 0) <= hi_hz and row.get(M4_SUB_HI, 0) >= lo_hz
-    ]
-    if not hits:
-        return {
-            "rows": [],
-            "band_mhz": [],
-            "services_in_finland": "not allocated",
-            "source": M4_SOURCE,
-        }
-    ids = [row["ID"] for row in hits if "ID" in row]
-    services = sorted({str(row.get(M4_SERVICES, "")).strip() for row in hits})
-    return {
-        "rows": [min(ids), max(ids)] if ids else [],
-        "band_mhz": [
-            min(row[M4_SUB_LO] for row in hits) / 1e6,
-            max(row[M4_SUB_HI] for row in hits) / 1e6,
-        ],
-        "services_in_finland": ", ".join(service for service in services if service),
-        "source": M4_SOURCE,
-    }
+WORST_CASE = "worst case assumed: peak beam gain toward the Finnish territory"
 
 
 def _regulatory_stage(notice) -> dict:
@@ -72,7 +40,8 @@ def _regulatory_stage(notice) -> dict:
 def _threshold_note(victim) -> str | None:
     """A directive, high-gain station may be protected at a lower level: say so, change nothing."""
     if (
-        victim.gain_db is not None
+        victim is not None
+        and victim.gain_db is not None
         and victim.gain_db >= DIRECTIVE_GAIN_DB
         and victim.directivity != "ND"
     ):
@@ -84,6 +53,7 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
     notice = ific.notices[case.ntc_id]
     beam = ific.beam(case.ntc_id, case.beam)
     geometry = beam.geometry if beam is not None else {}
+    victim = case.victim
     return {
         "case_id": f"{ifact_tag(ific)}-{case.ntc_id}",
         "same_network": ific.same_network(case.ntc_id),
@@ -116,21 +86,32 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             "beam_geometry": "missing" if _missing_geometry(geometry) else "declared",
             "coverage_hint": f"beam name {case.beam}; {WORST_CASE}",
         },
-        "victim": {
-            "station": case.victim.id,
-            "class": case.victim.licence,
-            "lat": case.victim.lat,
-            "lon": case.victim.lon,
-            "rx_mhz": case.victim.rx_mhz,
-            "gain_db": case.victim.gain_db,
-            "power_w": case.victim.power_w,
-            "direction_deg": case.victim.direction_deg,
-            "directivity": case.victim.directivity,
+        "point": {
+            "lat": case.lat,
+            "lon": case.lon,
+            "place": case.place or "any point in Finland (the pass sweeps every elevation)",
         },
+        "victim": (
+            {
+                "station": victim.id,
+                "class": victim.licence,
+                "lat": victim.lat,
+                "lon": victim.lon,
+                "rx_mhz": victim.rx_mhz,
+                "gain_db": victim.gain_db,
+                "power_w": victim.power_w,
+                "direction_deg": victim.direction_deg,
+                "directivity": victim.directivity,
+            }
+            if victim is not None
+            else None
+        ),
         "synthetic_data_warning": (
             "victim received power is above 1 GW (synthetic register artefact); "
             "the value is shown but not used in the PFD calculation"
-            if case.victim.power_w is not None and case.victim.power_w > SYNTHETIC_POWER_W
+            if victim is not None
+            and victim.power_w is not None
+            and victim.power_w > SYNTHETIC_POWER_W
             else None
         ),
         "calculation": {
@@ -150,7 +131,7 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
         "class": case.klass,
         "adjacent": case.adjacent,
         "regulatory_stage": _regulatory_stage(notice),
-        "threshold_note": _threshold_note(case.victim),
+        "threshold_note": _threshold_note(victim),
         "missing": missing_fields(case, geometry),
         "next_action": {
             "counterparty": notice.adm,
@@ -177,9 +158,9 @@ def ifact_tag(ific: IficData) -> str:
 
 def missing_fields(case: Case, geometry: dict) -> list[str]:
     missing = [f"s_beam.{key}" for key in GEOMETRY_FIELDS if geometry.get(key) is None]
-    if case.victim.gain_db is None:
+    if case.victim is not None and case.victim.gain_db is None:
         missing.append(REGISTER_GAIN)
-    if case.victim.power_w is None:
+    if case.victim is not None and case.victim.power_w is None:
         missing.append(REGISTER_POWER)
     return missing
 
@@ -199,13 +180,14 @@ def _blocking(missing: list[str]) -> list[str]:
 
 
 def render_card_md(card: dict) -> str:
-    calc, band, victim = card["calculation"], card["band"], card["victim"]
+    calc, band, victim = card["calculation"], card["band"], card["victim"] or {}
     stage = card["regulatory_stage"]
+    point = card["point"]
     marker = " — adjacent" if card["adjacent"] else ""
     where = (
-        f", {fmt_num(victim['lat'])} N {fmt_num(victim['lon'])} E"
-        if victim.get("lat") is not None and victim.get("lon") is not None
-        else ""
+        f"{fmt_num(point['lat'])} N {fmt_num(point['lon'])} E ({point['place']})"
+        if point.get("lat") is not None and point.get("lon") is not None
+        else point["place"]
     )
     lines = [
         f"# {card['case_id']} — {card['class']}{marker}",
@@ -214,12 +196,21 @@ def render_card_md(card: dict) -> str:
         f"{card['parties']['admin']}), beam {card['coverage']['beam']}",
         f"- **Band:** {fmt_mhz(band['freq_min_mhz'])}-{fmt_mhz(band['freq_max_mhz'])} MHz",
         f"- **Stage:** {stage['provision']} — {stage['label']}",
-        f"- **Victim:** station {victim['station']} ({victim['class']}){where}, "
-        f"elevation {fmt_num(card['coverage']['elevation_deg'])}°",
+        f"- **Point:** {where}, elevation {fmt_num(card['coverage']['elevation_deg'])}°",
         f"- **PFD:** {fmt_num(calc['pfd_dbw_m2_hz'])} dB(W/m²/Hz) vs limit "
         f"{fmt_num(calc['limit_dbw_m2_hz'])} dB(W/m²/Hz) → margin {fmt_num(calc['margin_db'])} dB",
         f"- **Limit:** {calc['limit_source']}",
-        f"- **M4 in Finland:** {card['m4']['services_in_finland']}",
+        f"- **Finland allocation:** {card['m4']['services_in_finland']}"
+        + ("" if card["m4"]["space_to_earth"] else " (no space-to-Earth service)"),
+    ]
+    if victim.get("station"):
+        bits = [f"station {victim['station']} ({victim['class']})"]
+        if victim.get("directivity") in ("D", "ND"):
+            bits.append("directive" if victim["directivity"] == "D" else "non-directive")
+        if victim.get("gain_db") is not None:
+            bits.append(f"{fmt_num(victim['gain_db'])} dBi")
+        lines.append(f"- **Reference:** {', '.join(bits)}")
+    lines += [
         f"- **Coverage:** {card['coverage']['coverage_hint']}",
         f"- **Missing:** {', '.join(_blocking(card['missing'])) or 'nothing'}",
     ]
@@ -240,13 +231,13 @@ def render_queue_md(result: GateResult) -> str:
         f"# Queue ({len(result.queue)})\n\n"
         f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
         f"{counts['g3']} + {counts['cannot_decide']}\n\n"
-        "| # | case | class | stage | margin dB | settles at | reason |\n"
-        "|---|---|---|---|---|---|---|\n"
+        f"| # | case | class | stage | margin dB | Finland band | settles at | reason |\n"
+        "|---|---|---|---|---|---|---|---|\n"
     )
     rows = [
         f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
         f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | "
-        f"{_settles(item)} | {item.reason} |"
+        f"{item.band_use or '-'} | {_settles(item)} | {item.reason} |"
         for index, item in enumerate(result.queue, start=1)
     ]
     note = (
@@ -306,13 +297,18 @@ def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[
                 "regulatory_stage": regulatory_stage(notice.prov)["provision"],
                 "freq_min_mhz": case.band_lo_mhz if case is not None else "",
                 "freq_max_mhz": case.band_hi_mhz if case is not None else "",
-                "station": case.victim.id if case is not None else "",
+                "station": case.victim.id if case is not None and case.victim else "",
+                "lat": case.lat if case is not None else "",
+                "lon": case.lon if case is not None else "",
                 "elevation_deg": case.elev_deg if case is not None else "",
                 "pfd_dbw_m2_hz": case.pfd_dbw_m2_hz if case is not None else "",
                 "limit_dbw_m2_hz": case.limit_dbw_m2_hz if case is not None else "",
                 "margin_db": case.margin_db if case is not None else "",
                 "limit_source": case.limit.cite() if case is not None else "",
                 "m4_services": card["m4"]["services_in_finland"] if card else "",
+                "m4_space": (
+                    "yes" if case is not None and case.band_space else ("no" if case else "")
+                ),
                 "missing": ";".join(card["missing"]) if card else "",
             }
         )
@@ -332,12 +328,15 @@ RESULT_COLUMNS = (
     "freq_min_mhz",
     "freq_max_mhz",
     "station",
+    "lat",
+    "lon",
     "elevation_deg",
     "pfd_dbw_m2_hz",
     "limit_dbw_m2_hz",
     "margin_db",
     "limit_source",
     "m4_services",
+    "m4_space",
     "missing",
 )
 
@@ -355,7 +354,8 @@ def render_run_log(
             f"mode={result.mode}",
             f"notices={result.counts['notices']}",
             f"freq_rows={counts.get('freq', 0)}",
-            f"stations_on_band={result.stations_on_band}",
+            f"register_rows={result.reference_stations}",
+            f"territory_points={len(result.places)}",
             f"bands={len(result.bands)}",
             f"visible=GEO {result.geo_visible} NGSO {result.ngso_visible}",
             f"g1={result.counts['g1']} g2={result.counts['g2']} g3={result.counts['g3']} "

@@ -4,8 +4,9 @@ from types import SimpleNamespace
 import pytest
 
 from app import gates, ingest, pfd
-from app.bands import derive_bands, select_bands, stations_on
-from app.config import DEMO_SLICE_MHZ
+from app.bands import Band
+from app.config import DEMO_SLICE_MHZ, SPACE_BANDS_MHZ
+from app.territory import places as territory_places
 
 ROOT = Path(__file__).resolve().parent.parent
 RULES = ROOT / "rules" / "rr21_table21_4.csv"
@@ -29,14 +30,20 @@ def _run_pipeline(ific_mdb: Path, register: Path, m4: Path, all_bands: bool) -> 
     """Load the BR IFIC MDB and run the gates once; the real data is too big to load per test."""
     ific = ingest.load_ific(ific_mdb)
     stations, counts = ingest.load_register(register)
-    every_band = derive_bands(stations)
-    bands = every_band if all_bands else select_bands(every_band, *DEMO_SLICE_MHZ)
+    m4_rows = ingest.load_m4(m4)
+    scope = SPACE_BANDS_MHZ if all_bands else (DEMO_SLICE_MHZ,)
+    bands = [
+        Band(lo_mhz=lo_mhz, hi_mhz=hi_mhz, group=index, stations=())
+        for index, (lo_mhz, hi_mhz) in enumerate(scope)
+    ]
     limits = pfd.load_limits(RULES)
     result = gates.run(
         ific,
-        stations_on(stations, bands),
+        stations,
+        list(territory_places()),
         bands,
         limits,
+        m4_rows,
         mode="all" if all_bands else "slice",
     )
     return SimpleNamespace(
@@ -44,10 +51,9 @@ def _run_pipeline(ific_mdb: Path, register: Path, m4: Path, all_bands: bool) -> 
         stations=stations,
         counts=counts,
         bands=bands,
-        all_bands=every_band,
         limits=limits,
         result=result,
-        m4=ingest.load_m4(m4),
+        m4=m4_rows,
     )
 
 

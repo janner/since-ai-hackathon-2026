@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 
 from app.cards import build_card, m4_lookup, render_card_md, results_rows
+from app.config import DIRECTIVE_GAIN_DB
 
 CARD_FIELDS = (
     "case_id",
@@ -14,6 +15,7 @@ CARD_FIELDS = (
     "band",
     "direction",
     "coverage",
+    "point",
     "victim",
     "calculation",
     "m4",
@@ -53,21 +55,28 @@ def test_card_has_the_whole_schema(challenge):
     assert len(card["audit"]["input_sha256"]) == 64
     md = render_card_md(card)
     assert "103500417" in md
-    assert f"{card['victim']['lat']:g}".replace(".", ",") in md  # the worst-case station's place
+    assert f"{card['point']['lat']:g}".replace(".", ",") in md  # the level point, not a station
     assert "- **Coverage:**" in md
+    assert "- **Finland allocation:**" in md
     assert "s_beam." not in md  # beam geometry is not a blocking gap, the worst case covers it
 
 
 @pytest.mark.data
-def test_m4_lookup_is_context_not_a_gate(challenge):
+def test_m4_lookup_names_the_service_and_the_downlink(challenge):
     # 3 642-3 678 MHz overlaps the 3 400-3 800 MHz M4 allocation -> both rows, one service list
     overlapping = m4_lookup(challenge.slice.m4, 3642.0, 3678.0)
     assert overlapping["rows"] == [4060, 4091]
     assert overlapping["band_mhz"] == [3400.0, 3800.0]
     assert overlapping["services_in_finland"] == "MOBILE AND FIXED"
+    assert overlapping["space_to_earth"] is False  # a downlink is not a Finnish satellite use
+    space = m4_lookup(challenge.slice.m4, 18_000.0, 18_100.0)  # FSS space-to-Earth
+    assert space["space_to_earth"] is True
+    uplink_only = m4_lookup(challenge.slice.m4, 6_000.0, 6_010.0)  # FSS Earth-to-space only
+    assert uplink_only["space_to_earth"] is False
     not_allocated = m4_lookup(challenge.slice.m4, 500_000.0, 500_100.0)  # above the table
     assert not_allocated["rows"] == []
     assert not_allocated["services_in_finland"] == "not allocated"
+    assert not_allocated["space_to_earth"] is False
 
 
 @pytest.mark.data
@@ -114,18 +123,18 @@ def test_a_too_large_victim_power_is_flagged(challenge):
 def test_a_normal_victim_power_has_no_warning(challenge):
     case = challenge.slice.result.case_by_id()["103500417"]
     card = build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
-    assert card["victim"]["power_w"] == 145.0
+    assert card["victim"]["power_w"] == case.victim.power_w
     assert card["synthetic_data_warning"] is None
 
 
 @pytest.mark.data
 def test_golden_case_103500417(challenge):
-    """The plan's test vector, on the real BR IFIC MDB.
+    """The plan's test vector, on the real BR IFIC MDB, at the territory edge.
 
-    The band label is 3 642-3 678 MHz, not the 3 662-3 698 MHz in the plan: the CDN beam
-    repeats an identical 36 MHz channel every 20 MHz, so ten channels tie for the same
-    worst case (same PSD -50,0 dBW/Hz, same gain 28,5 dBi, same station and angle). The code
-    keeps the first of the ties in file order. Every number of the vector is reproduced.
+    The CDN beam repeats an identical 36 MHz channel every 20 MHz with the same PSD -50,0
+    dBW/Hz and gain 28,5 dBi. Over the whole territory every one of those channels ties, so
+    the code keeps the first in file order, 3 442-3 478 MHz. The band label in the plan
+    (3 662-3 698 MHz) is one of the ties, not a different case.
     """
     case = challenge.slice.result.case_by_id()["103500417"]
     card = build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
@@ -141,30 +150,35 @@ def test_golden_case_103500417(challenge):
         "beam_name": "CDN",
     }
     assert card["parties"]["admin"] == "CHN"
-    assert card["band"] == {"freq_min_mhz": 3642.0, "freq_max_mhz": 3678.0, "bandwidth_mhz": 36.0}
+    assert card["band"] == {"freq_min_mhz": 3442.0, "freq_max_mhz": 3478.0, "bandwidth_mhz": 36.0}
     assert card["coverage"]["sat_name"] == "COMPASS-80E"
     assert card["coverage"]["orbit"] == "GSO"
     assert card["coverage"]["longitude_deg"] == 80.0
-    assert card["coverage"]["elevation_deg"] == pytest.approx(4.85, abs=0.01)
+    assert card["coverage"]["elevation_deg"] == pytest.approx(4.96, abs=0.01)
+    assert card["point"] == {
+        "lat": 64.3496,
+        "lon": 22.98844,
+        "place": "territorial sea outer limit",
+    }
     assert card["victim"] == {
-        "station": "983816",
+        "station": "986805",
         "class": "MVV",
-        "lat": 65.6981,
-        "lon": 24.6245,
-        "rx_mhz": 3726.8,
-        "gain_db": 40.0,
-        "power_w": 145.0,
-        "direction_deg": 253.0,
+        "lat": 66.1172,
+        "lon": 28.5729,
+        "rx_mhz": 3520.5,
+        "gain_db": 58.0,
+        "power_w": 163.0,
+        "direction_deg": 82.0,
         "directivity": "D",
     }
     calc = card["calculation"]
     assert calc["psd_dbw_hz"] == -50.0
     assert calc["beam_gain_db"] == 28.5
-    assert calc["distance_km"] == pytest.approx(41143, abs=1)
+    assert calc["distance_km"] == pytest.approx(41130, abs=1)
     assert calc["fspl_db"] == pytest.approx(163.28, abs=0.01)
     assert calc["pfd_dbw_m2_hz"] == pytest.approx(-184.78, abs=0.01)
     assert calc["limit_dbw_m2_hz"] == pytest.approx(-188.02, abs=0.01)
-    assert calc["margin_db"] == pytest.approx(3.24, abs=0.01)
+    assert calc["margin_db"] == pytest.approx(3.25, abs=0.01)
     assert calc["offset_db"] == 0.0
     assert calc["perigee_km"] is None
     assert calc["limit_source"] == (
@@ -175,6 +189,7 @@ def test_golden_case_103500417(challenge):
         "rows": [4060, 4091],
         "band_mhz": [3400.0, 3800.0],
         "services_in_finland": "MOBILE AND FIXED",
+        "space_to_earth": False,
         "source": "opendata.traficom.fi/api/v13/Taajuusjakotaulukko",
     }
     assert card["missing"] == [
@@ -186,7 +201,7 @@ def test_golden_case_103500417(challenge):
     assert card["next_action"]["template"] == "templates/correspondence_fi_en.md"
     assert card["next_action"]["question"] == (
         "Can China confirm the worst-case PFD the COMPASS-80E CDN beam produces on "
-        "Finnish territory in the 3\u00a0642-3\u00a0678 MHz range?"
+        "Finnish territory in the 3\u00a0442-3\u00a0478 MHz range?"
     )
     assert "service area" not in card["next_action"]["question"]
     assert len(card["audit"]["input_sha256"]) == 64
@@ -197,7 +212,7 @@ def test_golden_case_103500417(challenge):
 def test_directive_antenna_gets_a_threshold_note(challenge):
     """A high-gain directive victim names the lower trigger level; nothing else changes."""
     case = challenge.slice.result.case_by_id()["103500417"]
-    assert case.victim.directivity == "D" and case.victim.gain_db == 40.0
+    assert case.victim.directivity == "D" and case.victim.gain_db >= DIRECTIVE_GAIN_DB
     card = build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
     assert "directive antenna" in card["threshold_note"]
 

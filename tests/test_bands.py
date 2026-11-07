@@ -74,11 +74,13 @@ def test_band_stations_are_recorded():
 
 @pytest.mark.data
 def test_real_band_derivation(challenge):
+    """The register-derived bands as a module: the demo slice leaves the 13,1 MHz hole."""
     assert challenge.all.counts["stations"] == 871
-    assert len(challenge.all.bands) == 26
-    assert groups(challenge.all.bands) == 7
-    assert len(challenge.slice.bands) == 2  # the 13,1 MHz hole is not protected
-    on_band = stations_on(challenge.slice.stations, challenge.slice.bands)
+    every = derive_bands(challenge.all.stations)
+    assert len(every) == 26
+    assert groups(every) == 7
+    assert len(select_bands(every, *DEMO_SLICE_MHZ)) == 2
+    on_band = stations_on(challenge.slice.stations, select_bands(every, *DEMO_SLICE_MHZ))
     assert len(on_band) == 7
     # Register order, which is not frequency order.
     assert sorted(s.id for s in on_band) == [
@@ -96,5 +98,6 @@ def test_real_band_derivation(challenge):
 
 @pytest.mark.data
 def test_real_bands_cover_the_register_rows(challenge):
-    covered = {sid for band in challenge.all.bands for sid in band.stations}
+    every = derive_bands(challenge.all.stations)
+    covered = {sid for band in every for sid in band.stations}
     assert len(covered) == 84

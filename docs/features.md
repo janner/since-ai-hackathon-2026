@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (165 passed) and a clean clone
-(121 passed, 44 skipped).
+commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (168 passed) and a clean clone
+(123 passed, 45 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
@@ -72,7 +72,11 @@ channels that overlap or touch (`MERGE_GAP_MHZ = 0.0`, so nothing is joined acro
 register order. `groups()` counts how many of the seven allocations actually protect something.
 
 Result on the real register: 84 rows, 26 bands in 7 groups. In the demo slice: 7 stations, 2 bands
-in 1 group, with a 13.1 MHz hole between them.
+(1 group, because a 13,1 MHz hole splits the slice).
+
+Since D17 the run does not derive its bands this way: `app/pipeline.py` takes the run's scope from
+`app/config.py` and the register is a reference. `app/bands.py` stays as the module that answers
+"what would the register protect", with its tests; the pipeline no longer calls it.
 
 Tests (`tests/test_bands.py`, 9): `test_overlaps_rejects_touching_bands`,
 `test_derive_bands_merges_touching_channels_but_not_the_hole`,
@@ -84,7 +88,8 @@ Tests (`tests/test_bands.py`, 9): `test_overlaps_rejects_touching_bands`,
 ## F3: G1 band overlap and G2 visibility
 
 `app/gates.py::gate1()` keeps a frequency row when `emi_rcp == "E"` (space transmits, Earth
-receives) and the row overlaps a protected band. With `GUARD_MHZ > 0` (`app/config.py`, default
+receives) and the row overlaps one of the run's scope bands (the seven space allocations with
+`--all`, the demo slice otherwise; `app/config.py`). With `GUARD_MHZ > 0` (`app/config.py`, default
 0.0) a row that only comes within that distance of a band also passes, and the notice is returned in
 an `adjacent` set: its card is marked `adjacent: true` and its class is capped at `near`. A notice
 whose `ntc_type` is `S` (an earth station) is removed again: when such a notice sends "E" it is the
@@ -92,18 +97,18 @@ station transmitting, not a downlink. Every notice that does not survive gets a 
 `earth_station_notice` or `no_band_overlap`, in the `dropped` map as `(stage, reason)`.
 
 `gate2()` asks whether the satellite is visible from Finland at all. For a GEO notice with
-`long_nom`, the elevation is computed from every register station and the notice is dropped as
-`geo_below_horizon` when the best elevation is at or below 0°. For a non-GSO notice, `ngso_reach()`
-gives the highest latitude the orbit reaches at zero elevation; the notice is dropped as
-`ngso_never_visible` when that is below the southernmost station latitude. An orbit row without an
-apogee or inclination is never dropped here. A notice with neither a `geo` nor an `orbit` row passes
-G2 and carries the reason `no_orbit` at G3.
+`long_nom`, the elevation is computed from every point of the territory edge and the notice is
+dropped as `geo_below_horizon` when the best elevation is at or below 0°. For a non-GSO notice,
+`ngso_reach()` gives the highest latitude the orbit reaches at zero elevation; the notice is dropped
+as `ngso_never_visible` when that is below the southernmost territory latitude. An orbit row without
+an apogee or inclination is never dropped here. A notice with neither a `geo` nor an `orbit` row
+passes G2 and carries the reason `no_orbit` at G3.
 
-Tests (`tests/test_gates.py`, 13): `test_class_boundaries`, `test_guard_mhz_zero_is_the_plain_overlap`
+Tests (`tests/test_gates.py`, 14): `test_class_boundaries`, `test_guard_mhz_zero_is_the_plain_overlap`
 and `test_guard_mhz_lets_an_adjacent_notice_through` walk the adjacent-channel guard both ways on a
 two-row input, `test_a_notice_type_s_sending_E_is_dropped` covers the earth-station reason, and the
 data tests `test_demo_slice_funnel`, `test_all_bands_funnel`, `test_missing_perigee_cannot_be_decided`
-and `test_case_126590032_cannot_be_decided` lock the real counts (41 from 196 in the slice, 101 in
+and `test_case_126590032_cannot_be_decided` lock the real counts (41 from 196 in the slice, 113 in
 the full run, 1 earth-station drop in the full run) and the `ngso_never_visible` case 124520197.
 
 ## F4: PFD geometry and the Table 21-4 limit
@@ -136,27 +141,32 @@ Tests (`tests/test_pfd.py`, 12): `test_table_has_thirteen_rows`,
 
 `app/gates.py::gate3()` walks the frequency rows of every notice that survived G1 and G2. For each
 row it picks the limit row, the emission power for the group, the strongest beam gain over the beams
-that cover the band, and the victim stations the row overlaps. Every candidate is then evaluated at
-each elevation sample and the largest margin wins:
+that cover the band, and the Finnish allocation (`app/allocation.py`). Every candidate is then
+evaluated and the largest margin wins:
 
 ```
 PFD = psd_max + beam_gain_max - fspl(d),   margin = PFD - limit_hz(row, elevation, offset)
 ```
 
-A notice with nothing computable lands in `undecided` with one reason: `no_orbit`, `no_perigee`,
-`no_limit_for_band`, `no_power`, `no_gain`, `x_needs_nv` or `no_station`. Classification uses the
-margin rounded to two decimals: `exceeds` above 0 dB, `near` between −3 and 0 dB, `clear` at or
-below −3 dB. An adjacent-channel case (see F3) keeps its margin but is capped at `near`: the
-Table 21-4 limit belongs to the notified band and does not apply outside it. The victim is the
-row's own site: RX is the receiver's frequency and TX is the fallback. For BC/BT the row is a
-transmitter, so its whole coverage area is protected; the station-site PFD is the upper bound,
-since the beam is assumed to point at the station.
+For a GEO notice the samples are the 552 vertices of the territory edge (`app/territory.py`): the
+land borders with Sweden, Norway and Russia plus the territorial sea outer limit. The worst case over
+an area sits on its edge, because the slant range grows away from the sub-satellite point and the
+limit does not rise faster. A non-GSO notice is sampled over a pass from 0° to 90° in 0,1° steps,
+which is a worst case over every latitude and needs no location.
 
-`gate4()` orders the queue `exceeds`, `near`, `cannot_decide`, and inside a class by stage rank
-(advance publication and coordination request before the MIFR notification, then Resolution 49),
-then by margin. A stage another administration can still influence therefore comes before a filing
-already recorded. `clear` cases stay in `cases.json` and the CSV but out of the queue. There is no
-cap. The stage itself comes from `notice.prov` through `app/config.py::regulatory_stage()`.
+A notice with nothing computable lands in `undecided` with one reason: `no_orbit`, `no_perigee`,
+`no_limit_for_band`, `no_power`, `no_gain` or `x_needs_nv`. Classification uses the margin rounded to
+two decimals: `exceeds` above 0 dB, `near` between −3 and 0 dB, `not_space` at or below −3 dB when
+the band has no space-to-Earth satellite service in Finland, `clear` otherwise. An adjacent-channel
+case (see F3) keeps its margin but is capped at `near`: the Table 21-4 limit belongs to the notified
+band and does not apply outside it. The register's rows on the band are a reference only: the block
+names the one with the highest margin, and the number itself is taken at the territory edge.
+
+`gate4()` orders the queue `exceeds`, `near`, `not_space`, `cannot_decide`, and inside a class by
+stage rank (advance publication and coordination request before the MIFR notification, then
+Resolution 49), then by margin. A stage another administration can still influence therefore comes
+before a filing already recorded. `clear` cases stay in `cases.json` and the CSV but out of the queue.
+There is no cap. The stage itself comes from `notice.prov` through `app/config.py::regulatory_stage()`.
 
 Tests (`tests/test_gates.py`): `test_class_boundaries`, `test_queue_order`,
 `test_queue_holds_every_concern_and_no_clear`, `test_queue_puts_coordination_before_notification`,
@@ -166,8 +176,8 @@ Tests (`tests/test_gates.py`): `test_class_boundaries`, `test_queue_order`,
 ## F6: case cards and the M4 allocation
 
 `app/cards.py::build_card()` turns a `Case` into the card: `case_id`, `same_network`, `source`
-(file, IFIC number, SHA256, tables, keys), `parties`, `band`, `direction`, `coverage`, `victim`,
-`calculation`, `m4`, `class`, `adjacent`, `regulatory_stage`, `threshold_note`, `missing`,
+(file, IFIC number, SHA256, tables, keys), `parties`, `band`, `direction`, `coverage`, `point`,
+`victim`, `calculation`, `m4`, `class`, `adjacent`, `regulatory_stage`, `threshold_note`, `missing`,
 `next_action`, `audit`. The audit block carries `input_sha256`, `rules_version` and `run_at`; the
 `input_sha256` is the SHA256 of the BR IFIC MDB the run read.
 
@@ -182,11 +192,17 @@ azimuth with the satellite direction (see I18 in `docs/decisions.md`).
 
 The `victim` block carries `power_w`, and the card carries a top-level `synthetic_data_warning`
 that is set when the victim received power is above 1 GW: the register value is a synthetic
-artefact, so it is shown but never used in the PFD. In the full run 20 cards are flagged.
+artefact, so it is shown but never used in the PFD. In the `--all` run 14 cards are flagged.
+`point` carries the territory edge vertex where the level was taken (`lat`, `lon`, `place`), or
+`any point in Finland` for a non-GSO pass; `victim` is the reference row from the register, not the
+anchor of the number (D17).
 
-M4 (`m4_lookup()`) is context, never a gate: it lists the sub-band IDs that overlap the notified
-band, the merged band range in MHz, the Finnish services from the open data table and the source
-URL. A band with no M4 row gets `rows: []` and `services_in_finland: "not allocated"`.
+M4 (`app/allocation.py::m4_lookup()`) is a finding, not only context: it lists the sub-band IDs that
+overlap the notified band, the merged band range in MHz, the Finnish services from the open data
+table, `space_to_earth` and the source URL. `space_to_earth` is true only when an overlapping row
+names a satellite service with the space-to-Earth direction (or no direction); an uplink-only or
+inter-satellite row does not count. A band with no M4 row gets `rows: []`,
+`services_in_finland: "not allocated"` and the same `not_space` finding.
 
 `same_network()` lists other notices of the same satellite and administration, or a notified
 target. The card shows them; every notice is still decided on its own.
@@ -202,12 +218,12 @@ cause. `render_run_log()` writes the IFIC number, the input file name and the ha
 counts.
 
 Tests (`tests/test_cards.py`, 9): `test_card_has_the_whole_schema`,
-`test_m4_lookup_is_context_not_a_gate`, `test_missing_register_field_is_reported`,
+`test_m4_lookup_names_the_service_and_the_downlink`, `test_missing_register_field_is_reported`,
 `test_results_rows_cover_every_notice` (asserts one row per notice, the empty `class` for a gate
 drop and the `dropped_at` plus `reason`), `test_a_too_large_victim_power_is_flagged`,
 `test_a_normal_victim_power_has_no_warning`, `test_directive_antenna_gets_a_threshold_note`, and the
 data tests `test_golden_case_103500417`, which locks every field of the plan's test vector including
-the band label 3 642–3 678 MHz and the `source` block, and `test_prov_distribution_and_the_card_stage`,
+the band label 3 442–3 478 MHz and the `source` block, and `test_prov_distribution_and_the_card_stage`,
 which locks the `prov` distribution (50 / 76 / 65 / 5) and the card stage block.
 
 ## F7: the output files and the CLI
@@ -437,7 +453,8 @@ legend pairs each space-station class with an earth-station class (`T*`/`U*`) �
 table, not a service name. `nat_srv` is a separate code set (nature of service, data item C4b).
 M4's `Services_in_Finland` is not drawn from either: it names the services in the Finnish
 allocation table (`FIXED`, `MOBILE AND FIXED`). No key and no shared vocabulary connects the two,
-so a join would be a guess rather than a mapping. Not implemented; the M4 lookup stays context
+so a join would be a guess rather than a mapping. Not implemented; the M4 lookup answers only the
+downlink question of D17 and nothing else.
 (decision I10).
 
 `s_beam.pwr_max_4k` and `s_beam.pwr_avg_4k` carry a beam's peak and average power. The database has
@@ -463,7 +480,7 @@ would make the order margin plus deadline; over the whole run 26 groups fall due
 `epfd_param` (35 rows) is the RR Art. 22 data for protecting Finnish satellites. No computation path
 is implemented, so the rows are read and dropped.
 
-`ntc_lnk` (43 rows, 12 of which concern one of our 18 case notices) links a filing to the notice it
+`ntc_lnk` (43 rows, 12 of which concern one of our 20 case notices) links a filing to the notice it
 follows. It is not read. A filings series on the card is a next step, below.
 
 `notice.act_code` is read in `app/ingest.py` and used nowhere. The distribution in 3074 is A 117

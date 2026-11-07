@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SPACE_MDB = ROOT / "data" / "itu-ific-3074" / "ific3074.mdb"
 REGISTER = ROOT / "data" / "frequencies_of_interest.csv"
 M4 = ROOT / "data" / "taajuusjakotaulukko.json"
-CLASSES = ("exceeds", "near", "cannot_decide", "clear")
+CLASSES = ("exceeds", "near", "not_space", "cannot_decide", "clear")
 needs_data = pytest.mark.skipif(
     not (SPACE_MDB.is_file() and REGISTER.is_file() and M4.is_file()),
     reason="challenge data missing: run scripts/fetch_data.py",
@@ -160,21 +160,22 @@ def test_funnel_numbers(client):
     assert body["counts"] == {
         "notices": 196,
         "g1": 41,
-        "g2": 19,
-        "g3": 18,
+        "g2": 21,
+        "g3": 20,
         "cannot_decide": 1,
-        "exceeds": 9,
+        "exceeds": 11,
         "near": 5,
-        "clear": 4,
+        "not_space": 2,
+        "clear": 2,
     }
-    assert body["queue"] == {"shown": 15}
+    assert body["queue"] == {"shown": 19}
 
 
 @pytest.mark.data
 @needs_data
 def test_cases_returns_every_card(client):
     body = client.get("/api/cases").json()
-    assert isinstance(body, list) and len(body) == 18
+    assert isinstance(body, list) and len(body) == 20
 
 
 @pytest.mark.data
@@ -197,7 +198,7 @@ def test_unknown_case_id_is_404(client):
 @needs_data
 def test_queue_is_ordered_by_class(client):
     body = client.get("/api/queue").json()
-    assert len(body) == 18  # no cap: every card is queued
+    assert len(body) == 20  # cases.json in queue order: every card, clear included
     ranks = [CLASSES.index(item["class"]) for item in body]
     assert ranks == sorted(ranks)
     exceeds = [item["calculation"]["margin_db"] for item in body if item["class"] == "exceeds"]

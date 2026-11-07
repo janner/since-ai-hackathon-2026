@@ -52,14 +52,15 @@ def test_slice_run_matches_the_documented_anchors(slice_out):
     assert funnel["counts"] == {
         "notices": 196,
         "g1": 41,
-        "g2": 19,
-        "g3": 18,
+        "g2": 21,
+        "g3": 20,
         "cannot_decide": 1,
-        "exceeds": 9,
+        "exceeds": 11,
         "near": 5,
-        "clear": 4,
+        "not_space": 2,
+        "clear": 2,
     }
-    assert funnel["queue"] == {"shown": 15}
+    assert funnel["queue"] == {"shown": 19}
     assert funnel["mode"] == "slice"
     assert len(funnel["input_sha256"]) == 64
     with (slice_out / "3074_results.csv").open(newline="", encoding="utf-8") as handle:
@@ -67,18 +68,18 @@ def test_slice_run_matches_the_documented_anchors(slice_out):
         rows = list(reader)
     assert reader.fieldnames == list(RESULT_COLUMNS)
     assert len(rows) == 196
-    assert len(rows[0]) == 19
+    assert len(rows[0]) == len(RESULT_COLUMNS)
 
 
 @pytest.mark.data
 @needs_data
 def test_slice_cases_json_and_markdown(slice_out):
     cards = json.loads((slice_out / "cases.json").read_text(encoding="utf-8"))
-    assert len(cards) == 18
+    assert len(cards) == 20
     assert cards[0]["class"] == "exceeds"
     assert "prose" in cards[0]
-    assert (slice_out / "cases.md").read_text(encoding="utf-8").startswith("# Cases (18)")
-    assert "| 15 |" in (slice_out / "queue.md").read_text(encoding="utf-8")
+    assert (slice_out / "cases.md").read_text(encoding="utf-8").startswith("# Cases (20)")
+    assert "| 19 |" in (slice_out / "queue.md").read_text(encoding="utf-8")
 
 
 @pytest.mark.data
@@ -88,7 +89,9 @@ def test_run_log_records_the_source_and_the_counts(slice_out):
     assert "input_sha256=" in log
     assert "ific=3074" in log
     assert "source_file=ific3074.mdb" in log
-    assert "g1=41 g2=19 g3=18 cannot_decide=1" in log
+    assert "g1=41 g2=21 g3=20 cannot_decide=1" in log
+    assert "territory_points=552" in log
+    assert "register_rows=871" in log
     assert "mode=slice" in log
 
 
@@ -99,9 +102,9 @@ def test_letters_are_written_for_the_exceeds_cards(slice_out):
     exceeds = {card["case_id"] for card in cards if card["class"] == "exceeds"}
     clear = {card["case_id"] for card in cards if card["class"] == "clear"}
     written = {path.stem for path in (slice_out / "letters").iterdir()}
-    assert len(exceeds) == 9 and written == exceeds
+    assert len(exceeds) == 11 and written == exceeds
     assert clear and not written & clear
-    assert "letters=9" in (slice_out / "run.log").read_text(encoding="utf-8")
+    assert "letters=11" in (slice_out / "run.log").read_text(encoding="utf-8")
 
 
 @pytest.mark.data
@@ -168,10 +171,12 @@ def test_missing_limits_is_a_clear_error(tmp_path, capsys):
 
 @pytest.mark.data
 @needs_data
-def test_register_without_stations_on_a_band_is_a_clear_error(tmp_path):
-    """A register that protects nothing must say so instead of producing empty output."""
-    from app.ingest import DataError
+def test_the_register_is_only_a_reference(tmp_path):
+    """The customer rule: a band nobody listed is still screened.
 
+    A register that carries one station at 87,9 MHz must not shrink the funnel and must not
+    stop the run. It only means the cards have no reference row to name.
+    """
     empty = tmp_path / "register.csv"
     empty.write_text(
         "Station number,Class of licence,Longitude,Latitude,Channel bandwidth,TX frequency,"
@@ -179,14 +184,13 @@ def test_register_without_stations_on_a_band_is_a_clear_error(tmp_path):
         "1,BC,24.0,60.0,300.000 kHz,87.9 MHz,87.9 MHz,10,50,W\n",
         encoding="utf-8",
     )
-    m4 = tmp_path / "m4.json"
-    m4.write_text(
-        '{"value": [{"ID": 1, "Sub_band_lower_limit__Hz_": 1000000,'
-        ' "Sub_band_upper_limit__Hz_": 2000000, "Services_in_Finnish": ""}]}',
-        encoding="utf-8",
-    )
-    with pytest.raises(DataError, match="no protected band"):
-        pipeline.run(SPACE_MDB, empty, m4, tmp_path / "out")
+    out = tmp_path / "out"
+    assert pipeline.run(SPACE_MDB, empty, M4, out) == 0
+    counts = json.loads((out / "funnel.json").read_text(encoding="utf-8"))["counts"]
+    assert (counts["g1"], counts["g2"], counts["g3"]) == (41, 21, 20)
+    cards = json.loads((out / "cases.json").read_text(encoding="utf-8"))
+    assert cards and all(card["victim"] is None for card in cards)
+    assert "- **Reference:**" not in (out / "cases.md").read_text(encoding="utf-8")
 
 
 @pytest.mark.data
@@ -229,5 +233,5 @@ def test_without_the_terrestrial_flag_the_space_run_is_unchanged(tmp_path):
     assert pipeline.run(SPACE_MDB, REGISTER, M4, out) == 0
     assert not (out / "terrestrial_findings.json").exists()
     counts = json.loads((out / "funnel.json").read_text(encoding="utf-8"))["counts"]
-    assert (counts["notices"], counts["g1"], counts["g2"]) == (196, 41, 19)
-    assert counts["exceeds"] == 9
+    assert (counts["notices"], counts["g1"], counts["g2"]) == (196, 41, 21)
+    assert counts["exceeds"] == 11

@@ -23,8 +23,9 @@ from pathlib import Path
 
 from app import cards as card_writer
 from app import gates, ingest, pfd, prose, terrestrial
-from app.bands import derive_bands, groups, select_bands, stations_on
-from app.config import DEMO_SLICE_MHZ, RULES_VERSION
+from app.bands import Band, groups
+from app.config import DEMO_SLICE_MHZ, RULES_VERSION, SPACE_BANDS_MHZ
+from app.territory import places as territory_places
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LIMITS = REPO_ROOT / "rules" / "rr21_table21_4.csv"
@@ -84,16 +85,23 @@ def run(
     except (OSError, KeyError, ValueError) as error:
         raise ingest.DataError(f"cannot read limits {limits}: {error}") from error
 
-    all_derived = derive_bands(stations)
-    bands = all_derived if all_bands else select_bands(all_derived, *DEMO_SLICE_MHZ)
-    if not bands:
-        raise ingest.DataError(
-            "no protected band derived from the register for this selection; "
-            "check --register and the seven space bands in app/config.py"
-        )
-    on_band = stations_on(stations, bands)
+    scope = SPACE_BANDS_MHZ if all_bands else (DEMO_SLICE_MHZ,)
+    # The run's bands come from the scope, not from the register: the Excel list is a
+    # reference, and the bands nobody listed are exactly the ones a satellite should not use.
+    bands = [
+        Band(lo_mhz=lo_mhz, hi_mhz=hi_mhz, group=index, stations=())
+        for index, (lo_mhz, hi_mhz) in enumerate(scope)
+    ]
 
-    result = gates.run(ific, on_band, bands, limits_rows, mode="all" if all_bands else "slice")
+    result = gates.run(
+        ific,
+        stations,
+        list(territory_places()),
+        bands,
+        limits_rows,
+        m4_rows,
+        mode="all" if all_bands else "slice",
+    )
     result.run_at = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     result.rules_version = RULES_VERSION
     result.freq_rows = ific.counts.get("freq", 0)
@@ -117,8 +125,8 @@ def run(
         f"G3 {counts['g3']} + {counts['cannot_decide']} cannot decide"
     )
     print(
-        f"exceeds {counts['exceeds']}, near {counts['near']}, clear {counts['clear']}, "
-        f"{len(result.queue)} in the queue ({groups(bands)} groups, "
+        f"exceeds {counts['exceeds']}, near {counts['near']}, not_space {counts['not_space']}, "
+        f"clear {counts['clear']}, {len(result.queue)} in the queue ({groups(bands)} groups, "
         f"{len(bands)} bands, {result.elapsed_s:.2f} s)"
     )
     results = f"{card_writer.ifact_tag(ific)}_results.csv"

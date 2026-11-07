@@ -38,16 +38,16 @@ uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 ```
 
 ```
-196 notices → G1 41 → G2 19 → G3 18 + 1 cannot decide
-exceeds 9, near 5, clear 4, 15 in the queue (1 groups, 2 bands, 3.48 s)
+196 notices → G1 41 → G2 21 → G3 20 + 1 cannot decide
+exceeds 11, near 5, not_space 2, clear 2, 19 in the queue (1 groups, 1 bands, 3.92 s)
 wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log, letters/
 ```
 
-The first line is the funnel: 196 notices, 41 overlap a protected band, 19 of those can be seen from
-Finland, 18 get a number and one cannot be decided. The pipeline prints these three gates as
-`G1` (band overlap), `G2` (visible from Finland) and `G3` (computed); the page shows the same three
-in plain language. The whole run takes a few seconds — most of it
-the `mdb-export` of the 15 tables — and opens no connection with no LLM configured.
+The first line is the funnel: 196 notices, 41 overlap a band in the run's scope, 21 of those can be
+seen from Finland, 20 get a number and one cannot be decided. The pipeline prints these three gates
+as `G1` (band overlap), `G2` (visible from Finland) and `G3` (computed); the page shows the same
+three in plain language. The whole run takes a few seconds — most of it the `mdb-export` of the 15
+tables — and opens no connection with no LLM configured.
 
 ## 2b. The automatic check: what the monitor did on IFIC 3075
 
@@ -70,8 +70,9 @@ source_file=ific3075.mdb
 mode=slice
 notices=129
 freq_rows=50645
-stations_on_band=7
-bands=2
+register_rows=871
+territory_points=552
+bands=1
 visible=GEO 9 NGSO 0
 g1=19 g2=9 g3=7 cannot_decide=2
 letters=3
@@ -105,21 +106,21 @@ check finds nothing new.
 `out/queue.md` is the decision list, most urgent first:
 
 ```
-# Queue (15)
+# Queue (19)
 
-Funnel: 196 → 41 → 19 → 18 + 1
+Funnel: 196 → 41 → 21 → 20 + 1
 
 | # | case | class | stage | margin dB | reason |
 |---|---|---|---|---|---|
 | 1 | 124545403 | exceeds | No. 9.1 | 60,44 | exceeds |
-| 2 | 124520183 | exceeds | No. 9.6 | 2,95 | exceeds |
-| 3 | 124520184 | exceeds | No. 9.6 | 1,03 | exceeds |
+| 2 | 124520183 | exceeds | No. 9.6 | 3,66 | exceeds |
+| 3 | 124520184 | exceeds | No. 9.6 | 1,74 | exceeds |
 | 4 | 125500066 | exceeds | No. 11.2 | 21,32 | exceeds |
 | 5 | 125500277 | exceeds | No. 11.2 | 16,33 | exceeds |
-| 6 | 103500417 | exceeds | No. 11.2 | 3,24 | exceeds |
+| 6 | 103500417 | exceeds | No. 11.2 | 3,25 | exceeds |
 ```
 
-(9 more rows follow; the file lists all 15.) Inside a class the stage comes first, then the margin:
+(13 more rows follow; the file lists all 19.) Inside a class the stage comes first, then the margin:
 the `exceeds` rows in the advance publication and coordination request stages are listed before the
 MIFR notifications, whose margins do not put them second.
 
@@ -127,40 +128,44 @@ MIFR notifications, whose margins do not put them second.
 
 ```
 - **Satellite:** COMPASS-80E (GSO, CHN), beam CDN
-- **Band:** 3 642-3 678 MHz
+- **Band:** 3 442-3 478 MHz
 - **Stage:** No. 11.2 — notification recorded in the MIFR
-- **Victim:** station 983816 (MVV), elevation 4,85°
-- **PFD:** -184,78 dB(W/m²/Hz) vs limit -188,02 dB(W/m²/Hz) → margin 3,24 dB
+- **Point:** 64,3496 N 22,9884 E (territorial sea outer limit), elevation 4,96°
+- **PFD:** -184,78 dB(W/m²/Hz) vs limit -188,02 dB(W/m²/Hz) → margin 3,25 dB
 - **Limit:** ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287
-- **M4 in Finland:** MOBILE AND FIXED
-- **Coverage:** beam name CDN; worst case assumed: peak beam gain toward the Finnish station
+- **Finland allocation:** MOBILE AND FIXED (no space-to-Earth service)
+- **Reference:** station 986805 (MVV), directive, 58 dBi
+- **Coverage:** beam name CDN; worst case assumed: peak beam gain toward the Finnish territory
 - **Missing:** nothing
 - **Threshold:** the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction
-- **Question:** Can China confirm the worst-case PFD the COMPASS-80E CDN beam produces on Finnish territory in the 3 642-3 678 MHz range?
+- **Question:** Can China confirm the worst-case PFD the COMPASS-80E CDN beam produces on Finnish territory in the 3 442-3 478 MHz range?
 ```
 
 Four things to point at on that card. The PFD, the limit and the margin come from the calculation
-block (max PSD −50,0 dBW/Hz, beam gain 28,5 dBi, distance 41 143 km, free-space loss 163,28 dB).
+block (max PSD −50,0 dBW/Hz, beam gain 28,5 dBi, distance 41 130 km, free-space loss 163,28 dB).
 The limit is a citation, not a constant: `rules/rr21_table21_4.csv` holds the row. The `Coverage`
 line is where Traficom's Q3 answer lands: IFIC 3074 does not declare the beam geometry, so the tool
 does not try to decide whether the beam reaches Finland. It assumes the worst case, the notice's own
-peak gain aimed at the Finnish station, and `Missing` is therefore empty: no field is missing for
-the computation. `Question` is the draft the administration would receive, and it asks to confirm that
-worst-case PFD. `Stage` names the provision the filing stands under, and `Threshold` (here the
-anchor's station is directive at 40 dBi) restates Traficom's point that a directive antenna can be
-protected at a lower level without changing any number.
+peak gain aimed at the territory edge, and `Missing` is therefore empty: no field is missing for
+the computation. `Point` is the border vertex where the level is highest; `Reference` is the
+register row on the band, context only. `Finland allocation` is the second screen (Traficom,
+7 Nov 2026): 3 442-3 478 MHz is `MOBILE AND FIXED` in Finland, so a downlink there is a finding
+whatever the margin. `Question` is the draft the administration would receive, and it asks to
+confirm that worst-case PFD. `Stage` names the provision the filing stands under, and `Threshold`
+(here the reference station is directive at 58 dBi) restates Traficom's point that a directive
+antenna can be protected at a lower level without changing any number.
 
-`out/3074_results.csv` has one row per notice in the input, including the 177 the funnel dropped
-(155 at G1, 22 at G2), each with its stage and reason. The same notice as a row:
+`out/3074_results.csv` has one row per notice in the input, including the 176 the funnel dropped
+(155 at G1, 21 at G2), each with its stage and reason. The same notice as a row:
 
 ```
-103500417,CHN,COMPASS-80E,G,GSO,,,exceeds,No. 11.2,3642.0,3678.0,983816,4.85,-184.78,-188.02,3.24,"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287",MOBILE AND FIXED,s_beam.bore_long;s_beam.bore_lat;s_beam.maj_axis;s_beam.min_axis
+103500417,CHN,COMPASS-80E,G,GSO,,,exceeds,No. 11.2,3442.0,3478.0,986805,64.3496,22.98844,4.96,-184.78,-188.02,3.25,"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287",MOBILE AND FIXED,no,s_beam.bore_long;s_beam.bore_lat;s_beam.maj_axis;s_beam.min_axis
 ```
 
 `out/run.log` is the audit line:
 
 ```
-run_at=2026-11-07T08:54:30+02:00
+run_at=2026-11-07T15:49:51+02:00
 input_sha256=a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31
 rules_version=1.1.0
 ific=3074
@@ -168,19 +173,23 @@ source_file=ific3074.mdb
 mode=slice
 notices=196
 freq_rows=95865
-stations_on_band=7
-bands=2
-visible=GEO 16 NGSO 3
-g1=41 g2=19 g3=18 cannot_decide=1
-elapsed_s=3.48
+register_rows=871
+territory_points=552
+bands=1
+visible=GEO 18 NGSO 3
+g1=41 g2=21 g3=20 cannot_decide=1
+letters=11
+elapsed_s=3.92
 ```
 
 The hash is the SHA256 of the BR IFIC MDB the run read, and `source_file` names it; a rerun on
-another package is visible. `stations_on_band=7` and `bands=2` are the demo slice; the 13.1 MHz hole
-between the two bands is real and the tool does not cover it.
+another package is visible. `register_rows=871` is the reference list the run read, and
+`territory_points=552` is the edge it calculated at: the land borders plus the territorial sea
+outer limit. `bands=1` is the demo slice; the register's 13,1 MHz hole inside it no longer narrows
+the screen, because the bands come from the run's scope, not from the register (D17).
 
 `out/funnel.json` carries the same counts as JSON with the drop reasons
-(`no_band_overlap` 155, `geo_below_horizon` 21, `ngso_never_visible` 1) for anything that reads
+(`no_band_overlap` 155, `geo_below_horizon` 19, `ngso_never_visible` 1) for anything that reads
 files instead of humans.
 
 ## 4. The whole register
@@ -285,10 +294,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 165 passed with data/
+make check        # ruff check, ruff format --check, pytest: 168 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 121 passed, 44 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 123 passed, 45 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. The optional Teams digest (15 seconds)
@@ -310,9 +319,9 @@ Suppilo: 129 → 19 → 9 → 7 + 2
 Luokat: 3 ylittää · 4 lähellä
 
 ## Kiireellisimmät
-1. 108501259 — exceeds, No. 11.2, 0,38 dB
-2. 308501259 — exceeds, No. 11.2, 0,38 dB
-3. 125512025 — exceeds, No. 11.2, 0,04 dB
+1. 108501259 — exceeds, No. 11.2, 0,43 dB
+2. 308501259 — exceeds, No. 11.2, 0,43 dB
+3. 125512025 — exceeds, No. 11.2, 0,05 dB
 
 Kaista: http://localhost:8000
 ```
@@ -339,10 +348,10 @@ produced. The two-minute video version, with narration and captions, is `docs/de
 | 0:00 | browser, the top-bar panel and "Check now" | the panel shows the last check: the newest package and when it was checked. On this tree it reads "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices."; when a check finds nothing new it reads "No new IFIC has been published yet (latest 3075). Checked <time> · next check <time>." Nobody downloads anything; the tool asks ITU itself, every two weeks. |
 | 0:10 | the top-bar status line with its funnel count, and the "Check now" button; do not click | the status line reads the last check, that of 7 Nov 2026: "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices." The button would ask ITU right away and, on this tree, fetch 3076, so the demo does not click it; see "Why not to click". |
 | 0:25 | the funnel panel | 129 notices: 110 with no band overlap and 10 below the horizon dropped, 19 overlap a protected band, 9 of those can be seen from Finland, 7 get a number and 2 cannot be decided. |
-| 0:35 | the queue, card `3075-108501259` (the first card of `cases.json`) | APSTAR-92E, 3 520-3 560 MHz, No. 11.2, recorded in the MIFR: PFD −187,64 against the −188,02 dB(W/m²/Hz) limit, margin +0,38 dB. |
-| 0:50 | the card's `Coverage` and `Missing` lines | the beam geometry is empty in IFIC 3075, so the worst case is assumed: peak beam gain aimed at the Finnish station. `Missing` says nothing, because nothing blocks the case, and the question asks China to confirm that worst-case PFD. |
+| 0:35 | the queue, card `3075-108501259` (the first card of `cases.json`) | APSTAR-92E, 3 440-3 480 MHz, No. 11.2, recorded in the MIFR: PFD −187,59 against the −188,02 dB(W/m²/Hz) limit, margin +0,43 dB. |
+| 0:50 | the card's `Coverage` and `Missing` lines | the beam geometry is empty in IFIC 3075, so the worst case is assumed: peak beam gain aimed at the territory edge. `Missing` says nothing, because nothing blocks the case, and the question asks China to confirm that worst-case PFD. |
 | 1:05 | `runs/3075-worstcase/letters/3075-108501259.md` | the draft letter: the number, the worst-case assumption, the question. The tool drafts; a human sends it from their own mailbox. |
-| 1:20 | "Show calculation" on the card | the calculation behind the number: max PSD −50,3 dBW/Hz, beam gain 26,0 dBi, slant range 41 441 km, free-space loss 163,34 dB, and the limit with its Article 21 Table 21-4 row. |
+| 1:20 | "Show calculation" on the card | the calculation behind the number: max PSD −50,3 dBW/Hz, beam gain 26,0 dBi, slant range 41 222 km, free-space loss 163,29 dB, and the limit with its Article 21 Table 21-4 row. |
 | 1:35 | `out/TERRESTRIAL.md` | the same style for terrestrial notices: 2 905 new, 163 modified, 413 withdrawn and 28 notices in reach against BR IFIC 3076. That file comes from the offline run into `out/`; the monitor run is space-only. |
 | 1:50 | `runs/3075-worstcase/queue.md`, rows 8 and 9 (`126590034`, `126590035`) | "ihminen päättää": the two notices the tool refuses to decide, with the level each would need (psd ≥ −21,77 and −24,74 dBW/Hz). Listing them instead of guessing is the point; the decision is left to a human. |
 

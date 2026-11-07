@@ -65,7 +65,7 @@ Two runs are on record and their numbers are not interchangeable. The auto-fetch
 the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 4 near, 2 `cannot_decide`,
 9 queue rows and the first card `3075-108501259`. The accuracy dataset is the challenge's IFIC 3074
 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026: `make check`
-165 tests (121 passed, 44 skipped without `data/`). The deterministic pipeline is offline; the
+168 tests (123 passed, 45 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
@@ -73,27 +73,34 @@ checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `
 | | Accuracy slice 3 470–3 780 MHz (IFIC 3074) | All seven space bands (`--all`) |
 |---|---|---|
 | Notices in | 196 | 196 |
-| Register stations on the bands | 7 | 84 |
-| Protected bands | 2 (1 group) | 26 (7 groups) |
-| G1 band overlap | 41 | 101 |
-| G2 visible from Finland | 19 (16 GEO, 3 non-GSO) | 75 |
-| G3 computed | 18 | 64 |
-| cannot_decide | 1 (`no_power`) | 11 |
-| exceeds / near / clear | 9 / 5 / 4 | 26 / 15 / 23 |
-| Queue | 15 (9 exceeds, 5 near, 1 cannot decide) | 52 (26 exceeds, 15 near, 11 cannot decide) |
+| Territory points (edge) | 552 | 552 |
+| Bands in scope | 1 | 7 |
+| G1 band overlap | 41 | 113 |
+| G2 visible from Finland | 21 (18 GEO, 3 non-GSO) | 84 |
+| G3 computed | 20 | 69 |
+| cannot_decide | 1 (`no_power`) | 15 |
+| exceeds / near / not_space / clear | 11 / 5 / 2 / 2 | 30 / 18 / 2 / 19 |
+| Queue | 19 | 65 |
+
+`not_space` is the frequency finding of `docs/decisions.md` D17: the band is not a satellite
+allocation in Finland, so a satellite transmitting there is a case even when the margin is clear.
+The demo slice is `MOBILE AND FIXED` in Finland, so all 20 demo cases carry it.
 
 Two test vectors reproduce to the digit:
 
 | Notice | PFD | Table 21-4 limit | Margin | Elevation | Slant range |
 |---|---|---|---|---|---|
-| 103500417 | −184,78 dB(W/m²/Hz) | −188,02 | +3,24 dB | 4,85° | 41 143 km |
+| 103500417 | −184,78 dB(W/m²/Hz) | −188,02 | +3,25 dB | 4,96° | 41 130 km |
 | 124545403 | −137,56 dB(W/m²/Hz) | −198,00 | +60,44 dB | 5,0° | 2 310 km |
 
-The seven-band funnel sits one notice above the plan (101 / 75 / 11 against 100 / 74 / 10). The
-reference tool behind the plan read the register cell `0,1G` as 0.1 MHz; this code reads the
-`Channel bandwidth` column as 0.1 GHz = 100 MHz. The demo slice is identical in both. The reason
-is written up in `docs/decisions.md`, and `tests/test_gates.py::test_all_bands_funnel` locks the
-numbers in this repository.
+The plan's own funnel (100 / 74 / 10) came from screening against the register's bands; this code
+screens the run's space scope and reaches 113 / 84 / 69 (D17), so the two are not comparable. The
+reference tool behind the plan also read the register cell `0,1G` as 0.1 MHz; this code reads the
+`Channel bandwidth` column as 0.1 GHz = 100 MHz. The demo slice is identical either way, and the
+differences are written up in `docs/decisions.md`; `tests/test_gates.py` locks these numbers in.
+
+The auto-fetch run in `runs/3075/` was produced before the 7 Nov criterion change (D17), so its
+counts are the earlier ones; run `scripts/monitor.py --check` again to refresh that demo directory.
 
 The terrestrial side feature on the real BR IFIC 3076 against 3075 reports 2 905 new, 163 modified,
 413 withdrawn and 576 recorded notices, and 28 notices in reach (land mobile, within 1 000 km,
@@ -175,8 +182,8 @@ under a `kaista/` prefix, plus the accuracy files from the last run under `resul
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 165 passed |
-| Clean clone, no `data/` | 121 passed, 44 skipped |
+| With `data/` | 168 passed |
+| Clean clone, no `data/` | 123 passed, 45 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
@@ -229,7 +236,7 @@ at all: open `out/teams_message.html`.
    elevation angle.
 2. Beam geometry is empty in IFIC 3074 (`s_beam.bore_long`, `bore_lat`, `maj_axis`, `min_axis`).
    Following Traficom's Q3 answer the tool does not try to decide coverage from the beam: the worst
-   case is always assumed, with the notice's own peak gain aimed at the Finnish station. A card
+   case is always assumed, with the notice's own peak gain aimed at the edge of Finnish territory. A card
    states that on a `Coverage` line and asks the administration to confirm the worst-case PFD, so
    the `s_beam` fields no longer appear under `missing` (Q3 in `docs/traficom-qa.md`).
 3. Non-GSO geometry is a sweep, not an orbit propagation: the worst case samples a pass from

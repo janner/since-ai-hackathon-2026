@@ -63,13 +63,13 @@ def template(card: dict, template_name: str = "case_en.md") -> str:
         "band": (
             f"{fmt_mhz(card['band']['freq_min_mhz'])}-{fmt_mhz(card['band']['freq_max_mhz'])}"
         ),
-        "station": card["victim"]["station"],
         "elevation": fmt_num(card["coverage"]["elevation_deg"]),
         "pfd": fmt_num(calc["pfd_dbw_m2_hz"]),
         "limit": fmt_num(calc["limit_dbw_m2_hz"]),
         "margin": f"{calc['margin_db']:+.2f}".replace(".", ","),
         "class": card["class"],
-        "services": card["m4"]["services_in_finland"],
+        "allocation": card["m4"]["services_in_finland"]
+        + ("" if card["m4"]["space_to_earth"] else " (no space-to-Earth service)"),
         "question": card["next_action"]["question"],
     }
     return (TEMPLATES / template_name).read_text(encoding="utf-8").format(**values)

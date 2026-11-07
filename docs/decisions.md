@@ -48,7 +48,8 @@ Reason: the challenge's own example is a satellite that disturbs terrestrial use
 register carries the RX frequency and the antenna direction. The RX frequency is the receiver's
 frequency; TX is the fallback when RX is not separately noted. For BC/BT the row is the
 transmitter, so the whole coverage area around it is protected; the PFD at the transmitter's site
-is the upper bound for that area, because the beam is assumed to point at the station.
+is the upper bound for that area, because the beam is assumed to point at Finland. Since D17 the
+number is taken at the edge of Finnish territory, not at the station's site.
 
 Reopen if: Traficom answers that their register is a transmitter register. The engine is the same;
 only the filter and the receiver side change.
@@ -209,6 +210,53 @@ Reason: `ntwk_org` is empty on 189 of 196 notices. Merging could hide a notice T
 
 Reopen if: Traficom wants results at network level.
 
+### D17. Baseline: the Finnish allocation and the territory edge, not the register's stations (7 Nov 2026)
+
+Choice: the run's bands come from the space scope in `app/config.py`, the PFD is taken at the edge
+of Finnish territory, and a band with no space-to-Earth satellite service in Finland is a class of
+its own (`not_space`).
+
+Reason: Traficom's answer of 7 Nov 2026 (`docs/traficom-qa.md` F5) moved the criterion. A PFD
+above Table 21-4 is not enough on its own: if a frequency is, in Finland, one that does not relate
+to satellite use and a satellite transmits on it, that is a problem they want to act on. The
+delivered Excel list is only a reference, and the analysis has to reach beyond the areas it lists,
+because not all use is known or disclosed. Exceedance at the level of Finnish territory is the most
+important thing; the frequency band is what matters and the location is secondary.
+
+What it changed:
+
+- G1 (`app/gates.py::gate1`) matches a notice against the run's scope bands, not against the bands
+  the register happens to declare. A notice whose band nobody listed is now screened: 113 notices
+  pass G1 in `--all` mode where 101 did before, and 41 in the demo slice where 41 did (two more of
+  those reach G2, both inside the register's 13,1 MHz hole).
+- G3 takes the worst case at the edge of Finnish territory (`rules/finland_border.csv`: the land
+  borders with Sweden, Norway and Russia plus the territorial sea outer limit,
+  `app/territory.py`). The worst case over an area lies on its edge: the slant range grows away from
+  the sub-satellite point and the Table 21-4 limit does not rise faster, so the vertices are enough
+  and no polygon or grid is needed. The register's rows stay on the card as a `Reference` line.
+- `app/allocation.py` reads the Finnish allocation table (M4) and answers one question: does the
+  band carry a satellite service with the space-to-Earth direction? An uplink-only or an
+  inter-satellite row does not. A band that fails is class `not_space`, queued even when its margin
+  is clear. `clear` now means that both the margin and the allocation are unremarkable. The demo
+  slice is 3,47-3,78 GHz, which in Finland is `MOBILE AND FIXED`: every demo case carries at least
+  the frequency finding.
+
+Alternatives: keep the register as the gate and add a separate "possible use" report (rejected: the
+queue would still hide the filings the customer wants to act on); sample a territorial grid or a
+polygon (rejected: the edge is exact for a monotone worst case and needs no new data); treat any
+allocation row as satellite use regardless of direction (rejected: an Earth-to-space allocation
+does not license a downlink).
+
+Cost: `--all` takes about 20 s instead of 4 s, because every GSO notice is evaluated at 552 edge
+points instead of a handful of stations. The demo slice stays at about 4 s.
+
+Test: `tests/test_gates.py::test_a_clear_margin_on_a_non_satellite_band_is_still_a_finding`,
+`tests/test_cards.py::test_m4_lookup_names_the_service_and_the_downlink`,
+`tests/test_pipeline.py::test_the_register_is_only_a_reference`.
+
+Reopen if: Traficom says the register's station set should bound the analysis again, or supplies the
+declared service areas; then the territory edge can be replaced by the real footprint.
+
 ## Part 2: decisions taken while writing the code
 
 Each one is visible in the source, and the tests named here would fail if it changed.
@@ -244,9 +292,9 @@ Tests: `tests/test_bands.py::test_derive_bands_merges_touching_channels_but_not_
 ### I3. The card's band label is the first matching row in file order
 
 `app/gates.py`, `_worst_for_notice()`. The CDN beam repeats an identical 36 MHz channel every
-20 MHz, so about ten channels tie for the same worst case with the same power, gain, station and
-elevation. The card shows 3 642–3 678 MHz where the plan's vector says 3 662–3 698 MHz. Every number
-in the vector matches; only the label differs, and it is whichever channel comes first in the file.
+20 MHz, so about ten channels tie for the same worst case with the same power, gain and geometry.
+The card shows 3 442–3 478 MHz where the plan's vector says 3 662–3 698 MHz. Every number in the
+vector matches; only the label differs, and it is whichever channel comes first in the file.
 
 Test: `tests/test_cards.py::test_golden_case_103500417`.
 
@@ -306,13 +354,14 @@ the drop counts.
 Tests: `tests/test_gates.py::test_a_notice_type_s_sending_E_is_dropped` and the
 `earth_station_notice` assertion in `tests/test_gates.py::test_all_bands_funnel`.
 
-### I10. M4 is context, never a gate
+### I10. M4 is a finding, not only context
 
-`app/cards.py::m4_lookup()`. The Finnish allocation is looked up and shown on the card; it never
-changes a class. A band without an allocation gets `services_in_finland: "not allocated"` and the
-card still builds.
+`app/allocation.py::m4_lookup()`. The Finnish allocation is looked up per notified band, shown on
+the card, and it decides one class: a band with no space-to-Earth satellite service is `not_space`,
+queued even when the PFD is clear (D17). A band without an allocation row gets
+`services_in_finland: "not allocated"` and the same finding.
 
-Test: `tests/test_cards.py::test_m4_lookup_is_context_not_a_gate`.
+Test: `tests/test_cards.py::test_m4_lookup_names_the_service_and_the_downlink`.
 
 ### I11. The guard compares signed values
 

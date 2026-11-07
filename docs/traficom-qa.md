@@ -183,6 +183,29 @@ the land mobile service; the register's Class of licence is not needed.
 national M4 value. The register's Class of licence is not used to pick the threshold; it only labels
 the row.
 
+### F5. What counts as a concern, and how wide the analysis goes
+
+> We screen each notice's space-to-Earth rows against the Finnish register's stations and Table
+> 21-4. Is a PFD below the limit enough to clear a filing, and how far beyond the delivered Excel
+> list should the analysis reach?
+
+**Answer (Otto Julkunen, 7 Nov 2026, relayed by the team).** A PFD above the limit is not enough on
+its own. If a frequency is, in Finland, one that does not relate to satellite use, and some
+satellite transmits on it, that is a problem they want to act on. The delivered Excel list is only a
+reference, and the analysis must consider more widely than the areas on that list. Not all use is
+known, and the authorities do not want to disclose all of it. Exceedance at the level of Finnish
+territory is the most important thing. The delivered data is particularly interesting. Location is
+secondary; the frequency band is what matters.
+
+**What changed.** The baseline moved from the register to the allocation table and from the
+register's stations to Finnish territory: G1 takes its bands from the run's space scope
+(`app/config.py`) instead of the register, G3 takes the PFD at the edge of the territory
+(`rules/finland_border.csv`, `app/territory.py`) and keeps the register's row as a `Reference` line,
+and a new M4 finding makes a band with no space-to-Earth satellite service a class of its own
+(`not_space`, queued even when the margin is clear; `app/allocation.py`). Recorded in
+`docs/decisions.md` D17 and I10. The demo slice 3,47-3,78 GHz is `MOBILE AND FIXED` in Finland, so
+every demo case now carries at least the frequency finding.
+
 ## Open
 
 - **Mandatory fields (Q5 follow-up).** Not answered. The current CSV fields stay until Traficom names

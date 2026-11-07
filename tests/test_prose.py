@@ -16,7 +16,7 @@ CARD = {
         "limit_dbw_m2_hz": -188.02,
         "margin_db": 3.24,
     },
-    "m4": {"services_in_finland": "MOBILE AND FIXED"},
+    "m4": {"services_in_finland": "MOBILE AND FIXED", "space_to_earth": False},
     "next_action": {
         "question": (
             "Can China confirm the worst-case PFD the COMPASS-80E CDN beam produces on "
