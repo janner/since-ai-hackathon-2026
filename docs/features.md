@@ -1,7 +1,7 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Verified on 7 Nov
-2026 with `make check` (180 passed) and a clean clone (131 passed, 49 skipped).
+2026 with `make check` (182 passed) and a clean clone (134 passed, 48 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
@@ -600,7 +600,7 @@ Tests (`tests/test_fetch_data.py`, 2): `test_html_instead_of_zip_is_rejected`,
 There are no committed data fixtures. The tests that need a real input are marked `data` and read
 `data/itu-ific-3074/ific3074.mdb`, `data/frequencies_of_interest.csv`, `data/taajuusjakotaulukko.json`
 and the two terrestrial BR IFIC MDBs; `tests/conftest.py` skips every one of them when
-`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (131 passed, 49 skipped).
+`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (134 passed, 48 skipped).
 The pure tests carry their own inputs in the test: the unit forms in `tests/test_ingest.py`, the band
 merging in `tests/test_bands.py`, the guard rows in `tests/test_gates.py`, the PFD vectors and the
 limit table in `tests/test_pfd.py`.
