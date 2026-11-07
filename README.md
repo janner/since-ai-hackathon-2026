@@ -100,6 +100,10 @@ IFIC 3074 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measu
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
+On this host the check is installed in Hermes cron (profile `coder`, job `Kaista IFIC-monitori`,
+every 14 days, first run 21 Nov 2026), which runs `cd ~/since-ai-hackathon-2026 && uv run python
+scripts/monitor.py --check`. A failed check writes `status: error` to `out/fetch_status.json` and
+exits 1; `runs/latest` stays where it was, and `hermes cron runs` shows the run as failed.
 
 | | Accuracy slice 3 470–3 780 MHz (IFIC 3074) | Every Finnish allocation (`--all`) |
 |---|---|---|
