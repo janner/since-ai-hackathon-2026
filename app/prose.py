@@ -31,7 +31,8 @@ def draft_summary(card: dict, chat: Callable | None = None) -> dict:
 def _draft(card: dict, template_name: str, chat: Callable | None) -> dict:
     text = _ask(card, chat)
     if text is not None and not guard.check(text, card):
-        return {"source": "llm", "text": text.strip()}
+        # Audit: which served model wrote the kept text (LLM_MODEL, e.g. "granite").
+        return {"source": "llm", "model": os.environ.get("LLM_MODEL", ""), "text": text.strip()}
     source = "template" if text is None else "template_guard"
     return {"source": source, "text": template(card, template_name)}
 

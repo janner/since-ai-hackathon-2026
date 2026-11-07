@@ -83,8 +83,10 @@ def test_a_configured_endpoint_is_called(monkeypatch):
         return "COMPASS-80E, marginaali +3,24 dB."
 
     monkeypatch.setenv("LLM_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("LLM_MODEL", "granite")
     monkeypatch.setattr("app.llm.chat", fake_chat)
     draft = prose.draft_summary(CARD)
     assert draft["source"] == "llm"
+    assert draft["model"] == "granite"
     assert len(calls) == 1
     assert "COMPASS-80E" in calls[0][0]["content"]
