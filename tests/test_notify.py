@@ -82,6 +82,12 @@ def test_dry_run_writes_markdown_json_and_html(tmp_path):
     assert "Kiireellisimmät" in page
 
 
+def test_html_preview_renders_headings_bold():
+    page = notify.build_html("# Otsikko\n\nrivi", "3074", "http://kaista.test")
+    assert "<p><b>Otsikko</b></p>" in page
+    assert "<p>rivi</p>" in page
+
+
 def test_send_without_webhook_fails_cleanly(tmp_path, monkeypatch, capsys):
     write_out(tmp_path, COUNTS, [make_case("124545403", "exceeds", "No. 9.1", 60.44)])
     monkeypatch.delenv("TEAMS_WEBHOOK_URL", raising=False)
