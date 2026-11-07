@@ -210,8 +210,8 @@ class Geo:
 class NonGeo:
     ntc_id: str
     sat_name: str
-    nbr_sat_nh: int
-    nbr_sat_sh: int
+    nbr_sat_nh: int | None  # None when the field is blank: not the same as zero satellites
+    nbr_sat_sh: int | None
 
 
 @dataclass(frozen=True)
@@ -481,8 +481,12 @@ def load_ific(mdb_path: Path) -> IficData:
         nongeo[row["ntc_id"]] = NonGeo(
             ntc_id=row["ntc_id"],
             sat_name=row.get("sat_name", "").strip(),
-            nbr_sat_nh=int(num(row.get("nbr_sat_nh")) or 0),
-            nbr_sat_sh=int(num(row.get("nbr_sat_sh")) or 0),
+            nbr_sat_nh=None
+            if num(row.get("nbr_sat_nh")) is None
+            else int(num(row.get("nbr_sat_nh"))),
+            nbr_sat_sh=None
+            if num(row.get("nbr_sat_sh")) is None
+            else int(num(row.get("nbr_sat_sh"))),
         )
 
     orbits: dict[str, list[Orbit]] = {}

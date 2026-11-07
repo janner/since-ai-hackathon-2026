@@ -1,9 +1,11 @@
 """Is the notified band a satellite allocation in Finland?
 
-The allocation table (M4) is the baseline. A band is satellite use when any overlapping row
-names a satellite service, in either direction: an uplink or an inter-satellite allocation is
-still a satellite allocation, so it does not make the band "not satellite use". Only a band
-with a Finnish allocation and no satellite service at all is the finding.
+The allocation table (M4) is the baseline. The notices screened here are downlinks, so a part
+of the band counts as satellite use only when Finland allocates a space service in the
+space-to-Earth direction there: a satellite service without a stated direction, one whose
+direction includes space-to-Earth, or an active sensor. An uplink-only (Earth-to-space),
+inter-satellite or passive allocation does not cover a downlink, so a satellite transmitting
+there is a finding.
 
 The Excel register is a reference, not the allocation: it lists the stations someone chose to
 hand over, and the authorities do not disclose all use. A band that is not a satellite
@@ -14,10 +16,22 @@ from __future__ import annotations
 
 from app.config import M4_SERVICES, M4_SOURCE, M4_SUB_HI, M4_SUB_LO
 
+SPACE_SERVICES = ("SATELLITE", "SPACE RESEARCH", "SPACE OPERATION")
+
 
 def satellite_use(service: str) -> bool:
-    """Does this service name include a satellite service, in any direction?"""
-    return "SATELLITE" in service.upper()
+    """Does this M4 service allow a space-to-Earth transmission?
+
+    'FIXED SATELLITE (SPACE-TO-EARTH)', 'BROADCASTING-SATELLITE' and an active sensor
+    ('EARTH EXPLORATION-SATELLITE (ACTIVE)') do; 'FIXED SATELLITE (EARTH-TO-SPACE)',
+    'INTER-SATELLITE' and 'SPACE RESEARCH (PASSIVE)' do not.
+    """
+    name = service.upper()
+    if not any(word in name for word in SPACE_SERVICES) or "INTER-SATELLITE" in name:
+        return False
+    if "(" not in name:
+        return True
+    return "SPACE-TO-EARTH" in name or "(ACTIVE)" in name
 
 
 def finnish_bands(m4_rows: list[dict]) -> list[tuple[float, float]]:
@@ -43,6 +57,21 @@ def segments(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> list[dict]:
     that merely touches a row does not borrow that row's services.
     """
     lo_hz, hi_hz = lo_mhz * 1e6, hi_mhz * 1e6
+    if hi_hz <= lo_hz:
+        # A single notified frequency: the piece is that point, covered by the row it sits in.
+        hits = [r for r in m4_rows if r.get(M4_SUB_LO, 0) <= lo_hz <= r.get(M4_SUB_HI, 0)]
+        services = sorted({str(r.get(M4_SERVICES, "")).strip() for r in hits} - {""})
+        if not hits:
+            return []
+        return [
+            {
+                "lo_mhz": round(lo_mhz, 3),
+                "hi_mhz": round(hi_mhz, 3),
+                "services": services,
+                "satellite": any(satellite_use(service) for service in services),
+                "m4_row_ids": [r["ID"] for r in hits if "ID" in r][:8],
+            }
+        ]
     cuts = {lo_hz, hi_hz}
     for row in m4_rows:
         row_lo = row.get(M4_SUB_LO, 0)

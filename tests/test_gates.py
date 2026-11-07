@@ -187,6 +187,28 @@ def test_all_bands_funnel(challenge):
 
 
 @pytest.mark.data
+def test_a_clear_case_never_hides_an_uncomputed_row(challenge):
+    """Fail closed: a notice whose computed rows are clear but whose other rows could not be
+    computed is `cannot_decide` (`partly_screened`), never `checked`. Any computed case keeps
+    the uncomputed rows on the case so the card can name them."""
+    result = challenge.all.result
+    for case in result.cases:
+        if case.klass == "clear":
+            assert case.unscreened == ()
+    assert "partly_screened" in result.undecided.values()
+
+
+@pytest.mark.data
+def test_the_allocation_is_checked_on_every_row(challenge):
+    """109500876 is computed on 4 082-4 118 MHz (FSS downlink in Finland), but its other rows sit
+    at 3 702-3 758 MHz, MOBILE AND FIXED only. The notice is a finding, not a clear."""
+    case = challenge.all.result.case_by_id()["109500876"]
+    assert case.klass == "not_space"
+    assert case.band_satellite is False
+    assert any(low >= 3700 and high <= 3760 for low, high in case.band_gaps)
+
+
+@pytest.mark.data
 def test_missing_perigee_cannot_be_decided(challenge):
     """A non-GSO notice whose orbit rows carry no perigee is a cannot_decide, not a clear."""
     ntc_id = "124545403"

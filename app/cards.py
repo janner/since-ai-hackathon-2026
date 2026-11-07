@@ -142,7 +142,15 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             "offset_db": case.offset_db,
             "perigee_km": case.perigee_km,
         },
-        "m4": m4_lookup(m4_rows, case.band_lo_mhz, case.band_hi_mhz),
+        # Services are the worst row's; the satellite-use verdict and the gaps cover every row.
+        "m4": {
+            **m4_lookup(m4_rows, case.band_lo_mhz, case.band_hi_mhz),
+            "satellite_use": case.band_satellite,
+            "gaps": list(case.band_gaps),
+        },
+        "unscreened": [
+            {"lo_mhz": lo, "hi_mhz": hi, "reason": reason} for lo, hi, reason in case.unscreened
+        ],
         "class": case.klass,
         "adjacent": case.adjacent,
         "deadline": fmt_date(case.deadline) if case.deadline else None,
@@ -285,6 +293,12 @@ def render_card_md(card: dict) -> str:
         f"- **Coverage:** {card['coverage']['coverage_hint']}",
         f"- **Missing:** {', '.join(_blocking(card['missing'])) or 'nothing'}",
     ]
+    if card["unscreened"]:
+        rows = "; ".join(
+            f"{fmt_mhz(row['lo_mhz'])}-{fmt_mhz(row['hi_mhz'])} MHz {row['reason']}"
+            for row in card["unscreened"]
+        )
+        lines.append(f"- **Not computed:** {rows}")
     if card["threshold_note"]:
         lines.append(f"- **Threshold:** {card['threshold_note']}")
     lines += [f"- **Question:** {card['next_action']['question']}", ""]

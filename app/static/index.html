@@ -228,6 +228,9 @@ const UNDECIDED_EN = {
   no_orbit: "no orbit data",
   no_perigee: "no perigee",
   no_limit_for_band: "no limit for the band",
+  partly_screened: "part of the band could not be computed; the computed part is clear",
+  no_constellation_size: "number of satellites not filed; limit taken at its most lenient",
+  x_needs_nv: "limit needs Nv, not in the IFIC",
   no_station: "no Finnish station",
   no_territory: "no point on Finnish territory",
 };
@@ -275,8 +278,11 @@ function fmtRun(iso) {
 function missingText(item) {
   // Beam geometry is not missing information: the screening assumes the worst case (Traficom Q&A Q3).
   const missing = (item.missing || []).filter((field) => !String(field).startsWith("s_beam."));
-  if (!missing.length) return "No missing information.";
-  return "The notice is missing " + missing.join(", ") + ".";
+  const rows = (item.unscreened || []).map((row) =>
+    row.lo_mhz + "-" + row.hi_mhz + " MHz (" + (UNDECIDED_EN[row.reason] || row.reason) + ")");
+  const notComputed = rows.length ? " Not computed on " + rows.join(", ") + "." : "";
+  if (!missing.length) return rows.length ? notComputed.trim() : "No missing information.";
+  return "The notice is missing " + missing.join(", ") + "." + notComputed;
 }
 
 // The floor when the pipeline wrote no prose: same sentences the card would carry anyway.

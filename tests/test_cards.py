@@ -97,7 +97,8 @@ def test_m4_lookup_names_the_service_and_satellite_use(challenge):
     space = m4_lookup(challenge.slice.m4, 18_000.0, 18_100.0)  # FSS space-to-Earth
     assert space["satellite_use"] is True
     uplink_only = m4_lookup(challenge.slice.m4, 6_000.0, 6_010.0)  # FSS Earth-to-space only
-    assert uplink_only["satellite_use"] is True  # any direction counts (D18)
+    # a downlink in an uplink-only band has no Finnish downlink allocation to sit in (D18)
+    assert uplink_only["satellite_use"] is False
     not_allocated = m4_lookup(challenge.slice.m4, 500_000.0, 500_100.0)  # above the table
     assert not_allocated["rows"] == []
     assert not_allocated["services_in_finland"] == "not allocated"

@@ -6,7 +6,7 @@ Every dropped notice leaves with a reason code, including the ones dropped in th
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 
 from app import allocation, config, pfd
@@ -78,6 +78,9 @@ class Case:
     deadline: date | None = None  # the notice's Resolution 35 deadline, from grp_res35
     deadline_passed: bool = False  # that deadline is already behind the run
     band_gaps: tuple[tuple[float, float], ...] = ()  # parts of the band with no satellite use
+    # rows of the notice that could not be computed: (lo MHz, hi MHz, reason). A clear margin
+    # on the computed rows says nothing about these, so a clear case with any is undecided.
+    unscreened: tuple[tuple[float, float, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -191,8 +194,14 @@ def run(
     for ntc_id in undecided:
         freqs = visible.get(ntc_id) or []
         if freqs:
-            band = allocation.m4_lookup(m4_rows, freqs[0].freq_min_mhz, freqs[0].freq_max_mhz)
-            band_uses[ntc_id] = band["services_in_finland"]
+            services = {
+                service.strip()
+                for freq in freqs
+                for service in allocation.m4_lookup(m4_rows, freq.freq_min_mhz, freq.freq_max_mhz)[
+                    "services_in_finland"
+                ].split(",")
+            }
+            band_uses[ntc_id] = ", ".join(sorted(services))
     queue = gate4(cases, undecided, ific.notices, required, deadlines, band_uses, dropped)
 
     counts = {
@@ -340,6 +349,9 @@ def gate3(
                 required[ntc_id] = (field_name, round(-filled.margin_db, 2))
         if worst is None:
             undecided[ntc_id] = missing or "no_territory"
+        elif worst.klass == "clear" and worst.unscreened:
+            # Fail closed: the computed rows are clear, the rest is unknown, so it is not clear.
+            undecided[ntc_id] = "partly_screened"
         else:
             cases.append(worst)
     return cases, undecided, required
@@ -361,7 +373,7 @@ def _worst_for_notice(
     sat_lon = geo.long_nom if geo is not None else None
     orbits = ific.orbits.get(ntc_id)
     perigee = None
-    counts = (0, 0)  # nbr_sat_nh, nbr_sat_sh
+    counts: tuple[int, int] | None = None  # nbr_sat_nh, nbr_sat_sh; None when not filed
     if sat_lon is not None:
         orbit = "GSO"
     else:
@@ -373,37 +385,57 @@ def _worst_for_notice(
             return None, "no_perigee"  # a missing perigee must not read as far away and clear
         perigee = min(real_perigees)
         nongeo = ific.nongeo.get(ntc_id)
-        if nongeo is not None:
+        if nongeo is not None and None not in (nongeo.nbr_sat_nh, nongeo.nbr_sat_sh):
             counts = (nongeo.nbr_sat_nh, nongeo.nbr_sat_sh)
+    # The allocation is checked on every row of the notice, not only on the worst one: one row
+    # on a band Finland has not given to satellite downlink makes the notice a finding.
+    lookups = {
+        (freq.freq_min_mhz, freq.freq_max_mhz): allocation.m4_lookup(
+            m4_rows, freq.freq_min_mhz, freq.freq_max_mhz
+        )
+        for freq in freqs
+    }
+    notice_gaps = tuple(
+        sorted({gap for band in lookups.values() for gap in map(tuple, band["gaps"])})
+    )
     worst: Case | None = None
     missing: str | None = None
+    unscreened: list[tuple[float, float, str]] = []
     for freq in freqs:
         limit = pfd.limit_row(limits, freq.freq_min_mhz, freq.freq_max_mhz, orbit)
         if limit is None:
             missing = missing or "no_limit_for_band"
+            unscreened.append((freq.freq_min_mhz, freq.freq_max_mhz, "no_limit_for_band"))
             continue
         psd = ific.emiss.get(freq.grp_id)
         if psd is None:
             if not fill_unknown:
                 missing = "no_power"
+                unscreened.append((freq.freq_min_mhz, freq.freq_max_mhz, "no_power"))
                 continue
             psd = 0.0
         gain = _beam_gain(ific, freq)
         if gain is None:
             if not fill_unknown:
                 missing = "no_gain"
+                unscreened.append((freq.freq_min_mhz, freq.freq_max_mhz, "no_gain"))
                 continue
             gain = 0.0
         offset = 0.0
-        if limit.offset == "Y":
+        if limit.offset and counts is None:
+            # A blank constellation size: compute at X = Y = 0, the most lenient limit, so an
+            # exceedance still stands, and mark the row so a clear result cannot pass as clear.
+            unscreened.append((freq.freq_min_mhz, freq.freq_max_mhz, "no_constellation_size"))
+        elif limit.offset == "Y":
             offset = pfd.y_fn(max(counts))
-        elif limit.offset == "X":
+        elif limit.offset == "X" and counts is not None:
             x_value = pfd.x_fn(sum(counts))
             if x_value is None:
                 missing = "x_needs_nv"
+                unscreened.append((freq.freq_min_mhz, freq.freq_max_mhz, missing))
                 continue
             offset = x_value
-        band = allocation.m4_lookup(m4_rows, freq.freq_min_mhz, freq.freq_max_mhz)
+        band = lookups[(freq.freq_min_mhz, freq.freq_max_mhz)]
         # The register's rows on this band: context only, never the set the level is taken at.
         reference = [
             station
@@ -451,10 +483,10 @@ def _worst_for_notice(
                 offset_db=round(offset, 2),
                 perigee_km=perigee,
                 limit=limit,
-                klass=classify(margin, adjacent, band["satellite_use"]),
-                band_satellite=band["satellite_use"],
+                klass=classify(margin, adjacent, not notice_gaps),
+                band_satellite=not notice_gaps,
                 band_use=band["services_in_finland"],
-                band_gaps=tuple(band["gaps"]),
+                band_gaps=notice_gaps,
                 adjacent=adjacent,
                 lat=lat,
                 lon=lon,
@@ -462,6 +494,8 @@ def _worst_for_notice(
                 deadline=deadline[0] if deadline else None,
                 deadline_passed=deadline[1] if deadline else False,
             )
+    if worst is not None and unscreened:
+        worst = replace(worst, unscreened=tuple(sorted(set(unscreened))))
     return worst, missing
 
 
