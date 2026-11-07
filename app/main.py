@@ -122,13 +122,23 @@ def fetch_status() -> Any:
     """The last monitor check: status no_new | new | error (see scripts/monitor.py)."""
     path = status_dir() / "fetch_status.json"
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        status = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise HTTPException(503, f"{path}: {exc}. {NEED_MONITOR}") from exc
+    if check_locked():
+        status["check_locked"] = True
+    return status
+
+
+def check_locked() -> bool:
+    """KAISTA_CHECK_LOCKED=1 freezes the shown run (user tests, recorded demos)."""
+    return os.environ.get("KAISTA_CHECK_LOCKED") == "1"
 
 
 @app.post("/api/fetch-check")
 def fetch_check() -> Any:
     """Check ITU for a new IFIC and return the fresh status. Errors travel in the file."""
+    if check_locked():
+        raise HTTPException(403, "Check now is switched off on this demo.")
     run_monitor()
     return fetch_status()

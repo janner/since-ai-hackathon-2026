@@ -272,7 +272,13 @@ function renderFetch(status) {
 
 async function loadFetch() {
   try {
-    renderFetch(await get("/api/fetch-status"));
+    const status = await get("/api/fetch-status");
+    renderFetch(status);
+    if (status.check_locked) {
+      const button = document.getElementById("fetch-check");
+      button.disabled = true;
+      button.title = "Switched off on this demo";
+    }
   } catch (error) {
     renderFetch(null);
   }

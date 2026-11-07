@@ -110,6 +110,18 @@ def test_fetch_check_runs_the_monitor_and_returns_the_status(tmp_path, monkeypat
     assert response.json() == {"status": "new", "ific": 3075}
 
 
+def test_locked_check_never_runs_the_monitor(tmp_path, monkeypatch):
+    directory = tmp_path / "out"
+    directory.mkdir()
+    (directory / "fetch_status.json").write_text('{"status": "new"}', encoding="utf-8")
+    monkeypatch.setenv("KAISTA_OUT", str(directory))
+    monkeypatch.setenv("KAISTA_CHECK_LOCKED", "1")
+    monkeypatch.setattr(main, "run_monitor", lambda: pytest.fail("monitor ran"))
+    client = TestClient(main.app)
+    assert client.post("/api/fetch-check").status_code == 403
+    assert client.get("/api/fetch-status").json()["check_locked"] is True
+
+
 def test_fetch_check_without_a_status_file_is_503(tmp_path, monkeypatch):
     monkeypatch.setenv("KAISTA_OUT", str(tmp_path / "nope"))
     monkeypatch.setattr(main, "run_monitor", lambda: None)
