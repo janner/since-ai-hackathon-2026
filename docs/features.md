@@ -1,7 +1,7 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `26187c3`, verified on 7 Nov 2026 with `make check` (128 passed) and a clean clone
+commit `d33f783`, verified on 7 Nov 2026 with `make check` (128 passed) and a clean clone
 (111 passed, 17 skipped).
 
 Read a feature row in the tables below as: the module that owns the job, the tests that would fail

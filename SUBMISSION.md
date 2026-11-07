@@ -48,9 +48,9 @@ ruff run in CI, mdbtools is the system tool that reads the IFIC Access database.
 
 **Repository** (public or private; if private, judges read the source zip)
 
-TODO (human): Janne creates or pushes the GitHub repository and pastes the URL here. Not filled in this
-draft, because the URL does not exist yet (`main` is not pushed). If the repository stays private, the
-judges use the source zip below.
+TODO (human): the GitHub repository exists and is private
+(`github.com/janner/since-ai-hackathon-2026`); paste its URL here. If it stays private, the judges use
+the source zip below.
 
 **Demo video** (YouTube, public or unlisted, ideally under 2 min; no file uploads)
 
@@ -101,11 +101,13 @@ Instruct (Red Hat modelcar) runs on KServe with the vLLM CPU runtime in the sand
 - [x] The drafting LLM (Granite 3.3 2B Instruct modelcar) served by KServe + vLLM CPU runtime in
   OpenShift AI. `oc get isvc granite` reads READY True, the pod is 3/3 Running, and the route
   answers over HTTPS.
-- [x] The app calls it through the OpenAI-compatible endpoint; the numeric guard tests pass against
-  its output. Verified as: the 18-card slice run went through the route (5 drafts kept, 12 rejected
-  by the guard) and the guard's unit tests stay green in `make check`.
-- [x] `deploy/openshift/` in repo: InferenceService YAML, ServingRuntime YAML, namespace, and the
-  apply and call commands.
+- [x] The app calls it through the OpenAI-compatible endpoint, and the numeric guard ran on its output:
+  in the 18-card slice run the guard rejected 12 of the 17 drafts it saw (the `prose.source` line
+  below). The guard's own unit tests (`tests/test_guard.py`) run against a fixed card fixture, not
+  model text, so they pin the guard logic, not the served model's output.
+- [x] `deploy/openshift/` in repo: the InferenceService YAML, the ServingRuntime YAML, and the apply
+  and call commands for the sandbox project `janner-1-dev` (the project already exists; no Namespace
+  manifest is shipped).
 - [ ] Screenshot or short recording of a successful call; no keys or tokens in it. Not captured yet.
   The route is live and unauthenticated until about 6 Dec 2026, so it can still be taken.
 - [x] "How did you use it?" field, 40+ characters. The text below.
@@ -157,11 +159,11 @@ Automated, done in the repository
 - [x] No secrets or challenge data committed; `data/` and `out/` are gitignored
 - [x] `make submission-zip` builds `dist/kaista-submission.zip`, tracked files at HEAD only, no data
 - [x] `docs/architecture.md` present and linked from the README documentation table
-- [x] Submission-form field text lengths checked: name 6, tagline 58, About under 5,000 characters
+- [x] Submission-form field text lengths checked: name 6, tagline 69, About under 5,000 characters
 
 Human steps, before submitting
 
-- [ ] Push: decide on `origin/main` and push the deadline commit (`main` was ahead of origin and not pushed)
+- [ ] Push: `origin/main` already carries the deadline commits; push the final commit before submitting
 - [ ] Demo video on YouTube, public or unlisted, under 2 minutes, product visible in the first 20 seconds
 - [ ] Source zip rebuilt after the final commit and attached to the form (under 100 MB)
 - [ ] Repository URL pasted into the form (and the repo made readable to judges)
