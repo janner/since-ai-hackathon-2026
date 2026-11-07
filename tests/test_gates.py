@@ -1,5 +1,7 @@
 """Gates G1-G4: the funnel counts, the drop reasons and the queue rules."""
 
+from dataclasses import replace
+
 import pytest
 
 from app import gates
@@ -32,6 +34,16 @@ def test_mini_funnel_counts_and_reasons(mini):
         "900000008": ("G2", "geo_below_horizon"),
     }
     assert result.undecided == {"900000003": "no_orbit", "900000004": "no_power"}
+
+
+def test_missing_perigee_cannot_be_decided(mini):
+    ntc_id = "900000002"
+    orbits = [replace(orbit, perig_km=None) for orbit in mini.ific.orbits[ntc_id]]
+    ific = replace(mini.ific, orbits={**mini.ific.orbits, ntc_id: orbits})
+    found, _ = gates.gate1(ific, mini.bands)
+    cases, undecided = gates.gate3(ific, {ntc_id: found[ntc_id]}, mini.result.stations, mini.limits)
+    assert cases == []
+    assert undecided == {ntc_id: "no_perigee"}
 
 
 def test_mini_vector_1_is_reproduced(mini):

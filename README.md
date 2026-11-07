@@ -40,7 +40,7 @@ selected card 124545403.
 
 ## Verified numbers
 
-Measured 6 Nov 2026 on IFIC 3074: `make check` 114 tests passed, the slice run takes about 1.3 s,
+Measured 7 Nov 2026 on IFIC 3074: `make check` 116 tests passed, the slice run takes about 1.3 s,
 the seven-band run about 5.5 s. The deterministic pipeline is offline; the optional LLM prose step
 is the only part that opens a connection, and only when `LLM_BASE_URL` is set.
 
@@ -124,7 +124,7 @@ anything, and only when called by hand.
 | `cases.md` | The same cards as Markdown |
 | `queue.md` | The queue in decision order: class first, then margin |
 | `funnel.json` | Counts per gate, drop reasons, queue state, input hash, rules version, mode |
-| `3074_results.csv` | One row per notice in the input, 18 columns, dropped notices with stage and reason |
+| `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 18 columns, dropped notices with stage and reason |
 | `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, elapsed time |
 
 ## Tests
@@ -145,8 +145,8 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (6 Nov 2026) |
 |---|---|
-| With `data/` | 114 passed |
-| Clean clone, no `data/` | 102 passed, 12 skipped |
+| With `data/` | 116 passed |
+| Clean clone, no `data/` | 104 passed, 12 skipped |
 
 `tests/fixtures/` holds the small committed inputs: a nine-notice synthetic IFIC package, an
 eight-station register, a five-row M4 table, and the synthetic terrestrial fixture. The tests that

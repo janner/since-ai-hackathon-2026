@@ -13,7 +13,7 @@ def _card() -> dict:
 
 
 def test_scan_normalises_decimals_and_thousands():
-    assert guard.scan("3 662-3 698 MHz") == [("3662", 3662.0), ("-3698", -3698.0)]
+    assert guard.scan("3 662-3 698 MHz") == [("3662", 3662.0), ("3698", 3698.0)]
     assert guard.scan("marginaali +3,24 dB") == [("+3,24", 3.24)]
     assert guard.scan("−184,78 dB(W/m²/Hz)") == [("−184,78", -184.78)]
 
@@ -25,6 +25,11 @@ def test_card_numbers_are_accepted():
 
 def test_invented_number_is_rejected():
     assert guard.check("marginaali +9,99 dB", _card()) == ["+9,99"]
+
+
+def test_flipped_sign_is_rejected():
+    assert guard.check("marginaali -3,24 dB", _card()) == ["-3,24"]
+    assert guard.check("PFD 184,78 dB(W/m²/Hz)", _card()) == ["184,78"]
 
 
 def test_case_id_is_not_an_invented_number():

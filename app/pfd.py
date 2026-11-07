@@ -119,8 +119,9 @@ def y_fn(n_max: int) -> float:
 
 def ngso_reach(orbit) -> float:
     """Highest latitude a satellite on this orbit row reaches at zero elevation."""
-    inclination = orbit.inclin_ang or 0.0
-    apogee = orbit.apog_km or 0.0
+    if orbit.inclin_ang is None or orbit.apog_km is None:
+        return 90.0  # unknown orbit: never claim it is out of reach, let G3 decide
+    inclination, apogee = orbit.inclin_ang, orbit.apog_km
     return min(inclination, 180 - inclination) + math.degrees(math.acos(RE_KM / (RE_KM + apogee)))
 
 

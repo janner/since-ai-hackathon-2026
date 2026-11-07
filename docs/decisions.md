@@ -288,13 +288,16 @@ card still builds.
 
 Test: `tests/test_cards.py::test_m4_lookup_is_context_not_a_gate`.
 
-### I11. The guard compares absolute values
+### I11. The guard compares signed values
 
-`app/guard.py::check()`. Signs are ignored, because in a band range such as `3 662-3 698` the minus
-is a separator. Comparison is on values within 0.01, and Finnish thousands separators are joined
-before scanning, so `3 662` is one number.
+`app/guard.py::check()`. Signs count: a margin written as `-60,44` against a card margin of
+`+60,44` says the opposite and is rejected. A minus right after a digit is a range separator
+(`3 662-3 698`), not a sign. Comparison is on values within 0.01, and Finnish thousands separators
+are joined before scanning, so `3 662` is one number.
 
-Tests: `tests/test_guard.py` (all six).
+This replaced an earlier absolute-value comparison, which let a flipped sign through.
+
+Tests: `tests/test_guard.py` (all seven).
 
 ### I12. Only the card summary is attached to a run
 

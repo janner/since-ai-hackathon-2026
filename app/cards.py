@@ -315,7 +315,7 @@ def write_outputs(
         json.dumps(funnel_json(result), ensure_ascii=False, indent=2), encoding="utf-8"
     )
     (out / "run.log").write_text(render_run_log(result, counts, ific), encoding="utf-8")
-    with (out / "3074_results.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (out / f"{ifact_tag(ific)}_results.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=RESULT_COLUMNS)
         writer.writeheader()
         writer.writerows(results_rows(result, ific, cards))

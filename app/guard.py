@@ -9,7 +9,8 @@ from __future__ import annotations
 import json
 import re
 
-_NUMBER_RE = re.compile(r"[-−+]?\d+(?:[.,]\d+)?")
+# A sign right after a digit is a range separator ("3 662-3 698"), not a minus.
+_NUMBER_RE = re.compile(r"(?<!\d)[-−+]?\d+(?:[.,]\d+)?")
 # A Finnish "3 662" is one number; join digits that are only separated by a space.
 _SPACE_IN_NUMBER_RE = re.compile(r"(?<=\d)[\s\u00a0](?=\d)")
 
@@ -30,12 +31,11 @@ def scan(text: str) -> list[tuple[str, float]]:
 def check(text: str, card: dict, tol: float = 0.01) -> list[str]:
     """Numbers of `text` that do not occur in the card. Empty list = accepted.
 
-    Comparison is on the absolute value: in a band range like "3 662-3 698" the minus is a
-    separator, so the sign carries no meaning here.
+    The sign counts: "-60,44 dB" against a card margin of +60,44 is a wrong claim.
     """
-    known = {abs(value) for _, value in scan(json.dumps(card, ensure_ascii=False))}
+    known = {value for _, value in scan(json.dumps(card, ensure_ascii=False))}
     return [
         raw
         for raw, value in scan(text)
-        if not any(abs(abs(value) - candidate) <= tol for candidate in known)
+        if not any(abs(value - candidate) <= tol for candidate in known)
     ]

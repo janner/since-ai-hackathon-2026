@@ -96,7 +96,8 @@ def run(
         f"{len(result.queue)} in the queue ({groups(bands)} groups, "
         f"{len(bands)} bands, {result.elapsed_s:.2f} s)"
     )
-    print(f"wrote {out}/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log")
+    results = f"{card_writer.ifact_tag(ific)}_results.csv"
+    print(f"wrote {out}/cases.json, cases.md, queue.md, funnel.json, {results}, run.log")
     return 0
 
 

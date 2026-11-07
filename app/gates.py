@@ -223,13 +223,12 @@ def _worst_for_notice(
             return None, "no_orbit"
         orbit = "HEO" if pfd.is_heo(orbits) else "NGSO"
         real_perigees = [o.perig_km for o in orbits if o.perig_km is not None]
-        perigee = min(real_perigees) if real_perigees else None
+        if not real_perigees:
+            return None, "no_perigee"  # a missing perigee must not read as far away and clear
+        perigee = min(real_perigees)
         nongeo = ific.nongeo.get(ntc_id)
         if nongeo is not None:
             counts = (nongeo.nbr_sat_nh, nongeo.nbr_sat_sh)
-    # An orbit row without a perigee is treated as very far away, never as overhead.
-    altitude = min(perigee if perigee is not None else 1e9, 1e9)
-
     worst: Case | None = None
     missing: str | None = None
     for freq in freqs:
@@ -268,7 +267,7 @@ def _worst_for_notice(
             # shortcut: a non-GSO pass sweeps every latitude, so position does not change the
             # geometry; the pass is sampled from 0 to 90 deg in 0.1 deg steps. Upgrade if a real
             # orbit ephemeris ever arrives.
-            points = [(victims[0], e / 10, pfd.slant(altitude, e / 10)) for e in range(901)]
+            points = [(victims[0], e / 10, pfd.slant(perigee, e / 10)) for e in range(901)]
         for station, elevation, distance in points:
             if elevation <= 0:
                 continue

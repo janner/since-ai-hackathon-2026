@@ -82,8 +82,9 @@ downlink. Every notice that does not survive gets a reason, `earth_station_notic
 `long_nom`, the elevation is computed from every register station and the notice is dropped as
 `geo_below_horizon` when the best elevation is at or below 0°. For a non-GSO notice, `ngso_reach()`
 gives the highest latitude the orbit reaches at zero elevation; the notice is dropped as
-`ngso_never_visible` when that is below the southernmost station latitude. A notice with neither a
-`geo` nor an `orbit` row passes G2 and carries the reason `no_orbit` at G3.
+`ngso_never_visible` when that is below the southernmost station latitude. An orbit row without an
+apogee or inclination is never dropped here. A notice with neither a `geo` nor an `orbit` row passes
+G2 and carries the reason `no_orbit` at G3.
 
 Tests (`tests/test_gates.py`): `test_mini_funnel_counts_and_reasons` walks the synthetic funnel,
 `test_mini_vector_1_is_reproduced` reproduces the GEO vector on the fixture, and the data tests
@@ -128,7 +129,7 @@ each elevation sample and the largest margin wins:
 PFD = psd_max + beam_gain_max - fspl(d),   margin = PFD - limit_hz(row, elevation, offset)
 ```
 
-A notice with nothing computable lands in `undecided` with one reason: `no_orbit`,
+A notice with nothing computable lands in `undecided` with one reason: `no_orbit`, `no_perigee`,
 `no_limit_for_band`, `no_power`, `no_gain`, `x_needs_nv` or `no_station`. Classification uses the
 margin rounded to two decimals: `exceeds` above 0 dB, `near` between −3 and 0 dB, `clear` at or
 below −3 dB.
@@ -218,8 +219,8 @@ template. A refusal or an answer in the wrong language is not detected: the guar
 not intent.
 
 `app/guard.py` scans both sides for numbers, normalises the Finnish thousands separator and the
-decimal comma, and compares the absolute values with a 0.01 tolerance. Signs are ignored on purpose:
-in a band range such as `3 662-3 698` the minus is a separator, not a value.
+decimal comma, and compares signed values with a 0.01 tolerance. A minus right after a digit is a
+range separator (`3 662-3 698`), not a sign; any other sign must match the card.
 
 A pipeline run attaches the card summary only; `draft_letter` is exercised by tests and by the
 correspondence template, and the CLI does not write letters to `out/`.

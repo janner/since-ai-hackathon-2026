@@ -98,7 +98,7 @@ def test_x_and_y_offsets():
 def test_ngso_reach():
     assert pfd.ngso_reach(_orbit(0.0, 650.0)) < 25  # equatorial LEO never shows in Finland
     assert pfd.ngso_reach(_orbit(97.8, 600.0)) > 60  # sun-synchronous orbit does
-    assert pfd.ngso_reach(_orbit(None, None)) == 0.0  # no orbit data: no reach claimed
+    assert pfd.ngso_reach(_orbit(None, None)) == 90.0  # no orbit data: never dropped at G2
 
 
 def test_is_heo_needs_both_apogee_and_inclination():

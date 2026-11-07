@@ -10,7 +10,7 @@ from app import pipeline
 from app.cards import RESULT_COLUMNS
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-OUTPUT_FILES = ("cases.json", "cases.md", "queue.md", "funnel.json", "3074_results.csv", "run.log")
+OUTPUT_FILES = ("cases.json", "cases.md", "queue.md", "funnel.json", "run.log")
 
 
 @pytest.fixture(scope="module")
@@ -28,10 +28,11 @@ def mini_out(tmp_path_factory) -> Path:
 def test_mini_run_writes_every_output(mini_out):
     for name in OUTPUT_FILES:
         assert (mini_out / name).is_file(), name
+    assert (mini_out / "ific_results.csv").is_file()  # named after the package, not 3074
 
 
 def test_mini_results_csv_has_one_row_per_notice(mini_out):
-    with (mini_out / "3074_results.csv").open(newline="", encoding="utf-8") as handle:
+    with (mini_out / "ific_results.csv").open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         rows = list(reader)
     assert reader.fieldnames == list(RESULT_COLUMNS)
