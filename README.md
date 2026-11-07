@@ -506,4 +506,5 @@ during the hackathon, 6 to 8 Nov 2026.
 | `docs/demo-video.md` | The two-minute demo video: timed narration, screen plan, caption lines |
 | `deploy/openshift/README.md` | What runs in the cluster and what runs on the laptop, the apply and call commands, and the measured evidence from the served Granite |
 | `deploy/openshift/pipeline/README.md` | The funnel as an OpenShift AI Data Science Pipeline: the three KFP v2 stages, the manifests, and the measured cluster run |
+| `docs/pitch-deck.html` | The pitch deck: nine 16:9 slides, rendered to `dist/kaista-pitch.pdf` |
 | `SUBMISSION.md` | Draft of the sinceai.app submission form and the Red Hat award checklist |

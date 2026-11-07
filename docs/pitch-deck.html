@@ -1,0 +1,311 @@
+<!doctype html>
+<!--
+  Kaista pitch deck. Source of dist/kaista-pitch.pdf.
+  Render: chromium --headless --no-pdf-header-footer --print-to-pdf=kaista-pitch.pdf deck.html
+  The page is 13.333x7.5 in (16:9). Every number in it comes from the runs in out/ and runs/3075/;
+  the card excerpt on slide 5 is verbatim from runs/3075/cases.json (case 3075-125520114).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kaista — pitch deck</title>
+<style>
+  @page { size: 13.333in 7.5in; margin: 0; }
+  :root { --ink:#161616; --muted:#525252; --line:#e0e0e0; --accent:#0f62fe; --bg:#ffffff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family:"Liberation Sans","DejaVu Sans",sans-serif; -webkit-font-smoothing:antialiased; }
+  .slide { position:relative; width:13.333in; height:7.5in; padding:0.85in 0.95in; page-break-after:always;
+    display:flex; flex-direction:column; overflow:hidden; }
+  .slide:last-child { page-break-after:auto; }
+  .kicker { font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  h1 { font-size:58px; line-height:1.05; margin:14px 0 0; font-weight:700; letter-spacing:-.02em; }
+  h2 { font-size:40px; line-height:1.1; margin:10px 0 0; font-weight:700; letter-spacing:-.015em; }
+  .lede { font-size:22px; line-height:1.45; color:var(--muted); margin-top:16px; max-width:10.4in; }
+  .body { font-size:19px; line-height:1.5; color:var(--ink); }
+  .footer { position:absolute; left:0.95in; right:0.95in; bottom:0.42in; display:flex; justify-content:space-between;
+    font-size:12px; color:var(--muted); border-top:1px solid var(--line); padding-top:10px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .big { font-size:86px; line-height:1; font-weight:700; letter-spacing:-.03em; }
+  .row { display:flex; gap:34px; }
+  .col { flex:1; }
+  .rule { height:3px; background:var(--accent); width:54px; margin:26px 0 0; }
+  .stack { margin-top:34px; display:flex; gap:22px; }
+  .card { flex:1; border-top:3px solid var(--accent); padding-top:14px; }
+  .card h3 { margin:0 0 8px; font-size:20px; }
+  .card p { margin:0; font-size:16px; line-height:1.45; color:var(--muted); }
+  .stat { flex:1; }
+  .stat .k { font-size:44px; font-weight:700; letter-spacing:-.02em; }
+  .stat .l { font-size:15px; color:var(--muted); margin-top:4px; line-height:1.35; }
+  ul { margin:14px 0 0; padding-left:22px; }
+  li { font-size:19px; line-height:1.5; margin-bottom:9px; }
+  .mono { font-family:"DejaVu Sans Mono",monospace; font-size:15px; }
+  .shot { border:1px solid var(--line); width:100%; display:block; }
+  .caption { font-size:12px; color:var(--muted); margin-top:8px; }
+  .tagline { font-size:26px; line-height:1.35; margin-top:22px; max-width:9.6in; }
+  .meta { font-size:15px; color:var(--muted); margin-top:auto; }
+  .flow { display:flex; align-items:center; gap:14px; margin-top:26px; font-size:17px; }
+  .chip { border:1px solid var(--ink); padding:7px 13px; border-radius:2px; white-space:nowrap; }
+  .arrow { color:var(--muted); }
+  .twocol { display:flex; gap:40px; margin-top:26px; }
+  .twocol > div { flex:1; }
+  .label { font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:700; }
+  .value { font-size:17px; line-height:1.5; margin-top:6px; }
+</style>
+</head>
+<body>
+
+<!-- 1 -->
+<section class="slide">
+  <div class="kicker">Traficom · Since AI Hackathon 2026</div>
+  <h1>Kaista</h1>
+  <div class="tagline">From 95,865 frequency rows to every case that needs a human decision.</div>
+  <div class="rule"></div>
+  <div class="lede" style="margin-top:30px">
+    A screening tool for ITU BR IFIC packages. It finds the satellite filings that can reach Finnish
+    territory, computes a power flux density upper bound against the Radio Regulations, and hands the
+    specialist a case, not a spreadsheet.
+  </div>
+  <div style="margin-top:auto">
+    <div class="label">One run of the auto-fetch demo, IFIC 3075</div>
+    <div class="flow" style="margin-top:12px; font-size:19px">
+      <span class="chip num">129 notices</span><span class="arrow">→</span>
+      <span class="chip num">19 overlap</span><span class="arrow">→</span>
+      <span class="chip num">9 visible</span><span class="arrow">→</span>
+      <span class="chip num">7 cards + 2 undecidable</span>
+    </div>
+    <div class="meta" style="margin-top:26px">Greedy Decoding · Janne Rosama · Traficom challenge, Since AI 2026</div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="kicker">The problem</div>
+  <h2>Every two weeks, one package, one specialist</h2>
+  <div class="row" style="margin-top:44px">
+    <div class="col">
+      <div class="big num">196</div>
+      <div class="body" style="margin-top:8px">notices in one BR IFIC package</div>
+    </div>
+    <div class="col">
+      <div class="big num">95 865</div>
+      <div class="body" style="margin-top:8px">frequency rows behind them</div>
+    </div>
+    <div class="col">
+      <div class="big num">0</div>
+      <div class="body" style="margin-top:8px">of them ranked for Finland</div>
+    </div>
+  </div>
+  <div class="body" style="margin-top:46px; max-width:10.6in">
+    For each notice the specialist answers three questions: can this satellite reach Finnish
+    territory, does Finland use that band at all, and is the level over the ITU limit. Then comes a
+    letter to the administration behind the filing, before the coordination window closes.
+  </div>
+  <div class="footer"><span>Kaista</span><span class="num">2 / 9</span></div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="kicker">The solution</div>
+  <h2>Four steps, every notice, nothing sampled</h2>
+  <div class="stack">
+    <div class="card">
+      <h3>1 · Fetch</h3>
+      <p>Reads the BR IFIC Access database directly with mdb-export. 17 tables, the input hash on every run.
+         A scheduled check pulls the next package from ITU.</p>
+    </div>
+    <div class="card">
+      <h3>2 · Filter</h3>
+      <p>Keeps space-to-Earth notices whose band overlaps a Finnish allocation and whose satellite is
+         visible from Finland. Everything else leaves with a reason.</p>
+    </div>
+    <div class="card">
+      <h3>3 · Compute</h3>
+      <p>Worst-case power flux density over the 552 points of Finland's border and territorial sea limit,
+         against Table 21-4. Then the Finnish allocation: is the band a satellite downlink at all.</p>
+    </div>
+    <div class="card">
+      <h3>4 · Decide</h3>
+      <p>A case card: source rows, calculation, the gap, the regulatory stage, what is missing, and one
+         question for the other administration. A human decides.</p>
+    </div>
+  </div>
+  <div class="body" style="margin-top:auto; color:var(--muted); font-size:17px">
+    The language model writes prose only. A numeric guard rejects any sentence whose number the card
+    does not have.
+  </div>
+  <div class="footer"><span>Kaista</span><span class="num">3 / 9</span></div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="kicker">What it finds</div>
+  <h2>Two runs, measured</h2>
+  <div class="twocol">
+    <div>
+      <div class="label">Auto-fetch demo · IFIC 3075</div>
+      <div class="flow">
+        <span class="chip num">129</span><span class="arrow">→</span>
+        <span class="chip num">19</span><span class="arrow">→</span>
+        <span class="chip num">9</span><span class="arrow">→</span>
+        <span class="chip num">7 + 2</span>
+      </div>
+      <div class="value">Seven computed cases, two that cannot be decided, nine that need a human.
+        3 exceed the limit, 4 are within 3 dB of it.</div>
+    </div>
+    <div>
+      <div class="label">Accuracy set · IFIC 3074, 3 470–3 780 MHz</div>
+      <div class="flow">
+        <span class="chip num">196</span><span class="arrow">→</span>
+        <span class="chip num">41</span><span class="arrow">→</span>
+        <span class="chip num">21</span><span class="arrow">→</span>
+        <span class="chip num">20 + 1</span>
+      </div>
+      <div class="value">11 exceed, 5 near, 4 on a band Finland has not given to satellite downlink,
+        none clear. Every one of the 196 notices has a row in the results CSV.</div>
+    </div>
+  </div>
+  <div class="body" style="margin-top:40px; max-width:10.6in">
+    Over every Finnish allocation the same package gives 100 computed cases and 38 that cannot be
+    decided, 55 of them over the limit. Nothing is capped and nothing is hidden: the queue lists each
+    notice in three tiers.
+  </div>
+  <div class="footer"><span>Kaista</span><span class="num">4 / 9</span></div>
+</section>
+
+<!-- 5 -->
+<section class="slide" style="padding-top:0.62in">
+  <div class="kicker">What the specialist gets</div>
+  <h2 style="font-size:30px; margin-top:6px">A card that shows its work</h2>
+  <div class="twocol" style="margin-top:22px; align-items:flex-start">
+    <div style="flex:0 0 6.6in">
+      <div style="border:1px solid var(--line); border-left:3px solid var(--accent); padding:16px 18px 14px">
+        <div class="mono" style="font-size:13px; color:var(--muted)">3075-125520114 · near</div>
+        <div style="font-size:17px; font-weight:700; margin-top:6px">Worst case at 67.68857 N, 29.9792 E
+          (land border, Russia), elevation 4.53°</div>
+        <div class="mono" style="margin-top:10px; line-height:1.6">PFD &nbsp;−188.29 dB(W/m²/Hz)<br>
+          Limit −188.02 dB(W/m²/Hz) · Table 21-4, 3 400–4 200 MHz, GSO, p. 287<br>
+          Margin −0.26 dB</div>
+        <div style="font-size:15px; margin-top:10px; line-height:1.45">
+          Finland allocation: FIXED SATELLITE (SPACE-TO-EARTH), MOBILE, MOBILE AND FIXED.
+          <b>No satellite downlink allocation on 3 600–3 800 MHz.</b></div>
+        <div style="font-size:15px; margin-top:10px; line-height:1.45; color:var(--muted)">
+          Question to IND: can India confirm the worst-case PFD this CDL beam produces on Finnish
+          territory in the 3 600–4 200 MHz range?</div>
+      </div>
+      <div class="caption">The first case of the 3075 run, verbatim from the run's cases.json.</div>
+    </div>
+    <div style="flex:1; padding-top:2px">
+      <div class="label">What the card answers</div>
+      <div class="value" style="margin-top:10px">
+        <b>Where.</b> The worst point on Finland's border or territorial sea limit, with the elevation
+        and the slant range behind the number.
+      </div>
+      <div class="value">
+        <b>How much.</b> The upper-bound PFD, the Table 21-4 limit row it is measured against, and the
+        margin between them.
+      </div>
+      <div class="value">
+        <b>Whether it matters here.</b> The Finnish allocation, and the exact part of the band Finland
+        has not given to satellite downlink.
+      </div>
+      <div class="value">
+        <b>What to do.</b> The regulatory stage, the deadline, and the one question to the other
+        administration. The specialist decides; the tool never sends anything.
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>Kaista</span><span class="num">5 / 9</span></div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <div class="kicker">Why the numbers hold</div>
+  <h2>Every figure comes from code</h2>
+  <div class="stack" style="margin-top:30px">
+    <div class="stat"><div class="k num">51</div><div class="l">Table 21-4 rows transcribed from the Radio Regulations, with the elevation curves</div></div>
+    <div class="stat"><div class="k num">2</div><div class="l">test vectors that reproduce to the digit, hand-checked against the geometry</div></div>
+    <div class="stat"><div class="k num">208</div><div class="l">tests, the same suite in CI; the data tests read the real IFIC database</div></div>
+    <div class="stat"><div class="k num">1.2.0</div><div class="l">rules version, written into every run log next to the input SHA256</div></div>
+  </div>
+  <div class="twocol" style="margin-top:44px">
+    <div>
+      <div class="label">The model writes</div>
+      <div class="value">The card summary and, for each case above the limit, the draft letter. In the
+        Red Hat setup Granite 3.3 2B on OpenShift AI, or nothing at all: the template is the floor.</div>
+    </div>
+    <div>
+      <div class="label">The model never produces</div>
+      <div class="value">A number. The guard rejects any sentence carrying a value the card does not
+        have, and an undecidable case says which field is missing instead of guessing.</div>
+    </div>
+  </div>
+  <div class="footer"><span>Kaista</span><span class="num">6 / 9</span></div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="kicker">The side quest</div>
+  <h2>Same architecture, terrestrial notices</h2>
+  <div class="row" style="margin-top:36px">
+    <div class="col"><div class="stat"><div class="k num">32</div><div class="l">land-mobile notices in reach of Finland, including the ones whose coordination record names Finland</div></div></div>
+    <div class="col"><div class="stat"><div class="k num">6</div><div class="l">above the ECC T/R 25-08 trigger on the border line</div></div></div>
+    <div class="col"><div class="stat"><div class="k num">4</div><div class="l">Finnish register stations above 12 dBµV/m that nobody had flagged</div></div></div>
+  </div>
+  <div class="body" style="margin-top:42px; max-width:10.6in">
+    The same command with one flag reads the terrestrial BR IFIC pair, takes new, modified and
+    withdrawn from the notice's own intent field, computes ITU-R P.1546-6 field strength at 10 % time
+    on the land borders and the territorial sea limit, and writes the same source, audit and missing
+    fields. It reuses the ingest step, not a second copy of it.
+  </div>
+  <div class="footer"><span>Kaista</span><span class="num">7 / 9</span></div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="kicker">What we did not build</div>
+  <h2>The limits, stated on the card</h2>
+  <ul>
+    <li>The PFD is a screening upper bound. No I/N, no receiver noise figure, no bandwidth term: a
+      case means the upper bound is over the limit, not that interference exists.</li>
+    <li>Beam geometry is empty in IFIC 3074, so the worst case is always assumed and the card asks the
+      administration to confirm it.</li>
+    <li>Table 21-4 footnote conditions and the row's own service scope are not modelled. Both make the
+      screen stricter, never looser, and a notice that cannot be computed is never called clear.</li>
+    <li>AP30 plan data, Article 22 EPFD and M15 are read as next steps, not as features.</li>
+    <li>Our labelled evaluation set is our own reading, not Traficom's: 16 of 21 agree. No accuracy
+      claim against the customer follows from it.</li>
+  </ul>
+  <div class="footer"><span>Kaista</span><span class="num">8 / 9</span></div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="kicker">What comes next</div>
+  <h2>A pilot in three steps</h2>
+  <div class="stack" style="margin-top:26px">
+    <div class="card">
+      <h3>1 · Three weeks</h3>
+      <p>Match the limit row to the notice's service, model the Table 21-4 footnote conditions, and keep
+        the table current. This removes the cases that are flagged only because the row was applied by band.</p>
+    </div>
+    <div class="card">
+      <h3>2 · One quarter</h3>
+      <p>Run it inside Traficom's own OpenShift on every incoming IFIC, next to the manual pass, and
+        compare the two lists. The funnel already runs there as a Data Science Pipeline.</p>
+    </div>
+    <div class="card">
+      <h3>3 · Then</h3>
+      <p>Space-side trends across consecutive issues, AP30 plan data, and the CEPT/ECC DocDB tier.
+        The same card and the same queue carry them.</p>
+    </div>
+  </div>
+  <div class="body" style="margin-top:auto; max-width:10.6in; color:var(--muted); font-size:17px">
+    Everything that runs in the cluster is in the repository, including the pipeline manifests and the
+    test vectors. The laptop run is the primary demo, because it needs no infrastructure.
+  </div>
+  <div class="footer"><span>Kaista · Greedy Decoding · Janne Rosama</span><span class="num">9 / 9</span></div>
+</section>
+
+</body>
+</html>

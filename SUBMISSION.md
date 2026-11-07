@@ -93,7 +93,11 @@ confidential), so no personal ticks are needed.
 
 - Demo URL (judges see it, voters do not): TODO (human), only if a public instance is kept up. The local
   run is the primary demo, and the sandbox expires after 30 days.
-- Pitch deck (one PDF or PowerPoint): not produced.
+- Pitch deck: `dist/kaista-pitch.pdf`, nine slides, 16:9, produced from `docs/pitch-deck.html`
+  (render command in the file's header comment). Voters can open it from the vote card, so it is
+  written for them: one claim per slide, and the only dense slide is the case card itself. Every
+  number in it comes from the runs in `out/` and `runs/3075/`; slide 5 quotes case
+  `3075-125520114` verbatim from `runs/3075/cases.json`. Attach it to the pitch-deck field.
 - Supporting documents (max two): `docs/features.md` and `docs/decisions.md` are the two candidates.
   Part 4 of `docs/decisions.md` records the prior art this design answers: the Canadian spectrum
   regulator's own paper on LLM failure modes in spectrum work (arXiv:2403.17819), the abstention
