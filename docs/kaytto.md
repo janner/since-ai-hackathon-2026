@@ -5,7 +5,8 @@ Tämä sivu on Traficomin taajuusasiantuntijalle. Viisi askelta, ei yhtään kom
 **Ennen kuin alat.** Työkalu avataan selaimessa. Palvelu hakee uuden BR IFIC -paketin itse ITU:lta
 kahden viikon välein, joten sinun ei tarvitse tuoda tiedostoa. Yläpalkin "Check now" -nappi kysyy
 ITU:lta heti (komentoriviltä sama on `python scripts/monitor.py --check`). Jos automaattihaku ei
-toimi tai sinulla on paketti kädessä, tiedoston tuonti on varatie.
+toimi, kehittäjä ajaa putken käsin (`python -m app.pipeline --ific <mdb>`); sivulla ei ole tiedoston
+tuontia.
 
 ## Viisi askelta
 

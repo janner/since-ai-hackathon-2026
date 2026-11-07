@@ -42,7 +42,9 @@ wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log
 ```
 
 The first line is the funnel: 196 notices, 41 overlap a protected band, 19 of those can be seen from
-Finland, 18 get a number and one cannot be decided. The whole run takes a few seconds — most of it
+Finland, 18 get a number and one cannot be decided. The pipeline prints these three gates as
+`G1` (band overlap), `G2` (visible from Finland) and `G3` (computed); the page shows the same three
+in plain language. The whole run takes a few seconds — most of it
 the `mdb-export` of the 15 tables — and opens no connection with no LLM configured.
 
 ## 2b. The automatic check: what the monitor did on IFIC 3075
@@ -215,7 +217,8 @@ KAISTA_OUT=/tmp/nothing uv run uvicorn app.main:app
 
 The API endpoints for a scripted demo: `/api/funnel`, `/api/cases`, `/api/cases/{case_id}`,
 `/api/queue`, `/health`. The queue endpoint lists computed cards only, so the one `cannot_decide`
-notice in the slice has no row there; its count is in the funnel panel.
+notice in the 3074 slice has no row there (the 3075 run the page shows has two); its count is in
+the funnel panel.
 
 ## 6. The terrestrial side feature
 
@@ -329,20 +332,20 @@ produced.
 | Time | On screen | What to say |
 |---|---|---|
 | 0:00 | browser, the top-bar panel and "Check now" | the panel shows the last check: the newest package and when it was checked. On this tree it reads "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices."; when a check finds nothing new it reads "No new IFIC has been published yet (latest 3075). Checked <time> · next check <time>." Nobody downloads anything; the tool asks ITU itself, every two weeks. |
-| 0:10 | click "Check now", the panel updates | the button asks ITU now and ingests what it finds. The panel of the last check, that of 7 Nov 2026, reads "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices."; a live click on this tree finds 3076 published (the URL answers 200) and moves the page on to it, so read the 3075 line before you click — see "Before the click". |
+| 0:10 | the top-bar status line with its funnel count, and the "Check now" button; do not click | the status line reads the last check, that of 7 Nov 2026: "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices." The button would ask ITU right away and, on this tree, fetch 3076, so the demo does not click it; see "Why not to click". |
 | 0:25 | the funnel panel | 129 notices: 110 with no band overlap and 10 below the horizon dropped, 19 overlap a protected band, 9 of those can be seen from Finland, 7 get a number and 2 cannot be decided. |
 | 0:35 | the queue, card `3075-108501259` (the first card of `cases.json`) | APSTAR-92E, 3 520-3 560 MHz, No. 11.2, recorded in the MIFR: PFD −187,64 against the −188,02 dB(W/m²/Hz) limit, margin +0,38 dB. |
 | 0:50 | the card's "Missing" line | the beam geometry is empty in IFIC 3075, so the tool cannot say whether the beam covers Finland. Four fields are listed, and the question to China follows from them. |
 | 1:05 | `runs/3075/letters/3075-108501259.md` | the draft letter: the number, the missing service area, the question. The tool drafts; a human sends it from their own mailbox. |
-| 1:20 | "Näytä laskelma" on the card | the calculation behind the number: max PSD −50,3 dBW/Hz, beam gain 26,0 dBi, slant range 41 441 km, free-space loss 163,34 dB, and the limit with its Article 21 Table 21-4 row. |
+| 1:20 | "Show calculation" on the card | the calculation behind the number: max PSD −50,3 dBW/Hz, beam gain 26,0 dBi, slant range 41 441 km, free-space loss 163,34 dB, and the limit with its Article 21 Table 21-4 row. |
 | 1:35 | `out/TERRESTRIAL.md` | the same style for terrestrial notices: 2 905 new, 163 modified, 413 withdrawn and 28 notices in reach against BR IFIC 3076. That file comes from the offline run into `out/`; the monitor run is space-only. |
 | 1:50 | `runs/3075/queue.md`, rows 8 and 9 (`126590034`, `126590035`) | "ihminen päättää": the two notices the tool refuses to decide, with the level each would need (psd ≥ −21,77 and −24,74 dBW/Hz). Listing them instead of guessing is the point; the decision is left to a human. |
 
-**Before the click.** The check fetches the number after `runs/latest`. On 7 Nov 2026 that was 3075
-and ITU had already published 3076, so a live click on this tree fetches 3076 and the page moves on
-to it; `https://www.itu.int/sns/ific10/ific3076.zip` answers 200 with 22 079 898 bytes. Either accept
-that and demo 3076, or skip the click and narrate the status line the 3075 run left. Do not run the
-check on the tree you are about to submit.
+**Why not to click.** The check fetches the number after `runs/latest`. On 7 Nov 2026 that was 3075
+and ITU had already published 3076; `https://www.itu.int/sns/ific10/ific3076.zip` answers 200 with
+22 079 898 bytes. A live click on this tree would fetch 3076 and move the page on to it, so the demo
+reads the status line the 3075 run left and leaves the button alone. Do not run the check on the
+tree you are about to submit.
 
 If the UI is not running, the demo works from `cases.md` and `queue.md` alone; for the 3075 run those
 are in `runs/3075/`. Everything except the "Check now" click is offline, and nothing breaks when
