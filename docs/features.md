@@ -175,7 +175,7 @@ drop and the `dropped_at` plus `reason`), `test_a_too_large_victim_power_is_flag
 `test_a_normal_victim_power_has_no_warning`, and the data test `test_golden_case_103500417`, which
 locks every field of the plan's test vector including the band label 3 642–3 678 MHz.
 
-## F7: the six output files and the CLI
+## F7: the output files and the CLI
 
 `app/pipeline.py` is the entry point.
 
@@ -187,17 +187,19 @@ python -m app.pipeline --ific data/itu-ific-3074 \
 
 It loads the inputs, derives the bands, runs the gates, builds a card per case with its prose
 block, and writes `cases.json`, `cases.md`, `queue.md`, `funnel.json`, `3074_results.csv` and
-`run.log` into `--out` (created if missing). The last step prints the funnel and the class counts.
+`run.log` into `--out` (created if missing), plus `letters/<case_id>.md` for every `exceeds` case.
+The last step prints the funnel and the class counts.
 A `DataError` such as a missing input file or an unreadable `--limits` CSV prints `error: ...` on
 stderr and exits 2.
 
-Tests (`tests/test_pipeline.py`, 12): `test_mini_run_writes_every_output`,
+Tests (`tests/test_pipeline.py`, 14): `test_mini_run_writes_every_output`,
 `test_mini_results_csv_has_one_row_per_notice`, `test_mini_funnel_json_mini_out`,
 `test_mini_cases_json_and_markdown`, `test_run_log_records_the_hash_and_the_counts`,
-`test_out_directory_is_created`, `test_missing_input_is_a_clear_error`,
-`test_missing_argument_is_an_argparse_error`, `test_bad_input_returns_exit_code_two`,
-`test_missing_limits_is_a_clear_error`, `test_register_without_stations_on_a_band_is_a_clear_error`,
-and the data test `test_real_run_writes_the_documented_numbers`.
+`test_letters_are_written_for_the_exceeds_cards`, `test_out_directory_is_created`,
+`test_missing_input_is_a_clear_error`, `test_missing_argument_is_an_argparse_error`,
+`test_bad_input_returns_exit_code_two`, `test_missing_limits_is_a_clear_error`,
+`test_register_without_stations_on_a_band_is_a_clear_error`, and the data tests
+`test_real_run_writes_a_letter_for_every_exceeds_case` and `test_real_run_writes_the_documented_numbers`.
 
 ## F8: prose from an LLM, template as the floor, numeric guard
 
@@ -221,8 +223,8 @@ not intent.
 decimal comma, and compares signed values with a 0.01 tolerance. A minus right after a digit is a
 range separator (`3 662-3 698`), not a sign; any other sign must match the card.
 
-A pipeline run attaches the card summary only; `draft_letter` is exercised by tests and by the
-correspondence template, and the CLI does not write letters to `out/`.
+A pipeline run attaches the card summary to every card and writes the correspondence letter to
+`out/letters/<case_id>.md` for each `exceeds` case (see F7); the template is the floor for both.
 
 Tests: `tests/test_prose.py` 8 (`test_without_an_endpoint_the_template_is_used`,
 `test_letter_template_asks_the_question`, `test_a_failing_llm_falls_back_to_the_template`,
@@ -264,7 +266,7 @@ skipped and counted in `skipped_invalid`.
 | Extrapolation | a query outside any of the three table axes (frequency, antenna height, distance) clamps to the nearest node; the notice is flagged `extrapolated: true` when any of the four test points is outside |
 | Trends | grouped by administration, band label, class and bandwidth; counts of new, modified and withdrawn against the previous issue |
 | Anomalies | a group with nothing in the previous issue and three or more now |
-| Threshold | `protection_threshold_dbuVm` is `null` and the criterion line says it is to be confirmed |
+| Threshold | `protection_threshold_dbuVm` is `null`; the criterion line names the three tiers (ITU RR Art. 21 Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4 / Traficomin taajuusjakotaulukko) and marks the ECC and national values as not confirmed |
 
 The distance to Finland is the nearest of the four test points (Helsinki, Turku, Lappeenranta,
 Maarianhamina), not a polygon border. Both register directions count as overlap, because a channel
@@ -272,9 +274,10 @@ is a pair: RX 464.04 MHz and TX 454.04 MHz belong to the same licence.
 
 Outputs: `terrestrial_findings.json`, `terrestrial_trends.csv`, `TERRESTRIAL.md`.
 
-Tests (`tests/test_terrestrial.py`, 16): `test_diff_finds_new_modified_withdrawn` (3 new, 1
+Tests (`tests/test_terrestrial.py`, 17): `test_diff_finds_new_modified_withdrawn` (3 new, 1
 modified, 1 withdrawn), `test_diff_detects_moved_station`,
 `test_filter_drops_far_and_non_land_mobile`, `test_findings_mark_synthetic_and_leave_threshold_open`,
+`test_params_say_what_the_field_strength_is_computed_for`,
 `test_field_strength_matches_p1546_table_node`,
 `test_field_strength_falls_with_distance_and_follows_power`,
 `test_field_strength_rejects_unusable_input`, `test_extrapolated_flags_clamped_query`,
@@ -315,6 +318,35 @@ Tests (`tests/test_api.py`, 9): `test_index_serves_the_finnish_page`, `test_heal
 `test_unknown_case_id_is_404`, `test_queue_is_ordered_by_class`,
 `test_missing_out_is_503_and_the_page_still_loads` and `test_broken_json_is_503_not_500`. The
 fixtures write their own synthetic `out/` into `tmp_path`, so the API tests need no challenge data.
+
+## Evidence loaded but not used
+
+`app/ingest.py` reads 15 IFIC tables and three of them (`c_pfd`, `srv_area`, `srv_cls`) reach no
+gate: no module consumes them. Each was examined against the seven space bands and the Finnish
+side, and each is recorded here as a deliberate negative result rather than a gap nobody noticed.
+
+`c_pfd` (119 rows; `ntc_id, seq_no, freq_min, freq_max, pfd, bdwdth, ra_stn_type`) is the
+notifier's own PFD limit. Measured on IFIC 3074, the four frequency ranges it covers are
+1 164–1 215, 4 990–5 000, 5 030–5 150 and 42 500–43 500 MHz, and zero rows cover 3 000–4 400 MHz, so
+not one of the seven space bands has a notifier PFD limit to compare against. The limit therefore
+stays ITU RR Art. 21 Table 21-4 (decision D4).
+
+`srv_area` (930 rows; `grp_id, ctry, f_excl_api`) is the service area a group claims. The
+`f_excl_api` flag is `Y` once, `N` 125 times and empty on the other 804 rows, and `FIN` appears
+twice, both with an empty flag. A flag that is blank on almost every row, and on both Finnish ones,
+cannot decide whether Finland sits inside a beam, so it is not used as a relevance filter. Beam
+geometry is carried by `s_beam`, and the Finnish victim side comes from the register.
+
+`srv_cls` (60 529 rows; `grp_id, seq_no, stn_cls, nat_srv`) holds the class of station and the
+nature of service per group. `stn_cls` is dominated by `EC` 25 871, `EK` 12 391, `ER` 8 199,
+`EI` 4 852 and `ED` 4 428, over roughly 30 codes in total. Checked against the ITU BR IFIC Preface
+(WRS-22, reference Table 3): the `stn_cls` code is the class of station (data item C4a), and the
+legend pairs each space-station class with an earth-station class (`T*`/`U*`) — a code-to-code
+table, not a service name. `nat_srv` is a separate code set (nature of service, data item C4b).
+M4's `Services_in_Finland` is not drawn from either: it names the services in the Finnish
+allocation table (`FIXED`, `MOBILE AND FIXED`). No key and no shared vocabulary connects the two,
+so a join would be a guess rather than a mapping. Not implemented; the M4 lookup stays context
+(decision I10).
 
 ## Tooling: fetching and converting the data
 

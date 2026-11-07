@@ -29,7 +29,7 @@ uv run python -m app.pipeline --ific data/itu-ific-3074 \
 ```
 196 notices → G1 41 → G2 19 → G3 18 + 1 cannot decide
 exceeds 9, near 5, clear 4, 15 in the queue (1 groups, 2 bands, 1.25 s)
-wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log
+wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log, letters/
 ```
 
 The first line is the funnel: 196 notices, 41 overlap a protected band, 19 of those can be seen from
@@ -199,8 +199,9 @@ Uudet 3, muutetut 1, poistetut 1.
 
 The header of the same file states the model and the open question: source `synthetic_fixture`
 (marked as synthetic, no real 3076 data), model `P.1546-6 land, 50/50, no terrain`, and protection
-threshold `None` with the criterion to be confirmed. The tool reports a calculated estimate and
-claims no exceedance, because no threshold was given.
+threshold `None` with the framework named in three tiers (ITU RR Art. 21 Table 21-4 → ECC T/R 25-08
+→ national M4); the ECC and national values are to be confirmed. The tool reports a calculated
+estimate and claims no exceedance, because no threshold was given.
 
 ## 7. Proving the deterministic path
 
@@ -221,10 +222,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 116 passed with data/
+make check        # ruff check, ruff format --check, pytest: 119 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 104 passed, 12 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 106 passed, 13 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. Three-minute demo script

@@ -1,4 +1,4 @@
-"""The CLI and its six output files, on the mini package and on the real one."""
+"""The CLI and its output files, on the mini package and on the real one."""
 
 import csv
 import json
@@ -64,6 +64,14 @@ def test_run_log_records_the_hash_and_the_counts(mini_out):
     assert "ific=ific_mini" in log
     assert "g1=6 g2=4 g3=2 cannot_decide=2" in log
     assert "mode=slice" in log
+
+
+def test_letters_are_written_for_the_exceeds_cards(mini_out):
+    cards = json.loads((mini_out / "cases.json").read_text(encoding="utf-8"))
+    exceeds = {card["case_id"] for card in cards if card["class"] == "exceeds"}
+    written = {path.stem for path in (mini_out / "letters").iterdir()}
+    assert written == exceeds
+    assert f"letters={len(exceeds)}" in (mini_out / "run.log").read_text(encoding="utf-8")
 
 
 def test_out_directory_is_created(tmp_path):
@@ -145,6 +153,29 @@ def test_register_without_stations_on_a_band_is_a_clear_error(tmp_path):
     )
     with pytest.raises(DataError, match="no protected band"):
         pipeline.run(FIXTURES / "ific_mini", empty, FIXTURES / "m4_mini.json", tmp_path / "out")
+
+
+@pytest.mark.data
+def test_real_run_writes_a_letter_for_every_exceeds_case(tmp_path):
+    """The demo slice has 9 exceeds cases and 4 clear ones: a letter per exceeds, none for clear."""
+    root = Path(__file__).resolve().parent.parent
+    out = tmp_path / "letters"
+    assert (
+        pipeline.run(
+            root / "data" / "itu-ific-3074",
+            root / "data" / "frequencies_of_interest.csv",
+            root / "data" / "taajuusjakotaulukko.json",
+            out,
+        )
+        == 0
+    )
+    cards = json.loads((out / "cases.json").read_text(encoding="utf-8"))
+    exceeds = {card["case_id"] for card in cards if card["class"] == "exceeds"}
+    clear = {card["case_id"] for card in cards if card["class"] == "clear"}
+    written = {path.stem for path in (out / "letters").iterdir()}
+    assert len(exceeds) == 9 and written == exceeds
+    assert clear and not written & clear
+    assert "letters=9" in (out / "run.log").read_text(encoding="utf-8")
 
 
 @pytest.mark.data

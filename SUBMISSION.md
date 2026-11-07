@@ -151,8 +151,8 @@ Sandbox facts (verified 6 and 7 Nov 2026, namespace `janner-1-dev`):
 
 Automated, done in the repository
 
-- [x] `make check` green: ruff check, ruff format --check, 116 tests passed
-- [x] README run steps work in a clean clone (104 passed, 12 skipped without `data/`)
+- [x] `make check` green: ruff check, ruff format --check, 119 tests passed
+- [x] README run steps work in a clean clone (106 passed, 13 skipped without `data/`)
 - [x] Pre-existing work and outside assets stated in README and About (template commit `6fe98b9`)
 - [x] No secrets or challenge data committed; `data/` and `out/` are gitignored
 - [x] `make submission-zip` builds `dist/kaista-submission.zip`, tracked files at HEAD only, no data

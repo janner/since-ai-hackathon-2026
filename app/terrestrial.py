@@ -10,9 +10,9 @@ hyväksymällä referenssitoteutuksella (eeveetza/Py1546, commit e235629):
     bt_loss(f, 50, h1, 10, 10, "Rural", [d], ["Land"], 0, 50, 0, 1, h1)[0]
 
 taajuuksilla 100/600/2000 MHz, korkeuksilla 10/20/37.5/75/150/300/600/1200 m ja
-P.1546:n nimellisetäisyyksillä 1–1000 km. Arvot ovat 1 kW e.r.p.:lle, joten teho
-lisätään 10*log10(p). Kysely interpoloidaan lineaarisesti kaikilla kolmella
-akselilla ja kiinnittyy taulukon reunaan sen ulkopuolella.
+P.1546:n nimellisetäisyyksillä 1–1000 km. Taulukon arvot ovat 1 kW ERP
+-referenssille, joten teho lisätään 10*log10(p). Kysely interpoloidaan lineaarisesti
+kaikilla kolmella akselilla ja kiinnittyy taulukon reunaan sen ulkopuolella.
 """
 
 import argparse
@@ -36,8 +36,15 @@ POINTS = {
 MAX_DIST_KM = 1000.0
 RX_HEIGHT_M = 10.0
 LAND_MOBILE_CLASSES = frozenset({"LM", "MVV"})
+# Traficom ei ole nimennyt kenttävoimakkuutta, jolla suojelu käynnistyy: työkalu raportoi
+# lasketun arvon eikä väitä ylitystä eikä alitusta sen sijaan että keksisi kynnyksen (T5).
 THRESHOLD_DBUV_M = None  # asetetaan vasta kun Traficom nimeää suojelukriteerin
-CRITERION = "criterion to be confirmed (e.g. ECC T/R 25-08)"
+CRITERION = (
+    "protection framework in three tiers: "
+    "ITU RR Art. 21 Table 21-4 (PFD limit, the level the space path applies) -> "
+    "CEPT/ECC T/R 25-08 (field strength that triggers protection, no value confirmed) -> "
+    "national M4 / Traficomin taajuusjakotaulukko (protection threshold to be confirmed)"
+)
 
 FIELDS = ("ntc_id", "adm", "stn_cls", "freq_min_mhz", "freq_max_mhz", "lat", "lon")
 DIFF_FIELDS = ("freq_min_mhz", "freq_max_mhz", "lat", "lon", "p_erp_kw", "ant_h_m", "stn_cls")
@@ -309,7 +316,13 @@ def findings(prev, curr, register_path):
         "synthetic": synthetic,
         "issues": {"prev": prev.get("issue", "?"), "curr": curr.get("issue", "?")},
         "model": "P.1546-6 land, 50/50, no terrain",
-        "params": {"rx_height_m": RX_HEIGHT_M, "field_strength_for": "band centre, 1 kW e.r.p."},
+        "params": {
+            "rx_height_m": RX_HEIGHT_M,
+            "field_strength_for": (
+                "frequency = band centre (freq_min+freq_max)/2, power = notice p_erp_kw, "
+                "height = notice ant_h_m, distance = direct distance to the point"
+            ),
+        },
         "protection_threshold_dbuVm": THRESHOLD_DBUV_M,
         "criterion": CRITERION,
         "diff": {
@@ -347,7 +360,8 @@ def render_md(doc):
         + (" (synteettinen, ei oikeaa 3076-dataa)" if doc["synthetic"] else ""),
         f"- mallinnus: {doc['model']}",
         f"- issuet: {doc['issues']['prev']} -> {doc['issues']['curr']}",
-        f"- suojelukynnys: `{doc['protection_threshold_dbuVm']}` -> {doc['criterion']}",
+        f"- suojelukynnys: `{doc['protection_threshold_dbuVm']}`",
+        f"- kehys: {doc['criterion']}",
         "",
         "## Diff",
         "",

@@ -1,4 +1,4 @@
-"""CLI: run the funnel over one Space IFIC package and write the six output files.
+"""CLI: run the funnel over one Space IFIC package and write the output files.
 
     python -m app.pipeline --ific data/itu-ific-3074 --register data/frequencies_of_interest.csv \
         --m4 data/taajuusjakotaulukko.json --out out/
@@ -97,7 +97,7 @@ def run(
         f"{len(bands)} bands, {result.elapsed_s:.2f} s)"
     )
     results = f"{card_writer.ifact_tag(ific)}_results.csv"
-    print(f"wrote {out}/cases.json, cases.md, queue.md, funnel.json, {results}, run.log")
+    print(f"wrote {out}/cases.json, cases.md, queue.md, funnel.json, {results}, run.log, letters/")
     return 0
 
 

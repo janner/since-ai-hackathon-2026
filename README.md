@@ -26,9 +26,10 @@ queue lists every case a human should look at: exceedances first, then the near-
 the ones that cannot be decided. It is not capped. A separate accuracy file covers all 196 notices,
 the dropped ones included. A human decides.
 
-The language model only writes the card summary. Every number comes from code, and a numeric guard
-rejects a sentence that carries a number the card does not have. The correspondence letter has its
-own template and function and is covered by tests, but the CLI does not write letters to `out/`.
+The language model writes the card summary and, for each case above the limit, the correspondence
+letter. Every number comes from code, and a numeric guard rejects a sentence that carries a number
+the card does not have. Letters land in `out/letters/<case_id>.md`, one per `exceeds` case; the
+deterministic template is the floor when no model answers.
 
 A side feature applies the same style to terrestrial land-mobile notices: it diffs two
 3076-style extracts, filters what is within 1 000 km of Finland and overlaps the register, and
@@ -41,7 +42,7 @@ selected card 124545403.
 
 ## Verified numbers
 
-Measured 7 Nov 2026 on IFIC 3074: `make check` 116 tests passed, the slice run takes about 1.3 s,
+Measured 7 Nov 2026 on IFIC 3074: `make check` 119 tests passed, the slice run takes about 1.3 s,
 the seven-band run about 5.5 s. The deterministic pipeline is offline; the optional LLM prose step
 is the only part that opens a connection, and only when `LLM_BASE_URL` is set.
 
@@ -126,7 +127,8 @@ anything, and only when called by hand.
 | `queue.md` | The queue in decision order: class first, then margin |
 | `funnel.json` | Counts per gate, drop reasons, queue state, input hash, rules version, mode |
 | `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 18 columns, dropped notices with stage and reason |
-| `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, elapsed time |
+| `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, the letter count, elapsed time |
+| `letters/<case_id>.md` | One correspondence letter per `exceeds` case, drafted by the model or the template |
 
 ## Tests
 
@@ -144,10 +146,10 @@ make submission-zip   # tracked files at HEAD into dist/kaista-submission.zip
 `make submission-zip` builds the source archive for the submission form from the files tracked at
 HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never enter it.
 
-| Environment | Result (6 Nov 2026) |
+| Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 116 passed |
-| Clean clone, no `data/` | 104 passed, 12 skipped |
+| With `data/` | 119 passed |
+| Clean clone, no `data/` | 106 passed, 13 skipped |
 
 `tests/fixtures/` holds the small committed inputs: a nine-notice synthetic IFIC package, an
 eight-station register, a five-row M4 table, and the synthetic terrestrial fixture. The tests that
@@ -198,10 +200,11 @@ row; the funnel endpoint carries their count.
    eight antenna heights, 70 distances from 1 to 1 000 km, rounded to 0.01 dB. A query outside any
    of those three ranges clamps to the nearest node; the notice is then flagged `extrapolated: true`
    if any of the four test points is outside the table. The model is land path, 50 % of time, 50 %
-   of locations, no terrain, 10 m receiving antenna, 1 kW e.r.p. basis.
+   of locations, no terrain, 10 m receiving antenna, 1 kW ERP basis.
 10. Nothing names a protection threshold for the terrestrial path, so
-    `protection_threshold_dbuVm` stays `null` and the report says the criterion is to be confirmed.
-    The tool claims neither a pass nor a fail.
+    `protection_threshold_dbuVm` stays `null`. The report names the framework in three tiers
+    (ITU RR Art. 21 Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4) and marks
+    the ECC and national values as to be confirmed. The tool claims neither a pass nor a fail.
 11. Not implemented: the labelled evaluation set (plan R16) and the LUMI run (R20). The OpenShift AI
     part (R19) was built and used: Granite 3.3 2B Instruct served by KServe and the vLLM CPU runtime
     in the sandbox, called by the prose step. See `deploy/openshift/README.md`. The demo video, the

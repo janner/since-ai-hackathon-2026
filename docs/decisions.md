@@ -307,13 +307,20 @@ This replaced an earlier absolute-value comparison, which let a flipped sign thr
 
 Tests: `tests/test_guard.py` (all seven).
 
-### I12. Only the card summary is attached to a run
+### I12. The card summary, and a letter for every case above the limit
 
-`app/pipeline.py` calls `prose.draft_summary()` per card and stores it under `prose`. The
-correspondence letter has its own function and template, is covered by tests, and is not written to
-`out/`. Writing 18 letters per run would add files nobody asked for.
+`app/pipeline.py` calls `prose.draft_summary()` per card and stores it under `prose`.
+`app/cards.py::write_outputs()` then writes `out/letters/<case_id>.md` for every `exceeds` case,
+through `prose.draft_letter()`, and records the count in `run.log`. Earlier the letters were not
+written at all: "Writing 18 letters per run would add files nobody asked for." The written brief's
+workflow ends with "drafting relevant correspondence template for expert review", so the letter is
+part of the deliverable; it is kept to the cases above the limit rather than all cards, so `near`,
+`clear` and `cannot_decide` cases get no letter. The directory is regenerated each run, so a letter
+from an earlier mode cannot outlive the cases of this run.
 
-Tests: `tests/test_prose.py::test_letter_template_asks_the_question`, `test_a_clean_llm_answer_is_kept`.
+Tests: `tests/test_prose.py::test_letter_template_asks_the_question`, `test_a_clean_llm_answer_is_kept`;
+`tests/test_pipeline.py::test_letters_are_written_for_the_exceeds_cards` (mini) and the data test
+`test_real_run_writes_a_letter_for_every_exceeds_case` (9 letters, none for the 4 clear cases).
 
 ### I13. The API reads files and computes nothing
 
@@ -360,8 +367,8 @@ Tests: `tests/test_prose.py::test_an_empty_llm_answer_falls_back`.
 ### T1. The P.1546 table is generated once and committed
 
 `rules/p1546_land.csv`. Generated with the ITU reference implementation (eeveetza/Py1546, commit
-e235629) at the nominal distances of the recommendation, for 1 kW e.r.p., at 100, 600 and 2000 MHz
-and antenna heights from 10 to 1200 m. The runtime interpolates linearly and adds
+e235629) at the nominal distances of the recommendation, for a 1 kW ERP reference, at 100, 600 and
+2000 MHz and antenna heights from 10 to 1200 m. The runtime interpolates linearly and adds
 `10*log10(p_erp_kw)`; it needs no numpy and no network. The model is the land path at 50 % of time
 and 50 % of locations without terrain, receiving antenna 10 m, which is what the side feature
 documents in its own output.
@@ -393,13 +400,19 @@ question.
 
 Test: covered by `tests/test_terrestrial.py::test_run_writes_three_outputs` and the fixture output.
 
-### T5. The protection threshold stays `null`
+### T5. The protection threshold stays `null`, and the framework is named
 
-`app/terrestrial.py`, `THRESHOLD_DBUV_M = None` with `CRITERION = "criterion to be confirmed (e.g.
-ECC T/R 25-08)"`. No threshold was given for the challenge, so the tool reports field strength and
-says nothing about pass or fail. A guessed threshold would turn a report into a false verdict.
+`app/terrestrial.py`, `THRESHOLD_DBUV_M = None` with `CRITERION` naming the three tiers a
+field-strength limit would come from: ITU RR Art. 21 Table 21-4 (PFD, the level the space path
+already applies) → CEPT/ECC T/R 25-08 (the field strength that triggers protection) → the national
+M4 / Traficomin taajuusjakotaulukko (the Finnish protection threshold). No threshold was given for
+the challenge, and the ECC and national values are the two that are not confirmed, so the tool
+reports the calculated field strength and says nothing about pass or fail. A guessed threshold
+would turn a report into a false verdict.
 
-Test: `tests/test_terrestrial.py::test_findings_mark_synthetic_and_leave_threshold_open`.
+Test: `tests/test_terrestrial.py::test_findings_mark_synthetic_and_leave_threshold_open` (the
+criterion still says "to be confirmed"), `test_run_writes_three_outputs` (the framework line lands
+in `TERRESTRIAL.md`).
 
 ### T6. The terrestrial filter keeps `LM` and `MVV`
 

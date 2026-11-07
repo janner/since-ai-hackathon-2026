@@ -1,4 +1,4 @@
-"""Turn cases into the case card, the queue and the six output files.
+"""Turn cases into the case card, the queue and the output files.
 
 Every number in a card comes from the case; the prose modules may only restate them.
 """
@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 from pathlib import Path
 
+from app import prose
 from app.config import (
     ADM_NAMES,
     M4_SERVICES,
@@ -273,7 +275,9 @@ RESULT_COLUMNS = (
 )
 
 
-def render_run_log(result: GateResult, counts: dict[str, int], ific: IficData) -> str:
+def render_run_log(
+    result: GateResult, counts: dict[str, int], ific: IficData, letters: int = 0
+) -> str:
     return "\n".join(
         [
             f"run_at={result.run_at}",
@@ -288,6 +292,7 @@ def render_run_log(result: GateResult, counts: dict[str, int], ific: IficData) -
             f"visible=GEO {result.geo_visible} NGSO {result.ngso_visible}",
             f"g1={result.counts['g1']} g2={result.counts['g2']} g3={result.counts['g3']} "
             f"cannot_decide={result.counts['cannot_decide']}",
+            f"letters={letters}",
             f"elapsed_s={result.elapsed_s:.2f}",
             "",
         ]
@@ -302,6 +307,8 @@ def write_outputs(
     out: Path,
 ) -> None:
     out.mkdir(parents=True, exist_ok=True)
+    letters = [card for card in cards if card["class"] == "exceeds"]
+    letters_dir = out / "letters"
     (out / "cases.json").write_text(
         json.dumps(cards, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -310,8 +317,19 @@ def write_outputs(
     (out / "funnel.json").write_text(
         json.dumps(funnel_json(result), ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    (out / "run.log").write_text(render_run_log(result, counts, ific), encoding="utf-8")
+    (out / "run.log").write_text(
+        render_run_log(result, counts, ific, len(letters)), encoding="utf-8"
+    )
     with (out / f"{ifact_tag(ific)}_results.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=RESULT_COLUMNS)
         writer.writeheader()
         writer.writerows(results_rows(result, ific, cards))
+    # A run owns out/letters: regenerate it so a stale letter from an earlier mode cannot
+    # outlive the cases of this run. Only cases above the limit get one (the brief's last step).
+    if letters_dir.exists():
+        shutil.rmtree(letters_dir)
+    letters_dir.mkdir()
+    for card in letters:
+        (letters_dir / f"{card['case_id']}.md").write_text(
+            prose.draft_letter(card)["text"], encoding="utf-8"
+        )

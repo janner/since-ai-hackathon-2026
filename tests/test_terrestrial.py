@@ -60,6 +60,14 @@ def test_findings_mark_synthetic_and_leave_threshold_open(issues, tmp_path):
     assert doc["notices"] and not any(n["extrapolated"] for n in doc["notices"])
 
 
+def test_params_say_what_the_field_strength_is_computed_for(issues):
+    """The old text claimed a 1 kW basis while the value uses the notice's own power."""
+    prev, curr = issues
+    text = t.findings(prev, curr, REGISTER)["params"]["field_strength_for"]
+    assert "1 kW" not in text
+    assert "band centre" in text and "p_erp_kw" in text and "ant_h_m" in text
+
+
 def test_field_strength_matches_p1546_table_node():
     # ITU:n referenssitoteutus (Py1546) antaa 26.15 dB(uV/m) pisteelle 600 MHz, 50 km, h1 37.5 m.
     assert t.field_strength_p1546(600, 50, 37.5, 1.0) == pytest.approx(26.15, abs=0.01)
@@ -121,7 +129,7 @@ def test_run_writes_three_outputs(issues, tmp_path):
     rows = (tmp_path / "terrestrial_trends.csv").read_text(encoding="utf-8").splitlines()
     assert len(rows) == len(doc["trends"]) + 1
     markdown = (tmp_path / "TERRESTRIAL.md").read_text(encoding="utf-8")
-    assert "P.1546" in markdown and "criterion to be confirmed" in markdown
+    assert "P.1546" in markdown and "ECC T/R 25-08" in markdown and "to be confirmed" in markdown
 
 
 def test_load_issue_skips_rows_without_required_fields(tmp_path):
