@@ -1,8 +1,10 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `51c211c`, verified on 7 Nov 2026 with `make check` (131 passed) and a clean clone
-(112 passed, 19 skipped).
+commit `df382cf`, verified on 7 Nov 2026 with `make check` (128 passed) and a clean clone
+(85 passed, 43 skipped).
+
+For a test count, quote the clean-clone number: it needs no challenge data.
 
 Read a feature row in the tables below as: the module that owns the job, the tests that would fail
 if the behaviour changed, and the number the tests lock in.
@@ -12,8 +14,9 @@ if the behaviour changed, and the number the tests lock in.
 `pyproject.toml` pins the dependencies, the ruff rules and the `data` pytest marker. `Makefile`
 wraps the commands (`make check` is lint plus tests). `.github/workflows/ci.yml` runs
 `make install` and `make check` on Python 3.11, the lowest version `pyproject.toml` promises.
-`tests/conftest.py` holds the session fixtures and the marker hook: when `data/itu-ific-3074/csv`
-is missing, every test marked `data` gets a skip, so a clean clone stays green.
+`tests/conftest.py` holds the session fixture and the marker hook: when
+`data/itu-ific-3074/ific3074.mdb` is missing, every test marked `data` gets a skip, so a clean clone
+stays green.
 
 Tests: `tests/test_smoke.py::test_package_imports`, `tests/test_smoke.py::test_data_present`
 (data). CI itself was not executed on GitHub during the hackathon; it is the same command run
@@ -21,36 +24,42 @@ locally.
 
 ## F1: ingest and normalisation
 
-Reads the 15 IFIC tables from `<ific_dir>/csv`, the Finnish register from the frequencies-of-interest
-file, and the M4 allocation table, and normalises every unit. Nothing here computes a gate: a value
-that is missing stays `None` and the caller decides what that means.
+Reads the 15 IFIC tables straight from the BR IFIC Access database with `mdb-export`, the Finnish
+register from the frequencies-of-interest file, and the M4 allocation table, and normalises every
+unit. Nothing here computes a gate: a value that is missing stays `None` and the caller decides what
+that means.
 
 `app/ingest.py` holds the pieces:
 
 | Piece | Behaviour |
 |---|---|
 | `TABLES`, `REQUIRED_TABLES` | 15 table names; only `notice` and `freq` are mandatory, the rest may be absent |
+| `_export()` | `mdb-export <mdb> <table>` through `subprocess` (no shell); a missing `mdb-export` or a failing table raises `DataError` |
 | `mhz()` | `'3 520.500 MHz'` to 3520.5, `'300k'` to 0.3, `'0,1G'` to 100.0, `''` to `None`; understands `GHz`, `kHz`, `Hz` and the single letters, plus the Finnish comma decimal |
 | `watts()` | `'145'` + `'W'` to 145.0, `'2'` + `'kW'` to 2000.0, `'mW'` scaled down |
-| `rows()` | `csv.DictReader`; an empty file, a missing column or a header-only file raises `DataError` naming the file and the column |
-| `load_register()` | `Station` records; a row without RX and TX is skipped and counted, a row without coordinates likewise; `Channel bandwidth` is used first and `Transmission bandwidth` as the fallback |
+| `rows()` | `csv.DictReader` for the register CSV; an empty file, a missing column or a header-only file raises `DataError` naming the file and the column |
+| `load_register()` | `Station` records; a row without RX and TX is skipped and counted, a row without coordinates likewise; the bandwidth is the smaller of `Channel bandwidth` and `Transmission bandwidth`, with either column as the fallback |
 | `load_m4()` | accepts `{"value": [...]}` or a bare array; anything else raises `DataError` |
-| `load_ific()` | builds `IficData` (notices, freq rows, beams, emission power per group, GEO, non-GEO, orbits, counts) and the input hash |
-| `input_digest()` | one SHA256 over the 15 CSV files (name plus bytes), so a rerun on other data is visible |
+| `load_ific()` | reads the MDB with `mdb-export` and builds `IficData` (notices, freq rows, beams, emission power per group, GEO, non-GEO, orbits, counts); `file` is the MDB name and `input_sha256` its SHA256 |
+| `sha256()` | one file's SHA256; `input_digest()` (used by the terrestrial path) one SHA256 over several files |
 
 `Station.centre_mhz` is RX when it exists and TX otherwise, `lo_mhz` and `hi_mhz` are the centre
 plus or minus half the channel bandwidth. `Notice.prov` carries the regulatory stage of the filing
 and `Station.directivity` the register's `Directivity` code (`D`, `ND` or empty); neither is read by
 a gate, and only the card uses them.
 
-Tests (`tests/test_ingest.py`, 21 collected): `test_mhz_normalises_units` (parametrised over nine
+Tests (`tests/test_ingest.py`, 23 collected): `test_mhz_normalises_units` (parametrised over nine
 unit forms), `test_watts_converts_units`, `test_load_register_skips_rows_without_frequency`,
-`test_station_uses_tx_when_rx_is_missing`, `test_load_ific_mini_counts`, and the six error paths
-(`test_empty_file_is_a_clear_error`, `test_missing_column_names_the_column`,
-`test_header_only_file_is_a_clear_error`, `test_missing_ific_directory_is_a_clear_error`,
-`test_missing_required_table_is_a_clear_error`, `test_m4_without_value_array_is_a_clear_error`).
-The two data tests `test_real_package_row_counts` and `test_real_register_and_hash` lock the
-196 notices, 95 865 frequency rows, and a stable input hash.
+`test_station_uses_tx_when_rx_is_missing`,
+`test_bandwidth_is_the_smaller_of_channel_and_transmission`,
+`test_exported_rows_are_mapped_to_ific_data` (the mapping from exported rows to `IficData`, with
+`mdb-export` stubbed), and the seven error paths (`test_empty_file_is_a_clear_error`,
+`test_missing_column_names_the_column`, `test_header_only_file_is_a_clear_error`,
+`test_missing_mdb_is_a_clear_error`, `test_missing_mdb_export_is_a_clear_error`,
+`test_unreadable_table_is_a_clear_error`, `test_m4_without_value_array_is_a_clear_error`).
+The data tests `test_real_mdb_row_counts`, `test_real_register_and_mdb_hash` and
+`test_real_register_keeps_rows_without_a_licence_class` lock the 196 notices, 95 865 frequency rows,
+the MDB SHA256, and the 294 register rows that carry no `Class of licence`.
 
 ## F2: protected bands derived from the register
 
@@ -90,13 +99,12 @@ gives the highest latitude the orbit reaches at zero elevation; the notice is dr
 apogee or inclination is never dropped here. A notice with neither a `geo` nor an `orbit` row passes
 G2 and carries the reason `no_orbit` at G3.
 
-Tests (`tests/test_gates.py`): `test_mini_funnel_counts_and_reasons` walks the synthetic funnel,
-`test_mini_vector_1_is_reproduced` reproduces the GEO vector on the fixture,
-`test_guard_mhz_zero_is_the_plain_overlap` and `test_guard_mhz_lets_an_adjacent_notice_through`
-walk the adjacent-channel guard both ways, and the data tests
-`test_demo_slice_funnel`, `test_all_bands_funnel` and `test_case_126590032_cannot_be_decided` lock
-the real counts (41 from 196 in the slice, 101 in the full run, 1 earth-station drop in the full
-run) and the `ngso_never_visible` case 124520197.
+Tests (`tests/test_gates.py`, 13): `test_class_boundaries`, `test_guard_mhz_zero_is_the_plain_overlap`
+and `test_guard_mhz_lets_an_adjacent_notice_through` walk the adjacent-channel guard both ways on a
+two-row input, `test_a_notice_type_s_sending_E_is_dropped` covers the earth-station reason, and the
+data tests `test_demo_slice_funnel`, `test_all_bands_funnel`, `test_missing_perigee_cannot_be_decided`
+and `test_case_126590032_cannot_be_decided` lock the real counts (41 from 196 in the slice, 101 in
+the full run, 1 earth-station drop in the full run) and the `ngso_never_visible` case 124520197.
 
 ## F4: PFD geometry and the Table 21-4 limit
 
@@ -147,18 +155,18 @@ then by margin. A stage another administration can still influence therefore com
 already recorded. `clear` cases stay in `cases.json` and the CSV but out of the queue. There is no
 cap. The stage itself comes from `notice.prov` through `app/config.py::regulatory_stage()`.
 
-Tests: `test_class_boundaries`, `test_mini_funnel_counts_and_reasons`,
-`test_mini_non_gso_case_uses_the_pass_sweep`, `test_queue_order`,
-`test_gate4_queues_every_concern_and_no_clear`, `test_queue_puts_coordination_before_notification`,
+Tests (`tests/test_gates.py`): `test_class_boundaries`, `test_queue_order`,
+`test_queue_holds_every_concern_and_no_clear`, `test_queue_puts_coordination_before_notification`,
 `test_an_adjacent_case_is_capped_at_near`, `test_demo_slice_funnel`, `test_all_bands_funnel`,
 `test_vector_2_from_the_real_data`, `test_case_126590032_cannot_be_decided`.
 
 ## F6: case cards and the M4 allocation
 
 `app/cards.py::build_card()` turns a `Case` into the card: `case_id`, `same_network`, `source`
-(file, tables, keys), `parties`, `band`, `direction`, `coverage`, `victim`, `calculation`, `m4`,
-`class`, `adjacent`, `regulatory_stage`, `threshold_note`, `missing`, `next_action`, `audit`. The
-audit block carries `input_sha256`, `rules_version` and `run_at`.
+(file, IFIC number, SHA256, tables, keys), `parties`, `band`, `direction`, `coverage`, `victim`,
+`calculation`, `m4`, `class`, `adjacent`, `regulatory_stage`, `threshold_note`, `missing`,
+`next_action`, `audit`. The audit block carries `input_sha256`, `rules_version` and `run_at`; the
+`input_sha256` is the SHA256 of the BR IFIC MDB the run read.
 
 `regulatory_stage` restates `notice.prov` as `{provision, label, source}`, for example `No. 11.2` /
 "notification recorded in the MIFR" / `ITU RR 2024, Vol 1, No. 11.2`. It carries no deadline and no
@@ -186,24 +194,24 @@ write the Markdown, `results_rows()` writes the CSV rows, `render_run_log()` the
 `results_rows()` leaves `class` empty for a notice dropped at G1 or G2 and writes `cannot_decide`
 only for a case that reached G3 and could not be computed; the `regulatory_stage` column carries the
 provision for every notice (dropped included); `dropped_at` and `reason` carry the gate and the
-cause. `render_run_log()` writes the `ific=` id of the input package alongside the hash and the
+cause. `render_run_log()` writes the IFIC number, the input file name and the hash alongside the
 counts.
 
-Tests (`tests/test_cards.py`, 9): `test_mini_card_has_the_whole_schema`,
+Tests (`tests/test_cards.py`, 9): `test_card_has_the_whole_schema`,
 `test_m4_lookup_is_context_not_a_gate`, `test_missing_register_field_is_reported`,
 `test_results_rows_cover_every_notice` (asserts one row per notice, the empty `class` for a gate
 drop and the `dropped_at` plus `reason`), `test_a_too_large_victim_power_is_flagged`,
 `test_a_normal_victim_power_has_no_warning`, `test_directive_antenna_gets_a_threshold_note`, and the
 data tests `test_golden_case_103500417`, which locks every field of the plan's test vector including
-the band label 3 642–3 678 MHz, and `test_prov_distribution_and_the_card_stage`, which locks the
-`prov` distribution (50 / 76 / 65 / 5) and the card stage block.
+the band label 3 642–3 678 MHz and the `source` block, and `test_prov_distribution_and_the_card_stage`,
+which locks the `prov` distribution (50 / 76 / 65 / 5) and the card stage block.
 
 ## F7: the output files and the CLI
 
 `app/pipeline.py` is the entry point.
 
 ```bash
-python -m app.pipeline --ific data/itu-ific-3074 \
+python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json --out out/ [--all] [--limits rules/rr21_table21_4.csv]
 ```
@@ -215,14 +223,16 @@ The last step prints the funnel and the class counts.
 A `DataError` such as a missing input file or an unreadable `--limits` CSV prints `error: ...` on
 stderr and exits 2.
 
-Tests (`tests/test_pipeline.py`, 14): `test_mini_run_writes_every_output`,
-`test_mini_results_csv_has_one_row_per_notice`, `test_mini_funnel_json_mini_out`,
-`test_mini_cases_json_and_markdown`, `test_run_log_records_the_hash_and_the_counts`,
+Tests (`tests/test_pipeline.py`, 13): `test_slice_run_writes_every_output`,
+`test_slice_run_matches_the_documented_anchors`, `test_slice_cases_json_and_markdown`,
+`test_run_log_records_the_source_and_the_counts`,
 `test_letters_are_written_for_the_exceeds_cards`, `test_out_directory_is_created`,
 `test_missing_input_is_a_clear_error`, `test_missing_argument_is_an_argparse_error`,
 `test_bad_input_returns_exit_code_two`, `test_missing_limits_is_a_clear_error`,
 `test_register_without_stations_on_a_band_is_a_clear_error`, and the data tests
-`test_real_run_writes_a_letter_for_every_exceeds_case` and `test_real_run_writes_the_documented_numbers`.
+`test_one_command_writes_both_space_and_terrestrial_outputs` and
+`test_without_the_terrestrial_flag_the_space_run_is_unchanged`. Every test that reads a run output
+runs the CLI once on the real MDB into a temporary `out/`.
 
 ## F8: prose from an LLM, template as the floor, numeric guard
 
@@ -267,10 +277,10 @@ the same pass as the space funnel, into the same `out/`, and its output carries 
 as a case card. It shares `app.ingest`'s provenance (`sha256`, `input_digest`) and
 `app.config.RULES_VERSION`, imports nothing from `app.gates` or `app.pfd`, and its own calculation
 path is ITU-R P.1546-6 field strength, not the PFD gates. It reads the real BR IFIC terrestrial
-databases with `mdb-export`, the same reader `scripts/fetch_data.py` uses.
+databases with the same `mdb-export` reader `app/ingest.py` uses.
 
 ```bash
-uv run python -m app.pipeline --ific data/itu-ific-3074 \
+uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json \
   --terrestrial data/itu-terr-ific/brific3076.mdb \
@@ -360,8 +370,9 @@ so a `cannot_decide` notice has no row there; its count appears in the funnel pa
 Tests (`tests/test_api.py`, 9): `test_index_serves_the_finnish_page`, `test_health`,
 `test_funnel_numbers`, `test_cases_returns_every_card`, `test_case_by_id`,
 `test_unknown_case_id_is_404`, `test_queue_is_ordered_by_class`,
-`test_missing_out_is_503_and_the_page_still_loads` and `test_broken_json_is_503_not_500`. The
-fixtures write their own synthetic `out/` into `tmp_path`, so the API tests need no challenge data.
+`test_missing_out_is_503_and_the_page_still_loads` and `test_broken_json_is_503_not_500`. The tests
+that read content take it from one real pipeline run into a temporary `out/` (a private copy per
+test, so one may corrupt its files); the index, health and error paths need no challenge data.
 
 ## Evidence loaded but not used
 
@@ -394,18 +405,22 @@ so a join would be a guess rather than a mapping. Not implemented; the M4 lookup
 
 ## Tooling: fetching and converting the data
 
-`scripts/fetch_data.py` downloads the IFIC 3074 zip and the M4 table, calls `mdb-export` for the 15
-tables, and converts the frequencies-of-interest xlsx to CSV by finding the `Station number` header
-row and skipping the Finnish header row behind it. It prints a SHA256 for every file and refuses a
-response that is not a zip (`check_zip`), which is how a WAF challenge page gets caught.
+`scripts/fetch_data.py` downloads the IFIC 3074 zip, the terrestrial BR IFIC 3075 and 3076 zips and
+the M4 table, unpacks the `.mdb` database from each zip, and converts the frequencies-of-interest
+xlsx to CSV by finding the `Station number` header row and skipping the Finnish header row behind it.
+The reading of the databases happens at run time in `app/ingest.py` and `app/terrestrial.py` through
+`mdb-export`. The script prints a SHA256 for every file and refuses a response that is not a zip
+(`check_zip`), which is how a WAF challenge page gets caught.
 
 Tests (`tests/test_fetch_data.py`, 2): `test_html_instead_of_zip_is_rejected`,
 `test_xlsx_rows_skips_preamble_and_finnish_header`.
 
-## Test fixtures
+## Test data
 
-| Fixture | Contents |
-|---|---|
-| `tests/fixtures/ific_mini/csv/` | nine synthetic notices with frequency, group, emission, beam, GEO, non-GEO and orbit rows, including both plan test vectors and a case that cannot be decided |
-| `tests/fixtures/register_mini.csv` | nine rows, eight of which load as stations (one has no frequency); five rows lack the antenna gain, two the power, two the RX frequency |
-| `tests/fixtures/m4_mini.json` | four allocation rows, two of them inside the demo slice |
+There are no committed data fixtures. The tests that need a real input are marked `data` and read
+`data/itu-ific-3074/ific3074.mdb`, `data/frequencies_of_interest.csv`, `data/taajuusjakotaulukko.json`
+and the two terrestrial BR IFIC MDBs; `tests/conftest.py` skips every one of them when
+`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (85 passed, 43 skipped).
+The pure tests carry their own inputs in the test: the unit forms in `tests/test_ingest.py`, the band
+merging in `tests/test_bands.py`, the guard rows in `tests/test_gates.py`, the PFD vectors and the
+limit table in `tests/test_pfd.py`.

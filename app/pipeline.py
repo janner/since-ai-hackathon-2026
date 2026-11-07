@@ -1,11 +1,13 @@
-"""CLI: run the funnel over one Space IFIC package and write the output files.
+"""CLI: run the funnel over one Space IFIC MDB and write the output files.
 
-    python -m app.pipeline --ific data/itu-ific-3074 --register data/frequencies_of_interest.csv \
+    python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
+        --register data/frequencies_of_interest.csv \
         --m4 data/taajuusjakotaulukko.json --out out/
 
-Add `--terrestrial <3076.mdb> --terrestrial-prev <3075.mdb>` and the same run also writes
-the terrestrial side feature into the same `--out` directory. Without the flag the space
-run is exactly what it was.
+The tables are read straight from the BR IFIC Access database with `mdb-export`; there is no
+intermediate CSV directory. Add `--terrestrial <3076.mdb> --terrestrial-prev <3075.mdb>` and
+the same run also writes the terrestrial side feature into the same `--out` directory. Without
+the flag the space run is exactly what it was.
 
 The deterministic path never touches the network. The optional LLM prose step calls
 `LLM_BASE_URL` when it is set; without it every card falls back to the template.
@@ -33,7 +35,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="python -m app.pipeline",
         description="Determine the worst-case PFD of Space IFIC notices against Finnish stations.",
     )
-    parser.add_argument("--ific", required=True, type=Path, help="IFIC package dir (holds csv/)")
+    parser.add_argument(
+        "--ific",
+        required=True,
+        type=Path,
+        help="Space BR IFIC Access database (e.g. data/itu-ific-3074/ific3074.mdb)",
+    )
     parser.add_argument("--register", required=True, type=Path, help="frequencies_of_interest.csv")
     parser.add_argument("--m4", required=True, type=Path, help="taajuusjakotaulukko.json")
     parser.add_argument("--out", type=Path, default=Path("out"), help="output directory")
@@ -59,7 +66,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def run(
-    ific_dir: Path,
+    ific_mdb: Path,
     register: Path,
     m4: Path,
     out: Path = Path("out"),
@@ -69,7 +76,7 @@ def run(
     terrestrial_prev: Path | None = None,
 ) -> int:
     started = time.monotonic()
-    ific = ingest.load_ific(ific_dir)
+    ific = ingest.load_ific(ific_mdb)
     stations, _ = ingest.load_register(register)
     m4_rows = ingest.load_m4(m4)
     try:

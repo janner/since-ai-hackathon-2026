@@ -29,16 +29,12 @@ def test_overlaps_rejects_touching_bands():
     assert not overlaps(100.0, 200.0, 200.0, 300.0)
 
 
-def test_derive_bands_merges_touching_channels_but_not_the_hole(mini):
-    # Mini register: 3 480,9-3 646,4 and 3 676,8-3 776,8; a 30,4 MHz hole in between.
-    assert len(mini.bands) == 2
-    assert groups(mini.bands) == 1
-    assert {(b.lo_mhz, b.hi_mhz) for b in mini.bands} == {
-        (3480.9, 3646.4),
-        (3676.8, 3776.8),
-    }
-    hole = [b for b in mini.bands if overlaps(b.lo_mhz, b.hi_mhz, 3650.0, 3660.0)]
-    assert hole == []
+def test_derive_bands_merges_touching_channels_but_not_the_hole():
+    # Two 100 MHz channels with a 100 MHz hole between them: two bands, one allocation.
+    bands = derive_bands([_station("1", 3500.0, 100.0), _station("2", 3700.0, 100.0)])
+    assert [(b.lo_mhz, b.hi_mhz) for b in bands] == [(3450.0, 3550.0), (3650.0, 3750.0)]
+    assert groups(bands) == 1
+    assert [b for b in bands if overlaps(b.lo_mhz, b.hi_mhz, 3550.0, 3650.0)] == []
 
 
 def test_zero_bandwidth_is_a_point_not_a_crash():
@@ -51,20 +47,23 @@ def test_channels_that_touch_become_one_band():
     assert [(b.lo_mhz, b.hi_mhz, b.stations) for b in bands] == [(3450.0, 3650.0, ("1", "2"))]
 
 
-def test_select_bands_is_the_demo_slice(mini):
-    slice_bands = select_bands(mini.all_bands, *DEMO_SLICE_MHZ)
-    assert slice_bands == mini.bands
+def test_select_bands_is_the_demo_slice():
+    in_slice = _station("1", 3600.0, 100.0)  # 3 550-3 650 MHz, inside the demo slice
+    next_band = _station("2", 6100.0, 100.0)  # 6 050-6 150 MHz, the next space allocation
+    every = derive_bands([in_slice, next_band])
+    assert len(every) == 2
+    assert [b.stations for b in select_bands(every, *DEMO_SLICE_MHZ)] == [("1",)]
     assert len(SPACE_BANDS_MHZ) == 7
 
 
-def test_stations_on_band_uses_register_order(mini):
-    assert [s.id for s in stations_on(mini.stations, mini.bands)] == [
-        "900100001",
-        "900100002",
-        "900100003",
-        "900100004",
-        "900100005",
+def test_stations_on_band_uses_register_order():
+    stations = [
+        _station("3000", 3600.0, 100.0),
+        _station("1000", 3500.0, 100.0),
+        _station("9000", 100.0, 100.0),  # outside every space allocation
     ]
+    bands = derive_bands(stations)
+    assert [s.id for s in stations_on(stations, bands)] == ["3000", "1000"]
 
 
 def test_band_stations_are_recorded():

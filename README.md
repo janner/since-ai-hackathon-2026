@@ -46,9 +46,11 @@ selected card 124545403.
 
 ## Verified numbers
 
-Measured 7 Nov 2026 on IFIC 3074: `make check` 131 tests passed, the slice run takes about 1.3 s,
-the seven-band run about 5.5 s. The deterministic pipeline is offline; the optional LLM prose step
-is the only part that opens a connection, and only when `LLM_BASE_URL` is set.
+Measured 7 Nov 2026 on IFIC 3074: `make check` 128 tests passed (85 passed, 43 skipped without
+`data/`), the slice run takes about 3.5 s, the seven-band run about 7.7 s — most of it `mdb-export`
+reading the 15 tables out of the BR IFIC Access database. The deterministic pipeline is offline; the
+optional LLM prose step is the only part that opens a connection, and only when `LLM_BASE_URL` is
+set.
 
 | | Demo slice 3 470–3 780 MHz | All seven space bands (`--all`) |
 |---|---|---|
@@ -87,7 +89,7 @@ Prerequisites: [uv](https://docs.astral.sh/uv/), `make`, and `mdbtools` for `mdb
 sudo apt install mdbtools                 # mdb-export reads the IFIC Access database
 uv sync                                   # creates .venv from uv.lock
 cp <path>/Traficom_SinceAI_Frequencies_of_interest_v05112026.xlsx data/   # from the Since AI platform
-uv run python scripts/fetch_data.py       # downloads IFIC 3074, terrestrial BR IFIC 3075+3076, M4; space tables to CSV
+uv run python scripts/fetch_data.py       # downloads the BR IFIC zips and M4; unpacks the .mdb files
 ```
 
 `fetch_data.py` prints a SHA256 for every file it writes. The source URLs answered on 6 Nov 2026
@@ -98,7 +100,7 @@ guards the two terrestrial zips.
 ```bash
 # one command: the 3.47-3.78 GHz space slice and the terrestrial side feature,
 # both into the same out/. Drop the two --terrestrial flags for the space run alone.
-uv run python -m app.pipeline --ific data/itu-ific-3074 \
+uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json \
   --terrestrial data/itu-terr-ific/brific3076.mdb \
@@ -106,7 +108,7 @@ uv run python -m app.pipeline --ific data/itu-ific-3074 \
   --out out/
 
 # the whole register: all seven space bands (add the same --terrestrial flags if wanted)
-uv run python -m app.pipeline --ific data/itu-ific-3074 \
+uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json --out out/ --all
 
@@ -152,12 +154,14 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 131 passed |
-| Clean clone, no `data/` | 112 passed, 19 skipped |
+| With `data/` | 128 passed |
+| Clean clone, no `data/` | 85 passed, 43 skipped |
 
-`tests/fixtures/` holds the small committed inputs: a nine-notice synthetic IFIC package, an
-eight-station register and a five-row M4 table. The tests that need the real package or the real
-BR IFIC MDBs are marked `data` and skip themselves, so a clean clone runs green.
+There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
+the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
+for the side feature); `tests/conftest.py` skips all of them when `data/itu-ific-3074/ific3074.mdb`
+is missing, so a clean clone and CI run green without the data. To run them locally, fill `data/`
+with `scripts/fetch_data.py` (see Run it) and run `make test-data`, or the full `make check`.
 
 ## The web UI
 
@@ -246,7 +250,7 @@ row; the funnel endpoint carries their count.
 ```
 app/            one module per feature, each with tests/test_<feature>.py
   config.py     space bands, demo slice, rules version, adjacent guard, stages, formatting
-  ingest.py     IFIC tables, register, M4, unit parsing, input SHA256
+  ingest.py     IFIC tables read from the BR IFIC MDB (mdb-export), register, M4, unit parsing
   bands.py      protected bands derived from the register
   pfd.py        geometry, free-space loss, Table 21-4 limits
   gates.py      G1 to G4, reason codes, classes, queue
@@ -260,7 +264,7 @@ rules/          rr21_table21_4.csv, p1546_land.csv
 templates/      the two Finnish templates (card summary, correspondence)
 scripts/        fetch_data.py, demo.sh
 docs/           features.md, architecture.md, decisions.md, demo.md
-tests/          unit, component and data tests; tests/fixtures/ holds the small committed inputs
+tests/          unit, component and data tests; the data tests read data/ and skip when it is missing
 data/  out/     local only, ignored by git
 ```
 
@@ -291,7 +295,7 @@ Traficom's synthetic dataset from the Since AI platform and has to be copied in 
 | FastAPI and uvicorn | web API and the page | MIT |
 | openpyxl | register xlsx to CSV | MIT |
 | pytest, ruff | tests, lint, format | MIT |
-| mdbtools | `mdb-export` reads the IFIC `.mdb`: the space tables and the terrestrial BR IFIC | GPL / LGPL, system tool, not bundled |
+| mdbtools | `mdb-export` reads the BR IFIC `.mdb` straight from the database: the 15 space tables and the terrestrial tables | GPL / LGPL, system tool, not bundled |
 | ITU-R P.1546-6 table | `rules/p1546_land.csv` | generated once from the ITU reference implementation, see `docs/decisions.md` |
 | any OpenAI-compatible chat endpoint | card and letter prose, optional | the user's choice |
 

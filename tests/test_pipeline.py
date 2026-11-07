@@ -1,4 +1,4 @@
-"""The CLI and its output files, on the mini package and on the real one."""
+"""The CLI and its output files, on the real BR IFIC MDB."""
 
 import csv
 import json
@@ -9,93 +9,106 @@ import pytest
 from app import pipeline
 from app.cards import RESULT_COLUMNS
 
-FIXTURES = Path(__file__).resolve().parent / "fixtures"
 ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_FILES = ("cases.json", "cases.md", "queue.md", "funnel.json", "run.log")
-
-# The terrestrial side feature needs its own real MDBs on top of the space package.
+SPACE_MDB = ROOT / "data" / "itu-ific-3074" / "ific3074.mdb"
+REGISTER = ROOT / "data" / "frequencies_of_interest.csv"
+M4 = ROOT / "data" / "taajuusjakotaulukko.json"
 TERR_CURR = ROOT / "data" / "itu-terr-ific" / "brific3076.mdb"
 TERR_PREV = ROOT / "data" / "itu-terr-ific" / "brific3075.mdb"
-SPACE_DATA = ROOT / "data" / "itu-ific-3074"
+OUTPUT_FILES = ("cases.json", "cases.md", "queue.md", "funnel.json", "run.log")
+
+# The real BR IFIC MDBs are never committed: the data tests skip when data/ is missing.
 needs_data = pytest.mark.skipif(
-    not (TERR_CURR.is_file() and TERR_PREV.is_file() and SPACE_DATA.is_dir()),
+    not (SPACE_MDB.is_file() and REGISTER.is_file() and M4.is_file()),
     reason="challenge data missing: run scripts/fetch_data.py",
+)
+needs_terr = pytest.mark.skipif(
+    not (TERR_CURR.is_file() and TERR_PREV.is_file()),
+    reason="BR IFIC 3075/3076 MDB missing: run scripts/fetch_data.py",
 )
 
 
 @pytest.fixture(scope="module")
-def mini_out(tmp_path_factory) -> Path:
-    out = tmp_path_factory.mktemp("mini-out")
-    assert (
-        pipeline.run(
-            FIXTURES / "ific_mini", FIXTURES / "register_mini.csv", FIXTURES / "m4_mini.json", out
-        )
-        == 0
-    )
+def slice_out(tmp_path_factory) -> Path:
+    """One demo-slice run of the real MDB, shared by the output-contract tests."""
+    out = tmp_path_factory.mktemp("slice-out")
+    assert pipeline.run(SPACE_MDB, REGISTER, M4, out) == 0
     return out
 
 
-def test_mini_run_writes_every_output(mini_out):
+@pytest.mark.data
+@needs_data
+def test_slice_run_writes_every_output(slice_out):
     for name in OUTPUT_FILES:
-        assert (mini_out / name).is_file(), name
-    assert (mini_out / "ific_results.csv").is_file()  # named after the package, not 3074
+        assert (slice_out / name).is_file(), name
+    assert (slice_out / "3074_results.csv").is_file()
 
 
-def test_mini_results_csv_has_one_row_per_notice(mini_out):
-    with (mini_out / "ific_results.csv").open(newline="", encoding="utf-8") as handle:
+@pytest.mark.data
+@needs_data
+def test_slice_run_matches_the_documented_anchors(slice_out):
+    """The funnel and the CSV row count the plan fixes."""
+    funnel = json.loads((slice_out / "funnel.json").read_text(encoding="utf-8"))
+    assert funnel["counts"] == {
+        "notices": 196,
+        "g1": 41,
+        "g2": 19,
+        "g3": 18,
+        "cannot_decide": 1,
+        "exceeds": 9,
+        "near": 5,
+        "clear": 4,
+    }
+    assert funnel["queue"] == {"shown": 15}
+    assert funnel["mode"] == "slice"
+    assert len(funnel["input_sha256"]) == 64
+    with (slice_out / "3074_results.csv").open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         rows = list(reader)
     assert reader.fieldnames == list(RESULT_COLUMNS)
-    assert len(rows) == 9
+    assert len(rows) == 196
     assert len(rows[0]) == 19
 
 
-def test_mini_funnel_json_mini_out(mini_out):
-    funnel = json.loads((mini_out / "funnel.json").read_text(encoding="utf-8"))
-    assert funnel["counts"]["notices"] == 9
-    assert funnel["counts"]["g3"] == 2
-    assert funnel["queue"]["shown"] == 4
-    assert funnel["mode"] == "slice"
-    assert len(funnel["input_sha256"]) == 64
-
-
-def test_mini_cases_json_and_markdown(mini_out):
-    cards = json.loads((mini_out / "cases.json").read_text(encoding="utf-8"))
-    assert len(cards) == 2
+@pytest.mark.data
+@needs_data
+def test_slice_cases_json_and_markdown(slice_out):
+    cards = json.loads((slice_out / "cases.json").read_text(encoding="utf-8"))
+    assert len(cards) == 18
     assert cards[0]["class"] == "exceeds"
     assert "prose" in cards[0]
-    assert (mini_out / "cases.md").read_text(encoding="utf-8").startswith("# Cases (2)")
-    assert "196" not in (mini_out / "queue.md").read_text(encoding="utf-8")
+    assert (slice_out / "cases.md").read_text(encoding="utf-8").startswith("# Cases (18)")
+    assert "| 15 |" in (slice_out / "queue.md").read_text(encoding="utf-8")
 
 
-def test_run_log_records_the_hash_and_the_counts(mini_out):
-    log = (mini_out / "run.log").read_text(encoding="utf-8")
+@pytest.mark.data
+@needs_data
+def test_run_log_records_the_source_and_the_counts(slice_out):
+    log = (slice_out / "run.log").read_text(encoding="utf-8")
     assert "input_sha256=" in log
-    assert "ific=ific_mini" in log
-    assert "g1=6 g2=4 g3=2 cannot_decide=2" in log
+    assert "ific=3074" in log
+    assert "source_file=ific3074.mdb" in log
+    assert "g1=41 g2=19 g3=18 cannot_decide=1" in log
     assert "mode=slice" in log
 
 
-def test_letters_are_written_for_the_exceeds_cards(mini_out):
-    cards = json.loads((mini_out / "cases.json").read_text(encoding="utf-8"))
+@pytest.mark.data
+@needs_data
+def test_letters_are_written_for_the_exceeds_cards(slice_out):
+    cards = json.loads((slice_out / "cases.json").read_text(encoding="utf-8"))
     exceeds = {card["case_id"] for card in cards if card["class"] == "exceeds"}
-    written = {path.stem for path in (mini_out / "letters").iterdir()}
-    assert written == exceeds
-    assert f"letters={len(exceeds)}" in (mini_out / "run.log").read_text(encoding="utf-8")
+    clear = {card["case_id"] for card in cards if card["class"] == "clear"}
+    written = {path.stem for path in (slice_out / "letters").iterdir()}
+    assert len(exceeds) == 9 and written == exceeds
+    assert clear and not written & clear
+    assert "letters=9" in (slice_out / "run.log").read_text(encoding="utf-8")
 
 
+@pytest.mark.data
+@needs_data
 def test_out_directory_is_created(tmp_path):
     out = tmp_path / "deep" / "nested"
-    assert (
-        pipeline.run(
-            FIXTURES / "ific_mini",
-            FIXTURES / "register_mini.csv",
-            FIXTURES / "m4_mini.json",
-            out,
-            all_bands=True,
-        )
-        == 0
-    )
+    assert pipeline.run(SPACE_MDB, REGISTER, M4, out, all_bands=True) == 0
     assert (out / "funnel.json").is_file()
     assert json.loads((out / "funnel.json").read_text(encoding="utf-8"))["mode"] == "all"
 
@@ -103,13 +116,13 @@ def test_out_directory_is_created(tmp_path):
 def test_missing_input_is_a_clear_error(tmp_path):
     from app.ingest import DataError
 
-    with pytest.raises(DataError, match="missing IFIC directory"):
-        pipeline.run(tmp_path / "nope", FIXTURES / "register_mini.csv", FIXTURES / "m4_mini.json")
+    with pytest.raises(DataError, match="missing input file"):
+        pipeline.run(tmp_path / "nope.mdb", tmp_path / "r.csv", tmp_path / "m4.json")
 
 
 def test_missing_argument_is_an_argparse_error():
     with pytest.raises(SystemExit) as exit_info:
-        pipeline.main(["--ific", "data/itu-ific-3074"])
+        pipeline.main(["--ific", "data/itu-ific-3074/ific3074.mdb"])
     assert exit_info.value.code == 2
 
 
@@ -118,11 +131,11 @@ def test_bad_input_returns_exit_code_two(tmp_path):
         pipeline.main(
             [
                 "--ific",
-                str(tmp_path / "nope"),
+                str(tmp_path / "nope.mdb"),
                 "--register",
-                str(FIXTURES / "register_mini.csv"),
+                str(tmp_path / "r.csv"),
                 "--m4",
-                str(FIXTURES / "m4_mini.json"),
+                str(tmp_path / "m4.json"),
                 "--out",
                 str(tmp_path / "out"),
             ]
@@ -131,16 +144,18 @@ def test_bad_input_returns_exit_code_two(tmp_path):
     )
 
 
+@pytest.mark.data
+@needs_data
 def test_missing_limits_is_a_clear_error(tmp_path, capsys):
     """A bad --limits path must print `error: ...` and exit 2, not a traceback."""
     code = pipeline.main(
         [
             "--ific",
-            str(FIXTURES / "ific_mini"),
+            str(SPACE_MDB),
             "--register",
-            str(FIXTURES / "register_mini.csv"),
+            str(REGISTER),
             "--m4",
-            str(FIXTURES / "m4_mini.json"),
+            str(M4),
             "--out",
             str(tmp_path / "out"),
             "--limits",
@@ -151,6 +166,8 @@ def test_missing_limits_is_a_clear_error(tmp_path, capsys):
     assert "error:" in capsys.readouterr().err
 
 
+@pytest.mark.data
+@needs_data
 def test_register_without_stations_on_a_band_is_a_clear_error(tmp_path):
     """A register that protects nothing must say so instead of producing empty output."""
     from app.ingest import DataError
@@ -159,62 +176,22 @@ def test_register_without_stations_on_a_band_is_a_clear_error(tmp_path):
     empty.write_text(
         "Station number,Class of licence,Longitude,Latitude,Channel bandwidth,TX frequency,"
         "RX frequency,Ant gain (dB),Radioation power,Radiation power unit\n"
-        "1,BC,24.0,60.0,300.000 kHz,87.9 MHz,87.9 MHz,10,50,W\n"
+        "1,BC,24.0,60.0,300.000 kHz,87.9 MHz,87.9 MHz,10,50,W\n",
+        encoding="utf-8",
+    )
+    m4 = tmp_path / "m4.json"
+    m4.write_text(
+        '{"value": [{"ID": 1, "Sub_band_lower_limit__Hz_": 1000000,'
+        ' "Sub_band_upper_limit__Hz_": 2000000, "Services_in_Finnish": ""}]}',
+        encoding="utf-8",
     )
     with pytest.raises(DataError, match="no protected band"):
-        pipeline.run(FIXTURES / "ific_mini", empty, FIXTURES / "m4_mini.json", tmp_path / "out")
-
-
-@pytest.mark.data
-def test_real_run_writes_a_letter_for_every_exceeds_case(tmp_path):
-    """The demo slice has 9 exceeds cases and 4 clear ones: a letter per exceeds, none for clear."""
-    root = Path(__file__).resolve().parent.parent
-    out = tmp_path / "letters"
-    assert (
-        pipeline.run(
-            root / "data" / "itu-ific-3074",
-            root / "data" / "frequencies_of_interest.csv",
-            root / "data" / "taajuusjakotaulukko.json",
-            out,
-        )
-        == 0
-    )
-    cards = json.loads((out / "cases.json").read_text(encoding="utf-8"))
-    exceeds = {card["case_id"] for card in cards if card["class"] == "exceeds"}
-    clear = {card["case_id"] for card in cards if card["class"] == "clear"}
-    written = {path.stem for path in (out / "letters").iterdir()}
-    assert len(exceeds) == 9 and written == exceeds
-    assert clear and not written & clear
-    assert "letters=9" in (out / "run.log").read_text(encoding="utf-8")
-
-
-@pytest.mark.data
-def test_real_run_writes_the_documented_numbers(challenge, tmp_path):
-    out = tmp_path / "real"
-    assert (
-        pipeline.run(
-            Path(__file__).resolve().parent.parent / "data" / "itu-ific-3074",
-            Path(__file__).resolve().parent.parent / "data" / "frequencies_of_interest.csv",
-            Path(__file__).resolve().parent.parent / "data" / "taajuusjakotaulukko.json",
-            out,
-        )
-        == 0
-    )
-    for name in OUTPUT_FILES:
-        assert (out / name).is_file(), name
-    with (out / "3074_results.csv").open(newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
-    assert len(rows) == 196
-    cards = json.loads((out / "cases.json").read_text(encoding="utf-8"))
-    assert len(cards) == 18
-    funnel = json.loads((out / "funnel.json").read_text(encoding="utf-8"))
-    assert funnel["counts"]["exceeds"] == 9
-    assert funnel["queue"] == {"shown": 15}
-    assert challenge.slice.result.counts["g3"] == len(cards)
+        pipeline.run(SPACE_MDB, empty, m4, tmp_path / "out")
 
 
 @pytest.mark.data
 @needs_data
+@needs_terr
 def test_one_command_writes_both_space_and_terrestrial_outputs(tmp_path):
     """--terrestrial: the same run writes both output sets into one --out."""
     out = tmp_path / "both"
@@ -222,11 +199,11 @@ def test_one_command_writes_both_space_and_terrestrial_outputs(tmp_path):
         pipeline.main(
             [
                 "--ific",
-                str(ROOT / "data" / "itu-ific-3074"),
+                str(SPACE_MDB),
                 "--register",
-                str(ROOT / "data" / "frequencies_of_interest.csv"),
+                str(REGISTER),
                 "--m4",
-                str(ROOT / "data" / "taajuusjakotaulukko.json"),
+                str(M4),
                 "--terrestrial",
                 str(TERR_CURR),
                 "--terrestrial-prev",
@@ -249,15 +226,7 @@ def test_one_command_writes_both_space_and_terrestrial_outputs(tmp_path):
 @needs_data
 def test_without_the_terrestrial_flag_the_space_run_is_unchanged(tmp_path):
     out = tmp_path / "space"
-    assert (
-        pipeline.run(
-            ROOT / "data" / "itu-ific-3074",
-            ROOT / "data" / "frequencies_of_interest.csv",
-            ROOT / "data" / "taajuusjakotaulukko.json",
-            out,
-        )
-        == 0
-    )
+    assert pipeline.run(SPACE_MDB, REGISTER, M4, out) == 0
     assert not (out / "terrestrial_findings.json").exists()
     counts = json.loads((out / "funnel.json").read_text(encoding="utf-8"))["counts"]
     assert (counts["notices"], counts["g1"], counts["g2"]) == (196, 41, 19)

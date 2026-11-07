@@ -13,28 +13,29 @@ cp <path>/Traficom_SinceAI_Frequencies_of_interest_v05112026.xlsx data/
 uv run python scripts/fetch_data.py
 ```
 
-The last command downloads the IFIC package and the M4 table, runs `mdb-export` for the 15 tables,
-converts the register xlsx to CSV, and prints a SHA256 per file. It needs a network. The
-deterministic pipeline does not: it opens a connection only in the optional LLM prose step, and only
-when `LLM_BASE_URL` is set.
+The last command downloads the IFIC package, the two terrestrial BR IFIC packages and the M4 table,
+unpacks the `.mdb` database from each zip, converts the register xlsx to CSV, and prints a SHA256 per
+file. The database itself is read at run time by `mdb-export` (`apt install mdbtools` above). The
+download needs a network. The deterministic pipeline does not: it opens a connection only in the
+optional LLM prose step, and only when `LLM_BASE_URL` is set.
 
 ## 2. The demo run: the 3.47 to 3.78 GHz slice
 
 ```bash
-uv run python -m app.pipeline --ific data/itu-ific-3074 \
+uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json --out out/
 ```
 
 ```
 196 notices → G1 41 → G2 19 → G3 18 + 1 cannot decide
-exceeds 9, near 5, clear 4, 15 in the queue (1 groups, 2 bands, 1.25 s)
+exceeds 9, near 5, clear 4, 15 in the queue (1 groups, 2 bands, 3.48 s)
 wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log, letters/
 ```
 
 The first line is the funnel: 196 notices, 41 overlap a protected band, 19 of those can be seen from
-Finland, 18 get a number and one cannot be decided. The whole run takes about a second and opens no
-connection with no LLM configured.
+Finland, 18 get a number and one cannot be decided. The whole run takes a few seconds — most of it
+the `mdb-export` of the 15 tables — and opens no connection with no LLM configured.
 
 ## 3. What to look at
 
@@ -93,10 +94,11 @@ directive antenna can be protected at a lower level without changing any number.
 `out/run.log` is the audit line:
 
 ```
-run_at=2026-11-06T22:57:47+02:00
-input_sha256=2b7683bb00f0a998e40888b6502d7d229ccd7ec0d88a5b71b9a9e0d64d8497be
+run_at=2026-11-07T08:54:30+02:00
+input_sha256=a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31
 rules_version=1.1.0
-ific=ific3074
+ific=3074
+source_file=ific3074.mdb
 mode=slice
 notices=196
 freq_rows=95865
@@ -104,12 +106,12 @@ stations_on_band=7
 bands=2
 visible=GEO 16 NGSO 3
 g1=41 g2=19 g3=18 cannot_decide=1
-elapsed_s=1.29
+elapsed_s=3.48
 ```
 
-The hash covers the 15 input CSVs, so a rerun on another package is visible. `stations_on_band=7`
-and `bands=2` are the demo slice; the 13.1 MHz hole between the two bands is real and the tool does
-not cover it.
+The hash is the SHA256 of the BR IFIC MDB the run read, and `source_file` names it; a rerun on
+another package is visible. `stations_on_band=7` and `bands=2` are the demo slice; the 13.1 MHz hole
+between the two bands is real and the tool does not cover it.
 
 `out/funnel.json` carries the same counts as JSON with the drop reasons
 (`no_band_overlap` 155, `geo_below_horizon` 21, `ngso_never_visible` 1) for anything that reads
@@ -118,14 +120,14 @@ files instead of humans.
 ## 4. The whole register
 
 ```bash
-uv run python -m app.pipeline --ific data/itu-ific-3074 \
+uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json --out out/ --all
 ```
 
 ```
 196 notices → G1 101 → G2 75 → G3 64 + 11 cannot decide
-exceeds 26, near 15, clear 23, 52 in the queue (7 groups, 26 bands, 5.51 s)
+exceeds 26, near 15, clear 23, 52 in the queue (7 groups, 26 bands, 7.72 s)
 ```
 
 This is the accuracy run: all seven space bands, 84 register stations on the bands, 26 protected
@@ -161,7 +163,7 @@ notice in the slice has no row there; its count is in the funnel panel.
 The side feature runs in the same command as the space funnel, one MDB per number:
 
 ```bash
-uv run python -m app.pipeline --ific data/itu-ific-3074 \
+uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json \
   --terrestrial data/itu-terr-ific/brific3076.mdb \
@@ -216,17 +218,17 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 131 passed with data/
+make check        # ruff check, ruff format --check, pytest: 128 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 112 passed, 19 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 85 passed, 43 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. Three-minute demo script
 
 | Time | On screen | What to say |
 |---|---|---|
-| 0:00 | terminal, `wc -l` on the freq CSV | 196 notices, 95 865 frequency rows, published every two weeks, checked by hand today |
+| 0:00 | terminal, `data/itu-ific-3074/` and the slice command | 196 notices, 95 865 frequency rows, published every two weeks, checked by hand today |
 | 0:20 | run the slice command, funnel line appears | 196 to 41 to 19 to 18 plus one that cannot be decided |
 | 0:50 | `out/cases.md`, card 3074-103500417 | the number, the citation for the limit, the missing beam geometry, the question we would send |
 | 1:40 | `queue.md`, row 15, case 126590032 | the case the tool refuses to decide, with the reason `no_power`, and why that is a feature |

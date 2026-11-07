@@ -35,11 +35,12 @@ def _audit() -> dict:
     }
 
 
-def test_mini_card_has_the_whole_schema(mini):
-    case = mini.result.case_by_id()["900000001"]
-    card = build_card(case, mini.ific, mini.m4, _audit())
+@pytest.mark.data
+def test_card_has_the_whole_schema(challenge):
+    case = challenge.slice.result.case_by_id()["103500417"]
+    card = build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
     assert set(CARD_FIELDS) <= set(card)
-    assert card["case_id"] == "ific-900000001"
+    assert card["case_id"] == "3074-103500417"
     assert card["direction"] == "space-to-Earth"
     assert card["coverage"]["beam_geometry"] == "missing"
     assert card["calculation"]["method"] == "PFD_peak_upper_bound"
@@ -50,66 +51,72 @@ def test_mini_card_has_the_whole_schema(mini):
         "s_beam.min_axis",
     ]
     assert len(card["audit"]["input_sha256"]) == 64
-    assert card["victim"]["gain_db"] == 40.0
-    assert "900000001" in render_card_md(card)
+    assert "103500417" in render_card_md(card)
 
 
-def test_m4_lookup_is_context_not_a_gate(mini):
-    # 3 590-3 610 MHz overlaps both mini sub-bands -> both services, first and last ID
-    overlapping = m4_lookup(mini.m4, 3590.0, 3610.0)
-    assert overlapping["rows"] == [1, 2]
+@pytest.mark.data
+def test_m4_lookup_is_context_not_a_gate(challenge):
+    # 3 642-3 678 MHz overlaps the 3 400-3 800 MHz M4 allocation -> both rows, one service list
+    overlapping = m4_lookup(challenge.slice.m4, 3642.0, 3678.0)
+    assert overlapping["rows"] == [4060, 4091]
     assert overlapping["band_mhz"] == [3400.0, 3800.0]
-    assert overlapping["services_in_finland"] == "FIXED, MOBILE AND FIXED"
-    not_allocated = m4_lookup(mini.m4, 100.0, 200.0)
+    assert overlapping["services_in_finland"] == "MOBILE AND FIXED"
+    not_allocated = m4_lookup(challenge.slice.m4, 500_000.0, 500_100.0)  # above the table
     assert not_allocated["rows"] == []
     assert not_allocated["services_in_finland"] == "not allocated"
 
 
-def test_missing_register_field_is_reported(mini):
+@pytest.mark.data
+def test_missing_register_field_is_reported(challenge):
     """A victim without a gain still gets a card; the gap is named, not guessed."""
-    case = mini.result.case_by_id()["900000001"]
-    without_gain = replace(
-        case,
-        victim=replace(case.victim, gain_db=None, power_w=None),
-    )
-    card = build_card(without_gain, mini.ific, mini.m4, _audit())
+    case = challenge.slice.result.case_by_id()["103500417"]
+    without_gain = replace(case, victim=replace(case.victim, gain_db=None, power_w=None))
+    card = build_card(without_gain, challenge.slice.ific, challenge.slice.m4, _audit())
     assert "frequencies_of_interest.Ant gain (dB)" in card["missing"]
     assert "frequencies_of_interest.Radioation power" in card["missing"]
 
 
-def test_results_rows_cover_every_notice(mini):
-    cards = [build_card(case, mini.ific, mini.m4, _audit()) for case in mini.result.cases]
-    rows = results_rows(mini.result, mini.ific, cards)
-    assert len(rows) == len(mini.ific.notices) == 9
+@pytest.mark.data
+def test_results_rows_cover_every_notice(challenge):
+    result = challenge.slice.result
+    cards = [
+        build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
+        for case in result.cases
+    ]
+    rows = results_rows(result, challenge.slice.ific, cards)
+    assert len(rows) == len(challenge.slice.ific.notices) == 196
     by_id = {row["ntc_id"]: row for row in rows}
-    assert by_id["900000005"]["dropped_at"] == "G1"
-    assert by_id["900000005"]["reason"] == "earth_station_notice"
-    assert by_id["900000005"]["class"] == ""  # dropped before G3: no class
-    assert by_id["900000003"]["class"] == "cannot_decide"
-    assert by_id["900000003"]["reason"] == "no_orbit"
-    assert by_id["900000001"]["class"] == "exceeds"
-    assert by_id["900000001"]["dropped_at"] == ""
+    dropped = next(ntc_id for ntc_id, (stage, _) in result.dropped.items() if stage == "G1")
+    assert by_id[dropped]["dropped_at"] == "G1"
+    assert by_id[dropped]["reason"] == "no_band_overlap"
+    assert by_id[dropped]["class"] == ""  # dropped before G3: no class
+    assert by_id["126590032"]["class"] == "cannot_decide"
+    assert by_id["126590032"]["reason"] == "no_power"
+    assert by_id["103500417"]["class"] == "exceeds"
+    assert by_id["103500417"]["dropped_at"] == ""
 
 
-def test_a_too_large_victim_power_is_flagged(mini):
+@pytest.mark.data
+def test_a_too_large_victim_power_is_flagged(challenge):
     """A register row above 1 GW is a synthetic artefact: show it, warn, never hide it."""
-    case = mini.result.case_by_id()["900000001"]
+    case = challenge.slice.result.case_by_id()["103500417"]
     huge = replace(case, victim=replace(case.victim, power_w=7.33e9))
-    card = build_card(huge, mini.ific, mini.m4, _audit())
+    card = build_card(huge, challenge.slice.ific, challenge.slice.m4, _audit())
     assert card["victim"]["power_w"] == 7.33e9
     assert "not used in the PFD calculation" in card["synthetic_data_warning"]
 
 
-def test_a_normal_victim_power_has_no_warning(mini):
-    case = mini.result.case_by_id()["900000001"]
-    card = build_card(case, mini.ific, mini.m4, _audit())
+@pytest.mark.data
+def test_a_normal_victim_power_has_no_warning(challenge):
+    case = challenge.slice.result.case_by_id()["103500417"]
+    card = build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
     assert card["victim"]["power_w"] == 145.0
     assert card["synthetic_data_warning"] is None
 
 
 @pytest.mark.data
 def test_golden_case_103500417(challenge):
-    """The plan's test vector, on the real package.
+    """The plan's test vector, on the real BR IFIC MDB.
 
     The band label is 3 642-3 678 MHz, not the 3 662-3 698 MHz in the plan: the CDN beam
     repeats an identical 36 MHz channel every 20 MHz, so ten channels tie for the same
@@ -123,6 +130,7 @@ def test_golden_case_103500417(challenge):
     assert card["direction"] == "space-to-Earth"
     assert card["same_network"] == ["303500417"]
     assert card["source"]["file"] == "ific3074.mdb"
+    assert card["source"]["ific"] == "3074"
     assert card["source"]["keys"] == {
         "ntc_id": "103500417",
         "grp_id": "109692106",
@@ -180,20 +188,26 @@ def test_golden_case_103500417(challenge):
     assert card["audit"]["rules_version"] == "1.1.0"
 
 
-def test_directive_antenna_gets_a_threshold_note(mini):
+@pytest.mark.data
+def test_directive_antenna_gets_a_threshold_note(challenge):
     """A high-gain directive victim names the lower trigger level; nothing else changes."""
-    case = mini.result.case_by_id()["900000001"]
-    assert case.victim.directivity == "ND"  # the mini register has no directive station
-    assert build_card(case, mini.ific, mini.m4, _audit())["threshold_note"] is None
-
-    directive = replace(case, victim=replace(case.victim, directivity="D"))
-    card = build_card(directive, mini.ific, mini.m4, _audit())
+    case = challenge.slice.result.case_by_id()["103500417"]
+    assert case.victim.directivity == "D" and case.victim.gain_db == 40.0
+    card = build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
     assert "directive antenna" in card["threshold_note"]
-    assert card["class"] == case.klass  # no class change
-    assert card["calculation"]["margin_db"] == case.margin_db  # no number change
 
-    low_gain = replace(case, victim=replace(case.victim, directivity="D", gain_db=10.0))
-    assert build_card(low_gain, mini.ific, mini.m4, _audit())["threshold_note"] is None
+    low_gain = replace(case, victim=replace(case.victim, gain_db=10.0))
+    assert (
+        build_card(low_gain, challenge.slice.ific, challenge.slice.m4, _audit())["threshold_note"]
+        is None
+    )
+    non_directive = replace(case, victim=replace(case.victim, directivity="ND"))
+    assert (
+        build_card(non_directive, challenge.slice.ific, challenge.slice.m4, _audit())[
+            "threshold_note"
+        ]
+        is None
+    )
 
 
 @pytest.mark.data

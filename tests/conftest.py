@@ -8,17 +8,16 @@ from app.bands import derive_bands, select_bands, stations_on
 from app.config import DEMO_SLICE_MHZ
 
 ROOT = Path(__file__).resolve().parent.parent
-FIXTURES = Path(__file__).resolve().parent / "fixtures"
 RULES = ROOT / "rules" / "rr21_table21_4.csv"
 DATA = ROOT / "data"
-IFIC = DATA / "itu-ific-3074"
+IFIC = DATA / "itu-ific-3074" / "ific3074.mdb"
 REGISTER = DATA / "frequencies_of_interest.csv"
 M4 = DATA / "taajuusjakotaulukko.json"
 
 
 def pytest_collection_modifyitems(config, items):
-    # Real challenge data is never committed: a clean clone runs green, data tests skip.
-    if (DATA / "itu-ific-3074" / "csv").is_dir():
+    # The real challenge data is never committed: a clean clone runs green, data tests skip.
+    if IFIC.is_file():
         return
     skip = pytest.mark.skip(reason="data/ missing: run scripts/fetch_data.py")
     for item in items:
@@ -26,9 +25,9 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip)
 
 
-def _run_pipeline(ific_dir: Path, register: Path, m4: Path, all_bands: bool) -> SimpleNamespace:
-    """Load a package and run the gates once; the real data is too big to load per test."""
-    ific = ingest.load_ific(ific_dir)
+def _run_pipeline(ific_mdb: Path, register: Path, m4: Path, all_bands: bool) -> SimpleNamespace:
+    """Load the BR IFIC MDB and run the gates once; the real data is too big to load per test."""
+    ific = ingest.load_ific(ific_mdb)
     stations, counts = ingest.load_register(register)
     every_band = derive_bands(stations)
     bands = every_band if all_bands else select_bands(every_band, *DEMO_SLICE_MHZ)
@@ -53,16 +52,8 @@ def _run_pipeline(ific_dir: Path, register: Path, m4: Path, all_bands: bool) -> 
 
 
 @pytest.fixture(scope="session")
-def mini() -> SimpleNamespace:
-    """The committed synthetic package: nine notices, eight stations, both vectors."""
-    return _run_pipeline(
-        FIXTURES / "ific_mini", FIXTURES / "register_mini.csv", FIXTURES / "m4_mini.json", True
-    )
-
-
-@pytest.fixture(scope="session")
 def challenge() -> SimpleNamespace:
-    """The real 3074 package, both the demo slice and all seven bands."""
+    """The real 3074 BR IFIC MDB, both the demo slice and all seven bands."""
     return SimpleNamespace(
         slice=_run_pipeline(IFIC, REGISTER, M4, False),
         all=_run_pipeline(IFIC, REGISTER, M4, True),

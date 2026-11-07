@@ -5,6 +5,28 @@ from dataclasses import replace
 import pytest
 
 from app import gates
+from app.bands import Band
+from app.ingest import Freq, IficData, Notice
+
+
+def _notice(ntc_id: str, ntc_type: str = "N") -> Notice:
+    return Notice(ntc_id, "TST", ntc_type, "A", "11.2", "", "", "")
+
+
+def _ific(freqs: list[Freq], notices: dict[str, Notice]) -> IficData:
+    """A minimal IficData: gate1 only reads `freqs` and `notices`."""
+    return IficData(
+        notices=notices,
+        freqs=freqs,
+        beams={},
+        emiss={},
+        geo={},
+        nongeo={},
+        orbits={},
+        counts={},
+        file="x.mdb",
+        input_sha256="0" * 64,
+    )
 
 
 def test_class_boundaries():
@@ -14,144 +36,46 @@ def test_class_boundaries():
     assert gates.classify(-2.99) == "near"
 
 
-def test_mini_funnel_counts_and_reasons(mini):
-    result = mini.result
-    assert result.counts == {
-        "notices": 9,
-        "g1": 6,
-        "g2": 4,
-        "g3": 2,
-        "cannot_decide": 2,
-        "exceeds": 2,
-        "near": 0,
-        "clear": 0,
-    }
-    assert result.dropped == {
-        "900000005": ("G1", "earth_station_notice"),
-        "900000006": ("G1", "no_band_overlap"),
-        "900000009": ("G1", "no_band_overlap"),  # sits in the hole: not protected
-        "900000007": ("G2", "ngso_never_visible"),
-        "900000008": ("G2", "geo_below_horizon"),
-    }
-    assert result.undecided == {"900000003": "no_orbit", "900000004": "no_power"}
-
-
-def test_missing_perigee_cannot_be_decided(mini):
-    ntc_id = "900000002"
-    orbits = [replace(orbit, perig_km=None) for orbit in mini.ific.orbits[ntc_id]]
-    ific = replace(mini.ific, orbits={**mini.ific.orbits, ntc_id: orbits})
-    found, _, _ = gates.gate1(ific, mini.bands)
-    cases, undecided = gates.gate3(ific, {ntc_id: found[ntc_id]}, mini.result.stations, mini.limits)
-    assert cases == []
-    assert undecided == {ntc_id: "no_perigee"}
-
-
-def test_mini_vector_1_is_reproduced(mini):
-    case = mini.result.case_by_id()["900000001"]
-    assert case.orbit == "GSO"
-    assert case.beam == "CDN"
-    assert (case.victim.id, case.victim.licence) == ("900100001", "MVV")
-    assert case.elev_deg == pytest.approx(4.85, abs=0.01)
-    assert case.slant_km == pytest.approx(41143, abs=1)
-    assert case.psd_dbw_hz == -50.0
-    assert case.beam_gain_db == 28.5
-    assert case.pfd_dbw_m2_hz == pytest.approx(-184.78, abs=0.01)
-    assert case.limit_dbw_m2_hz == pytest.approx(-188.02, abs=0.01)
-    assert case.margin_db == pytest.approx(3.24, abs=0.01)
-    assert case.klass == "exceeds"
-
-
-def test_mini_non_gso_case_uses_the_pass_sweep(mini):
-    case = mini.result.case_by_id()["900000002"]
-    assert case.orbit == "NGSO"
-    assert case.perigee_km == 600.0
-    assert case.elev_deg == 5.0  # the worst angle of the sampled pass
-    assert case.slant_km == pytest.approx(2329, abs=1)
-    assert case.margin_db == pytest.approx(58.16, abs=0.01)
-    assert case.limit.service.startswith("FSS")
-
-
-def test_queue_order(mini):
-    queue = mini.result.queue
-    assert [item.klass for item in queue] == [
-        "exceeds",
-        "exceeds",
-        "cannot_decide",
-        "cannot_decide",
-    ]
-    assert [item.ntc_id for item in queue[:2]] == ["900000002", "900000001"]  # margin descending
-    assert [item.reason for item in queue[2:]] == ["no_orbit", "no_power"]
-
-
-def test_gate4_queues_every_concern_and_no_clear(mini):
-    base = mini.result.cases[0]
-    cases = [
-        replace(base, ntc_id="900000001", klass="exceeds", margin_db=5.0),
-        replace(base, ntc_id="900000002", klass="near", margin_db=-1.0),
-        replace(base, ntc_id="900000009", klass="clear", margin_db=-9.0),
-    ]
-    queue = gates.gate4(cases, {"900000003": "no_power"}, mini.ific.notices)
-    assert [item.klass for item in queue] == ["exceeds", "near", "cannot_decide"]
-    assert [item.ntc_id for item in queue] == ["900000001", "900000002", "900000003"]
-
-
-def test_queue_puts_coordination_before_notification(mini):
-    """Same class and same margin: the stage another administration can still influence wins."""
-    from app.ingest import Notice
-
-    base = mini.result.cases[0]
-    cases = [
-        replace(base, ntc_id="900000001", klass="near", margin_db=-1.0),
-        replace(base, ntc_id="900000002", klass="near", margin_db=-1.0),
-    ]
-    notices = {
-        "900000001": Notice("900000001", "TST", "N", "A", "11.2", "", "", ""),
-        "900000002": Notice("900000002", "TST", "N", "A", "9.6", "", "", ""),
-    }
-    queue = gates.gate4(cases, {}, notices)
-    assert [item.ntc_id for item in queue] == ["900000002", "900000001"]
-    assert [item.stage for item in queue] == ["No. 9.6", "No. 11.2"]
-
-
-def test_guard_mhz_zero_is_the_plain_overlap(mini, monkeypatch):
+def test_guard_mhz_zero_is_the_plain_overlap(monkeypatch):
     from app import config
+
+    freqs = [Freq("1", "B", "1", "E", 3600.0, 3610.0), Freq("2", "B", "2", "E", 3400.0, 3430.0)]
+    notices = {"1": _notice("1"), "2": _notice("2")}
+    band = Band(lo_mhz=3470.0, hi_mhz=3780.0, group=0, stations=("s1",))
 
     monkeypatch.setattr(config, "GUARD_MHZ", 0.0)
-    found, dropped, adjacent = gates.gate1(mini.ific, mini.bands)
+    found, dropped, adjacent = gates.gate1(_ific(freqs, notices), [band])
+    assert set(found) == {"1"}  # 3 400-3 430 MHz does not overlap the band
     assert adjacent == set()
-    assert "900000009" not in found  # sits in the hole, no overlap and no guard
-    assert dropped["900000009"] == ("G1", "no_band_overlap")
-    assert mini.result.counts == {
-        "notices": 9,
-        "g1": 6,
-        "g2": 4,
-        "g3": 2,
-        "cannot_decide": 2,
-        "exceeds": 2,
-        "near": 0,
-        "clear": 0,
-    }
+    assert dropped == {"2": ("G1", "no_band_overlap")}
 
 
-def test_guard_mhz_lets_an_adjacent_notice_through(mini, monkeypatch):
+def test_guard_mhz_lets_an_adjacent_notice_through(monkeypatch):
+    """A notice inside the guard but outside the band enters and is marked adjacent."""
     from app import config
 
-    monkeypatch.setattr(config, "GUARD_MHZ", 5.0)
-    found, dropped, adjacent = gates.gate1(mini.ific, mini.bands)
-    assert adjacent == {"900000009"}  # 3,6 MHz below the lower band, inside a 5 MHz guard
-    assert "900000009" in found
-    assert "900000009" not in dropped
+    freqs = [Freq("1", "B", "1", "E", 3600.0, 3610.0), Freq("2", "B", "2", "E", 3400.0, 3430.0)]
+    notices = {"1": _notice("1"), "2": _notice("2")}
+    band = Band(lo_mhz=3470.0, hi_mhz=3780.0, group=0, stations=("s1",))
+
+    monkeypatch.setattr(config, "GUARD_MHZ", 50.0)
+    found, dropped, adjacent = gates.gate1(_ific(freqs, notices), [band])
+    assert set(found) == {"1", "2"}
+    assert adjacent == {"2"}  # only the guard let it in
+    assert "2" not in dropped
 
 
-def test_an_adjacent_case_is_capped_at_near(mini):
-    """A guard-only case keeps its computed margin but never reads as `exceeds`."""
-    ntc_id = "900000001"  # margin +3,24 dB: exceeds on its own
-    freqs = {ntc_id: [f for f in mini.ific.freqs if f.ntc_id == ntc_id and f.emi_rcp == "E"]}
-    cases, _ = gates.gate3(mini.ific, freqs, mini.result.stations, mini.limits, {ntc_id})
-    case = {c.ntc_id: c for c in cases}[ntc_id]
-    assert case.adjacent is True
-    assert case.margin_db == pytest.approx(3.24, abs=0.01)
-    assert case.klass == "near"
+def test_a_notice_type_s_sending_E_is_dropped(monkeypatch):
+    """An earth station notice sending "E" is the station transmitting, not a downlink."""
+    from app import config
+
+    freqs = [Freq("1", "B", "1", "E", 3600.0, 3610.0)]
+    notices = {"1": _notice("1", ntc_type="S")}
+    band = Band(lo_mhz=3470.0, hi_mhz=3780.0, group=0, stations=("s1",))
+    monkeypatch.setattr(config, "GUARD_MHZ", 0.0)
+    found, dropped, _ = gates.gate1(_ific(freqs, notices), [band])
+    assert found == {}
+    assert dropped == {"1": ("G1", "earth_station_notice")}
 
 
 @pytest.mark.data
@@ -216,7 +140,76 @@ def test_all_bands_funnel(challenge):
         "324520174",
         "324520203",
     ]
-    assert len(result.queue) == 52  # 26 exceeds + 15 near + 11 cannot_decide; the 23 clear stay out
+    assert len(result.queue) == 52  # 26 exceeds + 15 near + 11 cannot_decide; 23 clear stay out
+
+
+@pytest.mark.data
+def test_missing_perigee_cannot_be_decided(challenge):
+    """A non-GSO notice whose orbit rows carry no perigee is a cannot_decide, not a clear."""
+    ntc_id = "124545403"
+    orbits = [replace(orbit, perig_km=None) for orbit in challenge.slice.ific.orbits[ntc_id]]
+    ific = replace(challenge.slice.ific, orbits={**challenge.slice.ific.orbits, ntc_id: orbits})
+    found, _, _ = gates.gate1(ific, challenge.slice.bands)
+    cases, undecided = gates.gate3(
+        ific, {ntc_id: found[ntc_id]}, challenge.slice.result.stations, challenge.slice.limits
+    )
+    assert cases == []
+    assert undecided == {ntc_id: "no_perigee"}
+
+
+@pytest.mark.data
+def test_an_adjacent_case_is_capped_at_near(challenge):
+    """A guard-only case keeps its computed margin but never reads as `exceeds`."""
+    ntc_id = "103500417"  # margin +3,24 dB: exceeds on its own
+    freqs = {
+        ntc_id: [f for f in challenge.slice.ific.freqs if f.ntc_id == ntc_id and f.emi_rcp == "E"]
+    }
+    cases, _ = gates.gate3(
+        challenge.slice.ific,
+        freqs,
+        challenge.slice.result.stations,
+        challenge.slice.limits,
+        {ntc_id},
+    )
+    case = {c.ntc_id: c for c in cases}[ntc_id]
+    assert case.adjacent is True
+    assert case.margin_db == pytest.approx(3.24, abs=0.01)
+    assert case.klass == "near"
+
+
+@pytest.mark.data
+def test_queue_holds_every_concern_and_no_clear(challenge):
+    result = challenge.slice.result
+    queued = {item.ntc_id for item in result.queue}
+    assert queued == {c.ntc_id for c in result.cases if c.klass != "clear"} | set(result.undecided)
+    assert all(c.ntc_id not in queued for c in result.cases if c.klass == "clear")
+
+
+@pytest.mark.data
+def test_queue_order(challenge):
+    """Class order first, then within a class the margin descending."""
+    queue = challenge.slice.result.queue
+    assert {item.klass for item in queue} == {"exceeds", "near", "cannot_decide"}  # no clear
+    ranks = [gates.CLASS_ORDER.index(item.klass) for item in queue]
+    assert ranks == sorted(ranks)
+    for stage_rank in {item.stage_rank for item in queue if item.klass == "exceeds"}:
+        margins = [
+            item.margin_db
+            for item in queue
+            if item.klass == "exceeds" and item.stage_rank == stage_rank
+        ]
+        assert margins == sorted(margins, reverse=True)
+    assert [item.reason for item in queue if item.klass == "cannot_decide"] == ["no_power"]
+
+
+@pytest.mark.data
+def test_queue_puts_coordination_before_notification(challenge):
+    """The stage another administration can still influence comes before a recorded filing."""
+    queue = challenge.slice.result.queue
+    assert queue[0].stage == "No. 9.1"  # advance publication, rank 0
+    for klass in ("exceeds", "near"):
+        ranks = [item.stage_rank for item in queue if item.klass == klass]
+        assert ranks == sorted(ranks)
 
 
 @pytest.mark.data

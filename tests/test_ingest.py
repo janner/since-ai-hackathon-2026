@@ -6,7 +6,20 @@ import pytest
 
 from app import ingest
 
-FIXTURES = Path(__file__).resolve().parent / "fixtures"
+ROOT = Path(__file__).resolve().parent.parent
+MDB = ROOT / "data" / "itu-ific-3074" / "ific3074.mdb"
+REGISTER = ROOT / "data" / "frequencies_of_interest.csv"
+
+# The register columns load_register reads, in the order the real CSV carries them.
+REGISTER_HEADER = (
+    "Station number,Class of licence,Latitude,Longitude,Channel bandwidth,TX frequency,"
+    "RX frequency,Ant gain (dB),Radioation power,Radiation power unit\n"
+)
+
+
+def _register(path: Path, *rows: str) -> Path:
+    path.write_text(REGISTER_HEADER + "".join(f"{row}\n" for row in rows), encoding="utf-8")
+    return path
 
 
 @pytest.mark.parametrize(
@@ -35,23 +48,46 @@ def test_watts_converts_units():
     assert ingest.watts(None, None) is None
 
 
-def test_load_register_skips_rows_without_frequency():
-    stations, counts = ingest.load_register(FIXTURES / "register_mini.csv")
-    assert counts == {"rows": 9, "stations": 8, "skipped_no_freq": 1}
+def test_load_register_skips_rows_without_frequency(tmp_path):
+    path = _register(
+        tmp_path / "register.csv",
+        "1,MVV,60.0,24.0,300.000 kHz,87.9 MHz,87.9 MHz,40,145,W",  # kept
+        "2,MVV,60.0,24.0,300.000 kHz,,,10,50,W",  # neither RX nor TX
+        "3,MVV,60.0,24.0,300.000 kHz,87.9 MHz,87.9 MHz,,50,W",  # gain missing
+        "4,MVV,60.0,24.0,300.000 kHz,87.9 MHz,87.9 MHz,10,,W",  # power missing
+    )
+    stations, counts = ingest.load_register(path)
+    assert counts == {"rows": 4, "stations": 3, "skipped_no_freq": 1}
     by_id = {s.id: s for s in stations}
-    assert "900100006" not in by_id  # neither RX nor TX
-    assert by_id["900100001"].gain_db == 40.0
-    assert by_id["900100001"].power_w == 145.0
-    assert by_id["900100003"].gain_db is None  # register row without a gain
-    assert by_id["900100004"].power_w is None  # register row without a power
+    assert "2" not in by_id
+    assert by_id["1"].gain_db == 40.0
+    assert by_id["1"].power_w == 145.0
+    assert by_id["3"].gain_db is None
+    assert by_id["4"].power_w is None
 
 
-def test_station_uses_tx_when_rx_is_missing():
-    stations, _ = ingest.load_register(FIXTURES / "register_mini.csv")
-    station = next(s for s in stations if s.id == "900100005")
+def test_station_uses_tx_when_rx_is_missing(tmp_path):
+    path = _register(tmp_path / "register.csv", "5,MVV,60.0,24.0,100.000 MHz,3560.0 MHz,,10,50,W")
+    stations, _ = ingest.load_register(path)
+    station = stations[0]
     assert station.rx_mhz is None
     assert station.centre_mhz == 3560.0
     assert (station.lo_mhz, station.hi_mhz) == (3510.0, 3610.0)
+
+
+def test_bandwidth_is_the_smaller_of_channel_and_transmission(tmp_path):
+    """Traficom: when the two disagree, the smaller one is what the register means."""
+    path = tmp_path / "register.csv"
+    path.write_text(
+        "Station number,Class of licence,Latitude,Longitude,Channel bandwidth,"
+        "Transmission bandwidth,TX frequency,RX frequency,Ant gain (dB)\n"
+        "1,MVV,60.0,24.0,118600k,2500.000 kHz,3726.8 MHz,3726.8 MHz,40\n"
+        "2,MVV,60.0,24.0,,300.000 kHz,87.9 MHz,87.9 MHz,40\n",
+        encoding="utf-8",
+    )
+    stations, _ = ingest.load_register(path)
+    assert stations[0].bw_mhz == pytest.approx(2.5)  # 118,6 MHz is the data-entry artefact
+    assert stations[1].bw_mhz == pytest.approx(0.3)  # only one column carries a value
 
 
 def test_empty_file_is_a_clear_error(tmp_path):
@@ -75,40 +111,87 @@ def test_header_only_file_is_a_clear_error(tmp_path):
         ingest.rows(header_only)
 
 
-def test_missing_ific_directory_is_a_clear_error(tmp_path):
-    with pytest.raises(ingest.DataError, match="missing IFIC directory"):
-        ingest.load_ific(tmp_path / "nope")
+def test_missing_mdb_is_a_clear_error(tmp_path):
+    with pytest.raises(ingest.DataError, match="missing input file"):
+        ingest.load_ific(tmp_path / "nope.mdb")
 
 
-def test_missing_required_table_is_a_clear_error(tmp_path):
-    (tmp_path / "ific" / "csv").mkdir(parents=True)
-    (tmp_path / "ific" / "csv" / "notice.csv").write_text(
-        "ntc_id,adm,ntc_type,act_code\n1,TST,G,A\n"
-    )
-    with pytest.raises(ingest.DataError, match="freq.csv"):
-        ingest.load_ific(tmp_path / "ific")
+def test_missing_mdb_export_is_a_clear_error(tmp_path, monkeypatch):
+    mdb = tmp_path / "x.mdb"
+    mdb.write_bytes(b"not an Access database")
+    monkeypatch.setattr(ingest.shutil, "which", lambda name: None)
+    with pytest.raises(ingest.DataError, match="mdb-export"):
+        ingest.load_ific(mdb)
 
 
-def test_m4_without_value_array_is_a_clear_error(tmp_path):
-    bad = tmp_path / "m4.json"
-    bad.write_text('{"error": "nope"}')
-    with pytest.raises(ingest.DataError, match="value"):
-        ingest.load_m4(bad)
+def test_unreadable_table_is_a_clear_error(tmp_path):
+    """A file that is not an Access database: the first required table names itself."""
+    mdb = tmp_path / "fake.mdb"
+    mdb.write_bytes(b"not an Access database")
+    with pytest.raises(ingest.DataError, match="notice"):
+        ingest.load_ific(mdb)
 
 
-def test_load_ific_mini_counts():
-    ific = ingest.load_ific(FIXTURES / "ific_mini")
-    assert ific.counts["notice"] == 9
-    assert ific.counts["freq"] == 10
-    assert ific.counts["s_beam"] == 7
-    assert ific.counts["geo"] == 3
-    assert ific.counts["orbit"] == 2
+def test_exported_rows_are_mapped_to_ific_data(tmp_path, monkeypatch):
+    """load_ific is a mapping over the exported rows; mdb-export itself is the tested shell-out."""
+    mdb = tmp_path / "ific3074.mdb"
+    mdb.write_bytes(b"x")
+    tables = {
+        "notice": [
+            {
+                "ntc_id": "1",
+                "adm": "CHN ",
+                "ntc_type": "N",
+                "act_code": "A",
+                "prov": "11.2",
+                "ntwk_org": "ORG",
+                "adm_ref_id": "REF",
+                "tgt_ntc_id": "2",
+            }
+        ],
+        "freq": [
+            {
+                "ntc_id": "1",
+                "beam_name": "CDN",
+                "grp_id": "9",
+                "emi_rcp": "E",
+                "freq_min": "3 642 MHz",
+                "freq_max": "3 678 MHz",
+            },
+            {"ntc_id": "1", "emi_rcp": "E", "freq_min": "", "freq_max": ""},  # unusable
+        ],
+        "s_beam": [
+            {
+                "ntc_id": "1",
+                "beam_name": "CDN",
+                "gain": "28.5",
+                "freq_min": "3642",
+                "freq_max": "3678",
+            }
+        ],
+        "emiss": [{"grp_id": "9", "pwr_ds_max": "-50.0"}],
+        "geo": [{"ntc_id": "1", "sat_name": "COMPASS-80E", "long_nom": "80"}],
+        "orbit": [{"ntc_id": "1", "apog_km": "35786", "perig_km": "35786", "inclin_ang": "0"}],
+    }
+    monkeypatch.setattr(ingest, "_export", lambda path, table: tables.get(table, []))
+    ific = ingest.load_ific(mdb)
+    assert ific.counts["notice"] == 1
+    assert ific.counts["freq"] == 1  # the row without a frequency is dropped
+    assert ific.counts["s_beam"] == 1
+    assert ific.counts["orbit"] == 1
+    assert ific.counts["grp"] == 0  # an absent optional table is not an error
+    assert ific.notices["1"].adm == "CHN"
+    assert ific.notices["1"].tgt_ntc_id == "2"
+    assert ific.geo["1"].sat_name == "COMPASS-80E"
+    beam = ific.beam("1", "CDN")
+    assert beam is not None and beam.gain_db == 28.5
+    assert ific.emiss["9"] == -50.0
+    assert ific.file == "ific3074.mdb"
     assert len(ific.input_sha256) == 64
-    assert ific.file.endswith(".zip")  # the mini package has no mdb
 
 
 @pytest.mark.data
-def test_real_package_row_counts(challenge):
+def test_real_mdb_row_counts(challenge):
     counts = challenge.slice.ific.counts
     assert counts["notice"] == 196
     assert counts["freq"] == 95865
@@ -121,7 +204,16 @@ def test_real_package_row_counts(challenge):
 
 
 @pytest.mark.data
-def test_real_register_and_hash(challenge):
+def test_real_register_and_mdb_hash(challenge):
     assert challenge.slice.counts == {"rows": 874, "stations": 871, "skipped_no_freq": 3}
+    assert challenge.slice.ific.file == "ific3074.mdb"
     assert challenge.slice.ific.input_sha256 == challenge.all.ific.input_sha256
+    assert challenge.slice.ific.input_sha256 == ingest.sha256(MDB)
     assert len(challenge.slice.ific.input_sha256) == 64
+
+
+@pytest.mark.data
+def test_real_register_keeps_rows_without_a_licence_class():
+    """294 rows carry no Class of licence; none is dropped and no class is guessed."""
+    stations, _ = ingest.load_register(REGISTER)
+    assert sum(1 for station in stations if not station.licence) == 294

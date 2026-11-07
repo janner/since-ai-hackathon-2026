@@ -1,9 +1,10 @@
-"""Fetch the public input data into data/ and convert it to CSV.
+"""Fetch the public input data into data/.
 
 Run from the repo root:  uv run python scripts/fetch_data.py
-Needs `mdb-export` (apt install mdbtools). Data is never committed (see .gitignore).
+Needs `mdb-export` (apt install mdbtools) at run time: the pipeline reads the BR IFIC
+Access databases directly. Data is never committed (see .gitignore).
 
-1. ITU Space BR IFIC 3074 (zip -> mdb -> 15 CSV tables)
+1. ITU Space BR IFIC 3074 (zip -> mdb, read straight by app/ingest.py)
 2. ITU terrestrial BR IFIC 3075 and 3076 (zip -> mdb, read by app/terrestrial.py)
 3. Traficom open data, table of frequency allocations (Regulation M4 annex)
 4. Traficom frequencies-of-interest xlsx -> CSV (copy the xlsx into data/ first;
@@ -12,7 +13,6 @@ Needs `mdb-export` (apt install mdbtools). Data is never committed (see .gitigno
 
 import csv
 import hashlib
-import subprocess
 import sys
 import urllib.request
 import zipfile
@@ -24,23 +24,6 @@ TERR_URL = "https://www.itu.int/en/ITU-R/terrestrial/brific/BRIFIC/MDB/brific{}.
 TERR_NUMBERS = (3075, 3076)
 M4_URL = "https://opendata.traficom.fi/api/v13/Taajuusjakotaulukko"
 XLSX = "Traficom_SinceAI_Frequencies_of_interest_v05112026.xlsx"
-TABLES = [
-    "notice",
-    "freq",
-    "grp",
-    "emiss",
-    "s_beam",
-    "geo",
-    "non_geo",
-    "orbit",
-    "c_pfd",
-    "srv_area",
-    "srv_cls",
-    "e_stn",
-    "e_as_stn",
-    "assgn",
-    "ant_type",
-]
 UA = {"User-Agent": "Mozilla/5.0 (since-ai-2026 fetch_data)"}
 
 
@@ -98,10 +81,6 @@ def fetch_mdb(directory: Path, url: str, stem: str) -> tuple[Path, Path]:
 def main():
     ific = DATA / "itu-ific-3074"
     z, mdb = fetch_mdb(ific, IFIC_URL, "ific3074")
-    (ific / "csv").mkdir(parents=True, exist_ok=True)
-    for t in TABLES:
-        with (ific / "csv" / f"{t}.csv").open("w") as f:
-            subprocess.run(["mdb-export", str(mdb), t], stdout=f, check=True)
 
     terrestrial = DATA / "itu-terr-ific"
     terr_files = [

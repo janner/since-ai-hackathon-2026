@@ -1,3 +1,0 @@
-grp_id,ntc_id,emi_rcp,beam_name,freq_min,freq_max,bdwdth
-1001,900000001,E,CDN,3662,3698,36000
-1005,900000002,E,B2,3500,3540,40000

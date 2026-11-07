@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -254,11 +257,17 @@ def load_register(path: Path) -> tuple[list[Station], dict[str, int]]:
         if lat is None or lon is None:
             no_position += 1
             continue
-        # The register's Channel bandwidth is the raster the station sits in; Transmission
-        # bandwidth is what it actually emits. Use the channel, fall back to the emission.
-        bandwidth = (
-            mhz(row.get("Channel bandwidth")) or mhz(row.get("Transmission bandwidth")) or 0.0
+        # Traficom: when Channel bandwidth and Transmission bandwidth disagree, the smaller
+        # one is what the register means (the larger is a data-entry artefact). A missing one
+        # falls back to the other.
+        channel, transmission = (
+            mhz(row.get("Channel bandwidth")),
+            mhz(row.get("Transmission bandwidth")),
         )
+        if channel is not None and transmission is not None:
+            bandwidth = min(channel, transmission)
+        else:
+            bandwidth = channel or transmission or 0.0
         stations.append(
             Station(
                 id=row["Station number"].strip(),
@@ -296,15 +305,48 @@ def load_m4(path: Path) -> list[dict]:
     return value
 
 
-def load_ific(ific_dir: Path) -> IficData:
-    """Read the 15 IFIC tables from <ific_dir>/csv; only notice and freq are mandatory."""
-    csv_dir = ific_dir / "csv"
-    if not csv_dir.is_dir():
-        raise DataError(f"missing IFIC directory: {csv_dir}")
-    tables = {name: csv_dir / f"{name}.csv" for name in TABLES}
-    for name in REQUIRED_TABLES:
-        if not tables[name].is_file():
-            raise DataError(f"missing input file: {tables[name]}")
+def _export(mdb: Path, table: str) -> list[dict]:
+    """One IFIC table straight from the Access database: `mdb-export <mdb> <table>`."""
+    if shutil.which("mdb-export") is None:
+        raise DataError("mdb-export not found: install mdbtools (apt install mdbtools)")
+    result = subprocess.run(
+        ["mdb-export", str(mdb), table], capture_output=True, text=True, check=False
+    )
+    if result.returncode != 0:
+        raise DataError(f"{mdb.name}: mdb-export {table} failed: {result.stderr.strip()}")
+    return list(csv.DictReader(io.StringIO(result.stdout)))
+
+
+def load_ific(mdb_path: Path) -> IficData:
+    """Read the 15 IFIC tables straight from the BR IFIC Access database.
+
+    `mdb-export <mdb> <table>` per table: no shell, no intermediate CSV directory. Only
+    `notice` and `freq` are mandatory; a table the export cannot read is treated as absent.
+    """
+    mdb = Path(mdb_path)
+    if not mdb.is_file():
+        raise DataError(f"missing input file: {mdb}")
+
+    tables: dict[str, list[dict]] = {}
+    for name in TABLES:
+        try:
+            tables[name] = _export(mdb, name)
+        except DataError:
+            if name in REQUIRED_TABLES:
+                raise
+            tables[name] = []
+
+    def table(name: str, columns: tuple[str, ...]) -> list[dict]:
+        """The rows of one table, with its required columns checked; empty if absent."""
+        data = tables[name]
+        if not data:
+            if name in REQUIRED_TABLES:
+                raise DataError(f"{mdb.name}: table {name!r} is empty")
+            return []
+        for column in columns:
+            if column not in data[0]:
+                raise DataError(f"{mdb.name}: table {name!r} missing column {column!r}")
+        return data
 
     notices = {
         row["ntc_id"]: Notice(
@@ -317,11 +359,11 @@ def load_ific(ific_dir: Path) -> IficData:
             adm_ref_id=row.get("adm_ref_id", "").strip(),
             tgt_ntc_id=row.get("tgt_ntc_id", "").strip(),
         )
-        for row in rows(tables["notice"], ("ntc_id", "adm", "ntc_type", "act_code"))
+        for row in table("notice", ("ntc_id", "adm", "ntc_type", "act_code"))
     }
 
     freqs = []
-    for row in rows(tables["freq"], ("ntc_id", "emi_rcp", "freq_min", "freq_max")):
+    for row in table("freq", ("ntc_id", "emi_rcp", "freq_min", "freq_max")):
         lo, hi = mhz(row["freq_min"]), mhz(row["freq_max"])
         if lo is None or hi is None:
             continue  # a frequency row without a frequency cannot be used
@@ -337,81 +379,59 @@ def load_ific(ific_dir: Path) -> IficData:
         )
 
     beams: dict[tuple[str, str], list[Beam]] = {}
-    if tables["s_beam"].is_file():
-        for row in rows(tables["s_beam"], ("ntc_id", "beam_name")):
-            beam = Beam(
-                ntc_id=row["ntc_id"],
-                beam_name=row["beam_name"].strip(),
-                gain_db=num(row["gain"]),
-                freq_min_mhz=num(row["freq_min"]),
-                freq_max_mhz=num(row["freq_max"]),
-                geometry={
-                    key: num(row.get(key))
-                    for key in ("bore_long", "bore_lat", "maj_axis", "min_axis")
-                },
-            )
-            beams.setdefault((beam.ntc_id, beam.beam_name), []).append(beam)
+    for row in table("s_beam", ("ntc_id", "beam_name")):
+        beam = Beam(
+            ntc_id=row["ntc_id"],
+            beam_name=row["beam_name"].strip(),
+            gain_db=num(row["gain"]),
+            freq_min_mhz=num(row["freq_min"]),
+            freq_max_mhz=num(row["freq_max"]),
+            geometry={
+                key: num(row.get(key)) for key in ("bore_long", "bore_lat", "maj_axis", "min_axis")
+            },
+        )
+        beams.setdefault((beam.ntc_id, beam.beam_name), []).append(beam)
 
     emiss: dict[str, float] = {}
-    if tables["emiss"].is_file():
-        for row in rows(tables["emiss"], ("grp_id",)):
-            value = num(row.get("pwr_ds_max"))
-            if value is not None:
-                grp_id = row["grp_id"]
-                emiss[grp_id] = max(emiss.get(grp_id, float("-inf")), value)
+    for row in table("emiss", ("grp_id",)):
+        value = num(row.get("pwr_ds_max"))
+        if value is not None:
+            grp_id = row["grp_id"]
+            emiss[grp_id] = max(emiss.get(grp_id, float("-inf")), value)
 
     geo = {}
-    if tables["geo"].is_file():
-        for row in rows(tables["geo"], ("ntc_id",)):
-            geo[row["ntc_id"]] = Geo(
-                ntc_id=row["ntc_id"],
-                sat_name=row.get("sat_name", "").strip(),
-                long_nom=num(row.get("long_nom")),
-            )
+    for row in table("geo", ("ntc_id",)):
+        geo[row["ntc_id"]] = Geo(
+            ntc_id=row["ntc_id"],
+            sat_name=row.get("sat_name", "").strip(),
+            long_nom=num(row.get("long_nom")),
+        )
 
     nongeo = {}
-    if tables["non_geo"].is_file():
-        for row in rows(tables["non_geo"], ("ntc_id",)):
-            nongeo[row["ntc_id"]] = NonGeo(
-                ntc_id=row["ntc_id"],
-                sat_name=row.get("sat_name", "").strip(),
-                nbr_sat_nh=int(num(row.get("nbr_sat_nh")) or 0),
-                nbr_sat_sh=int(num(row.get("nbr_sat_sh")) or 0),
-            )
+    for row in table("non_geo", ("ntc_id",)):
+        nongeo[row["ntc_id"]] = NonGeo(
+            ntc_id=row["ntc_id"],
+            sat_name=row.get("sat_name", "").strip(),
+            nbr_sat_nh=int(num(row.get("nbr_sat_nh")) or 0),
+            nbr_sat_sh=int(num(row.get("nbr_sat_sh")) or 0),
+        )
 
     orbits: dict[str, list[Orbit]] = {}
-    if tables["orbit"].is_file():
-        for row in rows(tables["orbit"], ("ntc_id",)):
-            orbits.setdefault(row["ntc_id"], []).append(
-                Orbit(
-                    ntc_id=row["ntc_id"],
-                    apog_km=num(row.get("apog_km")),
-                    perig_km=num(row.get("perig_km")),
-                    inclin_ang=num(row.get("inclin_ang")),
-                )
+    for row in table("orbit", ("ntc_id",)):
+        orbits.setdefault(row["ntc_id"], []).append(
+            Orbit(
+                ntc_id=row["ntc_id"],
+                apog_km=num(row.get("apog_km")),
+                perig_km=num(row.get("perig_km")),
+                inclin_ang=num(row.get("inclin_ang")),
             )
+        )
 
-    counts = {name: 0 for name in TABLES}
+    counts = {name: len(data) for name, data in tables.items()}
     counts["notice"] = len(notices)
     counts["freq"] = len(freqs)
     counts["s_beam"] = sum(len(v) for v in beams.values())
     counts["orbit"] = sum(len(v) for v in orbits.values())
-    for name in (
-        "grp",
-        "emiss",
-        "geo",
-        "non_geo",
-        "c_pfd",
-        "srv_area",
-        "srv_cls",
-        "e_stn",
-        "e_as_stn",
-        "assgn",
-        "ant_type",
-    ):
-        if counts[name] == 0 and tables[name].is_file():
-            counts[name] = line_count(tables[name])
-    mdb = sorted(ific_dir.glob("*.mdb"))
     return IficData(
         notices=notices,
         freqs=freqs,
@@ -421,15 +441,9 @@ def load_ific(ific_dir: Path) -> IficData:
         nongeo=nongeo,
         orbits=orbits,
         counts=counts,
-        file=mdb[0].name if mdb else f"{ific_dir.name}.zip",
-        input_sha256=input_digest([tables[name] for name in TABLES] + [ific_dir]),
+        file=mdb.name,
+        input_sha256=sha256(mdb),
     )
-
-
-def line_count(path: Path) -> int:
-    """Data rows of a table that is only counted (never analysed)."""
-    with path.open(encoding="utf-8", errors="replace") as handle:
-        return max(0, sum(1 for _ in handle) - 1)
 
 
 def sha256(path: Path) -> str:

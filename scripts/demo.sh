@@ -4,7 +4,7 @@
 # Prerequisites: uv sync, and data/ filled by scripts/fetch_data.py.
 set -e
 uv run python -m app.pipeline \
-  --ific data/itu-ific-3074 \
+  --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json \
   --terrestrial data/itu-terr-ific/brific3076.mdb \

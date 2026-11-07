@@ -87,6 +87,7 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
         "same_network": ific.same_network(case.ntc_id),
         "source": {
             "file": ific.file,
+            "ific": ifact_tag(ific),
             # The run's input digest; the terrestrial path carries the same key in
             # its own `source` block. Same contract, different calculation path.
             "sha256": audit["input_sha256"],
@@ -316,7 +317,8 @@ def render_run_log(
             f"run_at={result.run_at}",
             f"input_sha256={result.input_sha256}",
             f"rules_version={result.rules_version}",
-            f"ific={Path(ific.file).stem}",
+            f"ific={ifact_tag(ific)}",
+            f"source_file={ific.file}",
             f"mode={result.mode}",
             f"notices={result.counts['notices']}",
             f"freq_rows={counts.get('freq', 0)}",

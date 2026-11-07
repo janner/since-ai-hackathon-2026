@@ -93,8 +93,8 @@ No synthetic extract is used anywhere.
 
 Reason: the IFIC is not a cumulative database (3075 and 3076 share no `terrakey`), so the change is
 the `intent` field, not a key comparison. The 3076 package is a public ITU download
-(`brific3076.zip`), so the tool reads the real file directly; `tests/fixtures/` holds no terrestrial
-data. The side feature is 25 % of the Traficom rubric.
+(`brific3076.zip`), so the tool reads the real file directly; the repository holds no synthetic
+extract. The side feature is 25 % of the Traficom rubric.
 
 Reopen if: a newer IFIC changes the `fxm_terra` schema, in which case `load_issue_mdb` needs the new
 columns.
@@ -204,20 +204,22 @@ Reopen if: Traficom wants results at network level.
 
 Each one is visible in the source, and the tests named here would fail if it changed.
 
-### I1. Units: read the `Channel bandwidth` column first, and understand a bare `G`
+### I1. Units: understand a bare `G`, and take the smaller of the two bandwidth columns
 
 `app/ingest.py`, `mhz()` and `load_register()`. The register keeps two bandwidth columns. For the
 same station `Transmission bandwidth` holds shorthand such as `0,1G`, while `Channel bandwidth`
 spells it out as `0.1 GHz`; `mhz()` reads a bare `G` as GHz, so `0,1G` and `0.1 GHz` both come to
-100 MHz, and a shorthand such as `8M00` parses to nothing. `load_register()` therefore reads
-`Channel bandwidth` first, the raster the station sits in, and falls back to `Transmission
-bandwidth` when the channel column is empty. The consequence for the full run is 101 notices
-surviving G1, 75 visible and 11 undecidable, one more than the plan's 100/74/10, because the
-reference tool behind the plan read the cell `0,1G` as 0.1 MHz. The demo slice matches the plan
-exactly.
+100 MHz, and a shorthand such as `8M00` parses to nothing. When the two columns disagree, Traficom
+answers that the smaller one is what the register means, the larger being a data-entry artefact
+(their example: station 440557, `Channel bandwidth` 2 500 kHz against `Transmission bandwidth`
+118 600 kHz), so `load_register()` takes `min(Channel bandwidth, Transmission bandwidth)` and falls
+back to whichever column carries a value. No row of the challenge register disagrees, so no number
+moves. The consequence of the unit reading for the full run is 101 notices surviving G1, 75 visible
+and 11 undecidable, one more than the plan's 100/74/10, because the reference tool behind the plan
+read the cell `0,1G` as 0.1 MHz. The demo slice matches the plan exactly.
 
-Test that locks it: `tests/test_gates.py::test_all_bands_funnel`, plus the parametrised
-`tests/test_ingest.py::test_mhz_normalises_units`.
+Test that locks it: `tests/test_ingest.py::test_bandwidth_is_the_smaller_of_channel_and_transmission`,
+plus `test_mhz_normalises_units` and `tests/test_gates.py::test_all_bands_funnel`.
 
 ### I2. Touching channels form one band, and the gap stays visible
 
@@ -246,7 +248,7 @@ perigee in 0.1° steps up to 90°, and the victim's own position does not change
 a non-GSO pass sweeps every latitude. Without an ephemeris this is the defensible upper bound; with
 one, the sampling should be replaced.
 
-Tests: `tests/test_gates.py::test_mini_non_gso_case_uses_the_pass_sweep`,
+Tests: `tests/test_gates.py::test_vector_2_from_the_real_data`,
 `tests/test_pfd.py::test_ngso_reach`.
 
 ### I5. `near` is open on the right, and classification uses the rounded margin
@@ -275,13 +277,15 @@ rather than borrowing a neighbour's limit. A wrong limit would be worse than no 
 Tests: `tests/test_pfd.py::test_limit_row_needs_a_row_that_contains_the_whole_band`,
 `tests/test_pfd.py::test_every_limit_row_is_continuous_at_25_degrees`.
 
-### I8. Bandwidth comes from the channel, not the emission
+### I8. Bandwidth is the smaller of the two register columns
 
 `app/ingest.py::load_register()`. `Channel bandwidth` is the raster the station sits in,
-`Transmission bandwidth` what it actually emits. The channel is used first, the emission as the
-fallback, and 0 when both are empty, which makes the band a point instead of crashing.
+`Transmission bandwidth` what it actually emits. Where they disagree the smaller one wins (Traficom,
+7 Nov 2026); a missing one falls back to the other, and both empty gives 0, which makes the band a
+point instead of crashing.
 
-Test: `tests/test_bands.py::test_zero_bandwidth_is_a_point_not_a_crash`.
+Tests: `tests/test_ingest.py::test_bandwidth_is_the_smaller_of_channel_and_transmission`,
+`tests/test_bands.py::test_zero_bandwidth_is_a_point_not_a_crash`.
 
 ### I9. An earth-station notice is dropped in G1 with its own reason
 
@@ -290,8 +294,8 @@ transmitting, not a downlink, so it leaves with reason `earth_station_notice` ra
 `no_band_overlap`. One notice in the full run takes this path. The distinction matters when reading
 the drop counts.
 
-Tests: `tests/test_gates.py::test_mini_funnel_counts_and_reasons` and the
-`earth_station_notice` assertion in `tests/test_cards.py::test_results_rows_cover_every_notice`.
+Tests: `tests/test_gates.py::test_a_notice_type_s_sending_E_is_dropped` and the
+`earth_station_notice` assertion in `tests/test_gates.py::test_all_bands_funnel`.
 
 ### I10. M4 is context, never a gate
 
@@ -411,6 +415,25 @@ satellite: the register has an azimuth but no beam width, so a direction-to-sour
 guess rather than a measurement (README limitation 17).
 
 Test: `tests/test_cards.py::test_directive_antenna_gets_a_threshold_note`.
+
+### I20. The space funnel reads the BR IFIC MDB directly
+
+`app/ingest.py::load_ific()`. The 15 tables are read straight from the Access database with
+`mdb-export <mdb> <table>` (subprocess, no shell), so there is no intermediate CSV directory and no
+synthetic extract anywhere in the repository. `--ific` takes the `.mdb` path
+(`data/itu-ific-3074/ific3074.mdb`); `scripts/fetch_data.py` only downloads and unpacks the zip. A
+missing `mdb-export`, an unreadable table or a missing file raises `DataError` naming the input.
+Provenance is the database itself: every card's `source` carries the file name, the IFIC number and
+the file's SHA256, and `run.log` carries the same plus `source_file`. The exported bytes are
+identical to the CSV files the earlier version read, so every number is unchanged; the demo slice
+run goes from about 1.3 s to about 3.5 s, which is under the point where a cache would earn its
+keep.
+
+Tests that lock it: `tests/test_ingest.py::test_real_mdb_row_counts` and
+`test_real_register_and_mdb_hash` (data), plus the unit mapping test
+`test_exported_rows_are_mapped_to_ific_data` and the error paths
+`test_missing_mdb_is_a_clear_error`, `test_missing_mdb_export_is_a_clear_error` and
+`test_unreadable_table_is_a_clear_error`.
 
 ### T1. The P.1546 table is generated once and committed
 

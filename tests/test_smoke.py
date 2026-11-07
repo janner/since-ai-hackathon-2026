@@ -13,4 +13,4 @@ def test_package_imports():
 
 @pytest.mark.data
 def test_data_present():
-    assert any((DATA / "itu-ific-3074" / "csv").glob("*.csv"))
+    assert (DATA / "itu-ific-3074" / "ific3074.mdb").is_file()

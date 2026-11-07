@@ -1,4 +1,0 @@
-ntc_id,sat_name,long_nom,tol_east,tol_west,inclin_exc,long_orig
-900000001,TESTSAT,80,0.1,0.1,0.1,80
-900000004,TESTSAT,80,0.1,0.1,0.1,80
-900000008,PACIFIC,-140,0.1,0.1,0.1,-140
