@@ -30,6 +30,7 @@ COUNTS = {
     "cannot_decide": 1,
     "exceeds": 9,
     "near": 5,
+    "not_space": 2,
     "clear": 4,
 }
 
@@ -40,7 +41,7 @@ def test_message_carries_numbers_and_link(tmp_path):
     message = notify.build_message(counts, notify.top_cases(cases), "3074", "http://kaista.test")
     assert "196 → 41 → 19 → 18 + 1" in message
     assert "9 ylittää · 5 lähellä" in message
-    assert "15 huomioitavaa" in message
+    assert "17 huomioitavaa" in message
     assert "http://kaista.test" in message
     assert "60,44 dB" in message  # Finnish decimal comma
 
@@ -61,7 +62,7 @@ def test_top_three_is_queue_order_not_margin(tmp_path):
 
 
 def test_zero_cases_gets_the_short_message():
-    counts = dict(COUNTS, exceeds=0, near=0, cannot_decide=0)
+    counts = dict(COUNTS, exceeds=0, near=0, not_space=0, cannot_decide=0)
     message = notify.build_message(counts, [], "3074", "http://kaista.test")
     assert message == notify.EMPTY_MESSAGE
     card = notify.build_card(counts, [], "3074", "http://kaista.test")
