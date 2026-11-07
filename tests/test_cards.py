@@ -120,6 +120,14 @@ def test_results_rows_cover_every_notice(challenge):
     assert by_id["126590032"]["reason"] == "no_power"
     assert by_id["103500417"]["class"] == "exceeds"
     assert by_id["103500417"]["dropped_at"] == ""
+    case_row = by_id["103500417"]
+    assert (case_row["ific"], case_row["case_id"]) == ("3074", "3074-103500417")
+    assert case_row["bandwidth_mhz"] == 36.0
+    assert case_row["station"] == "986805"
+    assert case_row["victim_rx_mhz"] == 3520.5
+    assert (by_id[dropped]["ific"], by_id[dropped]["ntc_id"]) == ("3074", dropped)
+    assert by_id[dropped]["case_id"] == by_id[dropped]["bandwidth_mhz"] == ""
+    assert by_id[dropped]["victim_rx_mhz"] == ""
 
 
 @pytest.mark.data

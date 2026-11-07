@@ -23,7 +23,7 @@ notices and 95 865 frequency rows, and the check is done by hand.
 
 ## What this does
 
-A deterministic triage pipeline that shows its work. `scripts/monitor.py` fetches the IFIC package
+A deterministic filtering pipeline that shows its work. `scripts/monitor.py` fetches the IFIC package
 from ITU on the two-week cadence. The run screens the space-to-Earth notices of the run's bands,
 keeps the ones a satellite can bring over Finnish territory, and computes an upper-bound power flux
 density (PFD) at the edge of that territory against the ITU Radio Regulations Article 21, Table 21-4
@@ -163,7 +163,7 @@ preparation that downloads the fixed packages by hand.
 | `cases.md` | The same cards as Markdown |
 | `queue.md` | The queue in decision order: class first, then stage, then the earliest upcoming Resolution 35 deadline, then margin |
 | `funnel.json` | Counts per gate, drop reasons, queue state, input hash, rules version, mode |
-| `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 19 columns, dropped notices with stage and reason, plus the regulatory stage of every notice |
+| `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 26 columns starting with `ific`, `case_id`, `ntc_id`, dropped notices with stage and reason, plus the regulatory stage of every notice |
 | `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, the letter count, elapsed time |
 | `letters/<case_id>.md` | One correspondence letter per `exceeds` case, drafted by the model or the template |
 

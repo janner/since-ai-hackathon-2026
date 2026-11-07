@@ -316,6 +316,8 @@ def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[
         card = by_id.get(f"{ifact_tag(ific)}-{ntc_id}")
         rows.append(
             {
+                "ific": ifact_tag(ific),
+                "case_id": card["case_id"] if card else "",
                 "ntc_id": ntc_id,
                 "adm": notice.adm,
                 "sat_name": ific.sat_name(ntc_id),
@@ -329,9 +331,13 @@ def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[
                 "regulatory_stage": regulatory_stage(notice.prov)["provision"],
                 "freq_min_mhz": case.band_lo_mhz if case is not None else "",
                 "freq_max_mhz": case.band_hi_mhz if case is not None else "",
+                "bandwidth_mhz": (
+                    round(case.band_hi_mhz - case.band_lo_mhz, 2) if case is not None else ""
+                ),
                 "station": case.victim.id if case is not None and case.victim else "",
                 "lat": case.lat if case is not None else "",
                 "lon": case.lon if case is not None else "",
+                "victim_rx_mhz": case.victim.rx_mhz if case is not None and case.victim else "",
                 "elevation_deg": case.elev_deg if case is not None else "",
                 "pfd_dbw_m2_hz": case.pfd_dbw_m2_hz if case is not None else "",
                 "limit_dbw_m2_hz": case.limit_dbw_m2_hz if case is not None else "",
@@ -348,6 +354,8 @@ def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[
 
 
 RESULT_COLUMNS = (
+    "ific",
+    "case_id",
     "ntc_id",
     "adm",
     "sat_name",
@@ -359,9 +367,11 @@ RESULT_COLUMNS = (
     "regulatory_stage",
     "freq_min_mhz",
     "freq_max_mhz",
+    "bandwidth_mhz",
     "station",
     "lat",
     "lon",
+    "victim_rx_mhz",
     "elevation_deg",
     "pfd_dbw_m2_hz",
     "limit_dbw_m2_hz",

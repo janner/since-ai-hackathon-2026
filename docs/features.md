@@ -270,6 +270,12 @@ python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 It loads the inputs, derives the bands, runs the gates, builds a card per case with its prose
 block, and writes `cases.json`, `cases.md`, `queue.md`, `funnel.json`, `3074_results.csv` and
 `run.log` into `--out` (created if missing), plus `letters/<case_id>.md` for every `exceeds` case.
+`3074_results.csv` has one row per notice and 26 columns: `ific`, `case_id`, `ntc_id`, `adm`,
+`sat_name`, `ntc_type`, `orbit`, `dropped_at`, `reason`, `class`, `regulatory_stage`,
+`freq_min_mhz`, `freq_max_mhz`, `bandwidth_mhz`, `station`, `lat`, `lon`, `victim_rx_mhz`,
+`elevation_deg`, `pfd_dbw_m2_hz`, `limit_dbw_m2_hz`, `margin_db`, `limit_source`, `m4_services`,
+`m4_space`, `missing`. A dropped notice fills `ific`, `ntc_id`, `dropped_at` and `reason` and leaves
+`case_id`, `bandwidth_mhz` and `victim_rx_mhz` empty.
 The last step prints the funnel and the class counts.
 A `DataError` such as a missing input file or an unreadable `--limits` CSV prints `error: ...` on
 stderr and exits 2.
@@ -552,10 +558,11 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 | Step | What it would take | Estimate |
 |---|---|---|
 | Scheduled cadence | The monitor is built (`scripts/monitor.py`) and the issue number is no longer given by hand, but nothing is installed: the cadence needs one line in whatever scheduler the operator already runs | Small |
+| Stage-first queue order | Sort the whole queue by regulatory stage before class; the customer said stage is the only priority that matters after filtering. The card keeps the margin as information | Small |
+| Space-side trends | The customer's first next step. Needs a second space IFIC issue; the terrestrial side already has trends | Medium, blocked on data |
 | M15 cross-check | The brief lists it; the tool does not use it | Medium |
 | CEPT/ECC DocDB | The third tier of the protection framework; not used | Medium |
-| Space-side trends | Needs a second IFIC issue; the terrestrial side already has trends | Medium, blocked on data |
-| AP30 / AP30A / AP30B | Open `SPS_ALL_IFIC3083.zip` (72 MB) and `30B_3083.zip` (22 MB) with `mdb-export` and build a plan path | Large |
+| AP30 / AP30A / AP30B | The customer ranked this below space-side trends. Open `SPS_ALL_IFIC3083.zip` (72 MB) and `30B_3083.zip` (22 MB) with `mdb-export` and build a plan path | Large |
 | RR Art. 22 / EPFD | A calculation and a criterion for protecting Finnish satellites; `epfd_param` is already read | Large |
 
 Register scale, measured 7 Nov 2026 with `load_register()` alone on a synthetic register (1 M rows,

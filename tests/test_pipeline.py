@@ -67,6 +67,7 @@ def test_slice_run_matches_the_documented_anchors(slice_out):
         reader = csv.DictReader(handle)
         rows = list(reader)
     assert reader.fieldnames == list(RESULT_COLUMNS)
+    assert reader.fieldnames[:3] == ["ific", "case_id", "ntc_id"]
     assert len(rows) == 196
     assert len(rows[0]) == len(RESULT_COLUMNS)
 

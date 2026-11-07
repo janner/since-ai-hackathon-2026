@@ -206,9 +206,61 @@ and a new M4 finding makes a band with no space-to-Earth satellite service a cla
 `docs/decisions.md` D17 and I10. The demo slice 3,47-3,78 GHz is `MOBILE AND FIXED` in Finland, so
 every demo case now carries at least the frequency finding.
 
+## Follow-up answers (third round, 7 Nov 2026)
+
+Five scope questions were put to the specialists at the stand after the usability test. The
+respondent is not recorded. The answers are quoted as given, in Finnish.
+
+### S1. What to prioritise after filtering
+
+**Answer.** "Tekniikka ratkaisee. Marginaali ei ole niin merkityksellinen, jos se ylittyy. Nykyisin
+he käyvät läpi kaikki. Filteröinnin jälkeinen priorisointi ei ole enää tärkeä. Eli tämän palvelun
+tuotokset eivät ole enää niin tärkeitä. Vaiheen priorisointi on tärkein filteröinnin jälkeen."
+
+**What changed.** The product is a filter, not a ranking. Once a notice passes the filter, the
+expert reviews all of them; the size of the margin does not change the action. The one ordering
+that matters is the regulatory stage: a filing another administration can still influence comes
+before one already recorded in the MIFR. Pending after the freeze: order the queue by stage first,
+then class, then the Resolution 35 deadline; do not sort by margin.
+
+### S2. False positive or false negative
+
+**Answer.** A false negative is worse.
+
+**What changed.** The worst-case upper bound and the broad `near` class stay. This is now a
+recorded design decision: over-flagging is the accepted cost of not missing a concern.
+
+### S3. Automatic retrieval scope
+
+**Answer.** Both are acceptable: automatic retrieval for both series, or the space monitor plus a
+terrestrial batch run.
+
+**What changed.** No code change. The current split (space monitored, terrestrial run from two
+consecutive issues) is an accepted scope, not a gap.
+
+### S4. AP30 or space-side trends
+
+**Answer.** Space-side trends.
+
+**What changed.** Space-side trends are the next step; AP30 stays deliberately out of scope. This
+belongs in the submission's next steps, not in the code before the freeze.
+
+### S5. Required fields on an output row
+
+**Answer.** An IFIC reference and a reference to our own data (a single unique entity), a unique
+identity pointing to the source material, the combination that identifies the problem being
+solved: frequency, bandwidth, the interferer's frequency and bandwidth, the calculation result,
+and the justification.
+
+**What changed.** Done. Each row of `<ific>_results.csv` now opens with the IFIC tag, the
+`case_id` (our own data, `<ific>-<ntc_id>`) and the notice id, and carries the interferer's band
+(`freq_min_mhz`, `freq_max_mhz`) and its `bandwidth_mhz`, the protected station and its
+`victim_rx_mhz`, the PFD, the limit, the margin and the limit source. A dropped notice keeps its
+IFIC tag and notice id with the stage and reason, and leaves `case_id` empty because it has no
+card.
+
 ## Open
 
-- **Mandatory fields (Q5 follow-up).** Not answered. The current CSV fields stay until Traficom names
-  them.
-- **Empty Class of licence.** 294 rows are treated as unclassified and marked in the card. Asked, not
-  answered in the quoted reply; not asked again.
+- No open questions from the Q&A. The mandatory-field question is answered in S5. The `Class of
+  licence` question is not needed: the side quest reads the station class from the BR IFIC
+  terrestrial preface.
