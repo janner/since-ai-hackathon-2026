@@ -27,7 +27,7 @@ The funnel is the whole point, so the tool shows it. On the demo slice (3,470 to
 
 Everything before the card text is deterministic. The pipeline reads the BR IFIC Access database with `mdb-export`, plus a CSV and a JSON file, uses standard-library math, and never opens a network connection. The PFD is an upper bound, not a claim of interference: max PSD plus max beam gain minus free-space loss, against Table 21-4. The one optional step is prose. If LLM_BASE_URL is set, a language model writes the card summary; if it is not, a template does. The model never supplies a number. A numeric guard reads every sentence and rejects it if it carries a number that is not already in the card, and the template takes over. The letter to the other administration has its own template and its own function. In the Red Hat award setup the drafting model runs in an OpenShift AI sandbox and the pipeline runs on the laptop, so with `LLM_BASE_URL` unset nothing leaves the machine.
 
-The tool is built as one module per feature, each with its own test file, 134 tests in all (91 of
+The tool is built as one module per feature, each with its own test file, 137 tests in all (94 of
 them run in a clean clone; the rest need the challenge data). A slice run takes about 3.5 seconds and
 the seven-band run about 7.7 seconds on the hackathon machine, most of it `mdb-export` reading the
 BR IFIC database. The repository also carries a side feature for terrestrial land-mobile notices. It is not a second program: one command runs it, `python -m app.pipeline --terrestrial`, in the same pass and into the same output directory as the space funnel, and each file it writes carries the same `source` (file, SHA256, tables, keys) and `audit` (input SHA256, rules version, run time) blocks as a space case card; only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates. It reads two real BR IFIC terrestrial databases (3075 and 3076), takes each notice's change from its intent field, keeps what is within 1,000 km of Finland and overlaps the register, and computes the field strength at four Finnish test points.
@@ -127,13 +127,16 @@ Instruct (Red Hat modelcar) runs on KServe with the vLLM CPU runtime in the sand
   answers over HTTPS.
 - [x] The app calls it through the OpenAI-compatible endpoint, and the numeric guard ran on its output:
   in the 18-card slice run the guard rejected 12 of the 17 drafts it saw (the `prose.source` line
-  below). The guard's own unit tests (`tests/test_guard.py`) run against a fixed card fixture, not
-  model text, so they pin the guard logic, not the served model's output.
+  below). That run predates the guard's list-marker fix (`docs/decisions.md` I11). The guard's own
+  unit tests (`tests/test_guard.py`) run against a fixed card fixture, not model text, so they pin
+  the guard logic, not the served model's output.
 - [x] `deploy/openshift/` in repo: the InferenceService YAML, the ServingRuntime YAML, and the apply
   and call commands for the sandbox project `janner-1-dev` (the project already exists; no Namespace
   manifest is shipped).
 - [ ] Screenshot or short recording of a successful call; no keys or tokens in it. Not captured yet.
-  The route is live and unauthenticated until about 6 Dec 2026, so it can still be taken.
+  The route is live and unauthenticated until about 6 Dec 2026, so it can still be taken. On 7 Nov
+  the node also ran the data-science pipeline of the sibling task and one card prompt took 239.5 s,
+  past the app's 120 s client timeout, so a live call now needs a longer timeout than the app ships.
 - [x] "How did you use it?" field, 40+ characters. The text below.
 - [x] One About-text line: what runs in the cluster, what runs locally.
 
@@ -153,9 +156,11 @@ Measured evidence, 7 Nov 2026, sandbox `janner-1-dev`. The raw output is in
   the local run. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
   the 17 drafts it saw. One call per card, 36.6 s to 120.3 s, median 86.9 s, whole run 25.6 min. The
   deterministic part of the same run took 1.19 s.
-- `make check` green: 131 tests passed that day. The tests never need the network.
+- `make check` green: 137 tests passed that day. The tests never need the network.
 - One card of 18 fell back to the template. The slowest call measured 120.3 s, right at the 120 s
-  client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer.
+  client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer. After the
+  list-marker fix a re-run on the loaded node did not get through that timeout at all:
+  `deploy/openshift/README.md` has the three attempts.
 
 The local run stays the primary demo. The sandbox expires about 6 Dec 2026, so the route is never
 the only demo link. The route is unauthenticated, and that is why no token sits in the repository
@@ -177,8 +182,8 @@ Sandbox facts (verified 6 and 7 Nov 2026, namespace `janner-1-dev`):
 
 Automated, done in the repository
 
-- [x] `make check` green: ruff check, ruff format --check, 134 tests passed
-- [x] README run steps work in a clean clone (91 passed, 43 skipped without `data/`)
+- [x] `make check` green: ruff check, ruff format --check, 137 tests passed
+- [x] README run steps work in a clean clone (94 passed, 43 skipped without `data/`)
 - [x] Pre-existing work and outside assets stated in README and About (template commit `6fe98b9`)
 - [x] No secrets or challenge data committed; `data/` and `out/` are gitignored
 - [x] `make submission-zip` builds `dist/kaista-submission.zip`, tracked files at HEAD only, no data

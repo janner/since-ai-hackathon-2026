@@ -176,7 +176,9 @@ Reopen if: the core and the side feature are finished before Saturday evening.
 Reopened: that condition was met. The core was finished and green on Friday 6 Nov 2026 at 23.42, so
 the OpenShift AI part was built. Granite 3.3 2B Instruct is served by KServe and the vLLM CPU
 runtime in the sandbox project `janner-1-dev`, and the prose step ran against it: 18 cards, 5 drafts
-kept, 12 rejected by the guard, funnel unchanged. LUMI stays out, because an archive run needs data
+kept, 12 rejected by the guard, funnel unchanged. That measurement predates the list-marker fix in
+I11, and a re-measurement after the fix did not get through the app's 120 s client timeout while the
+sandbox node also ran the data-science pipeline. LUMI stays out, because an archive run needs data
 we do not have. The measured evidence is in `deploy/openshift/README.md`, and the plan behind the
 part is D17 in the prep repository.
 
@@ -314,7 +316,13 @@ are joined before scanning, so `3 662` is one number.
 
 This replaced an earlier absolute-value comparison, which let a flipped sign through.
 
-Tests: `tests/test_guard.py` (all seven).
+A list marker is not a number. Digits that open a list, `1. Vastaus` at a line start or a `2.` after
+a space, are removed before scanning, so a numbered answer is not rejected for its own numbering. A
+period and a space are what make the marker: a date (`3.1.2026`), a decimal (`3,24 dB`) and an id
+(`3074-103500417`) keep their digits. A number that ends a sentence before a line break reads as a
+marker too; the guard is a floor, not a proof.
+
+Tests: `tests/test_guard.py` (all nine).
 
 ### I12. The card summary, and a letter for every case above the limit
 
