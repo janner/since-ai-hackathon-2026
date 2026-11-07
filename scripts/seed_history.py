@@ -176,7 +176,7 @@ def complaint(rng: random.Random, day: date, ific: int, actor: str) -> list[dict
                 "regulatory_stage": rng.choice(PROVISIONS),
                 "issue_type": issue_type,
                 "source_sha256": "".join(rng.choice("0123456789abcdef") for _ in range(64)),
-                "rules_version": "1.1.0",
+                "rules_version": "1.2.0",
                 "same_network": [],
             },
             synthetic=True,

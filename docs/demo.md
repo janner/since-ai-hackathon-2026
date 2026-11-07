@@ -63,7 +63,7 @@ The check of 7 Nov 2026 wrote `runs/3075/`:
 ```
 run_at=2026-11-07T09:43:56+02:00
 input_sha256=5416d9e8a67fc22fb055cb0b6f457e8bb205df90d3e6e0a0dccd9be0ede02a07
-rules_version=1.1.0
+rules_version=1.2.0
 ific=3075
 source_file=ific3075.mdb
 mode=slice
@@ -181,7 +181,7 @@ antenna can be protected at a lower level without changing any number.
 ```
 run_at=2026-11-07T22:14:44+02:00
 input_sha256=a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31
-rules_version=1.1.0
+rules_version=1.2.0
 ific=3074
 source_file=ific3074.mdb
 mode=slice

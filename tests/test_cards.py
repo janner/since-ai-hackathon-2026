@@ -46,7 +46,7 @@ CARD_FIELDS = (
 def _audit() -> dict:
     return {
         "input_sha256": "0" * 64,
-        "rules_version": "1.1.0",
+        "rules_version": "1.2.0",
         "run_at": "2026-11-07T12:00:00+02:00",
     }
 
@@ -270,7 +270,7 @@ def test_golden_case_103500417(challenge):
     )
     assert "service area" not in card["next_action"]["question"]
     assert len(card["audit"]["input_sha256"]) == 64
-    assert card["audit"]["rules_version"] == "1.1.0"
+    assert card["audit"]["rules_version"] == "1.2.0"
 
 
 @pytest.mark.data

@@ -385,6 +385,12 @@ at all: open `out/teams_message.html`.
     steps": the AP30 plan path,
     RR Art. 22 / EPFD, space-side trends, the M15 cross-check
     and the CEPT/ECC DocDB tier.
+20. Two Table 21-4 approximations, both on the safe side. The footnote conditions are not modelled:
+    footnote 11 (NGSO constellations of 99 or fewer satellites), footnote 12, and the country-scoped
+    Nos. 5.381/5.382 and 5.453/5.455 are not applied, and a service-scoped row is used for every
+    downlink in its band, so a case can be raised that the footnote would exempt. The 9.9-10.4 GHz
+    logarithmic curve is stored as straight-line points, which sit slightly below the curve, so the
+    limit there is a little stricter than the Radio Regulations.
 
 ## Layout
 

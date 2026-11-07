@@ -96,7 +96,7 @@ The corrections above keep the video truthful. These additions make it score bet
 are the highest value.
 
 1. **A/E, 2 seconds of provenance.** Show `out/run.log` or the card's `audit` block:
-   `input_sha256=…`, `rules_version=1.1.0`. The card already shows the limit source; the input hash
+   `input_sha256=…`, `rules_version=1.2.0`. The card already shows the limit source; the input hash
    is the missing half of "reproducible". The feature-grid tile 01 says "SHA256 and keys", but a
    judge reads a tile, not a proof.
 2. **D/E, 2 seconds of `3074_results.csv`.** Show the header and the first rows: one row per notice,
