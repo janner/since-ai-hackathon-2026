@@ -80,10 +80,33 @@ def test_filter_keeps_land_mobile_in_reach():
         _notice(terrakey="2", stn_cls="FX"),  # fixed, not land mobile
         _notice(terrakey="3", lat=-33.9, lon=18.4),  # Cape Town, 10 000 km away
         _notice(terrakey="4", freq_min_mhz=900.0, freq_max_mhz=905.0),  # no register overlap
+        _notice(terrakey="5", adm="FIN"),  # Finland's own assignment
+        # no register overlap, but fxm_coord names FIN as affected: always kept
+        _notice(
+            terrakey="6",
+            freq_min_mhz=791.0,
+            freq_max_mhz=796.0,
+            coord=[("4.2.2.2", "FIN", "COORD REQUIRED", "ITU"), ("RR6.7", "EST", "X", "Y")],
+        ),
     ]
     kept, dropped = t.select(notices, [454.0])
-    assert [n["terrakey"] for n, _ in kept] == ["1"]
-    assert dropped == {"far": 1, "class": 1, "no_band_overlap": 1}
+    assert [n["terrakey"] for n, _ in kept] == ["1", "6"]
+    assert dropped == {"own": 1, "far": 1, "class": 1, "no_band_overlap": 1}
+    assert t.coord_fin(notices[5]) == ["4.2.2.2: COORD REQUIRED (ITU)"]
+
+
+def test_a_notice_naming_finland_in_fxm_coord_shows_why_it_was_kept(tmp_path):
+    notice = _notice(
+        freq_min_mhz=791.0, freq_max_mhz=796.0, coord=[("4.2.2.2", "FIN", "COORD REQUIRED", "ITU")]
+    )
+    doc = t.findings(_issue([notice]), _issue([notice]), _register(tmp_path))
+    finding = doc["notices"][0]
+    assert finding["coord_fin"] is True
+    assert finding["coord_provisions"] == ["4.2.2.2"]
+    assert finding["kept_because"] == [
+        "Finland listed as affected administration (fxm_coord: 4.2.2.2: COORD REQUIRED (ITU))"
+    ]
+    assert doc["summary"]["coord_fin_kept"] == 1
 
 
 def test_trends_group_by_adm_band_class_width():
@@ -97,6 +120,17 @@ def test_trends_group_by_adm_band_class_width():
     assert len(rows) == 1
     row = rows[0]
     assert (row["new"], row["modified"], row["withdrawn"], row["prev_count"]) == (1, 1, 0, 1)
+    assert row["neighbour"] is True  # EST
+
+
+def test_anomalies_are_neighbours_only_with_a_reason():
+    far = [_notice(terrakey=str(i), adm="SVN", lat=46.0, lon=14.5) for i in range(3)]
+    near = [_notice(terrakey=str(10 + i), adm="RUS", lat=60.9, lon=29.5) for i in range(3)]
+    rows = t.trends([], far + near)
+    assert [r["adm"] for r in rows] == ["RUS", "SVN"]  # neighbours first
+    found = t.anomalies(rows)
+    assert [r["adm"] for r in found] == ["RUS"]
+    assert "3 new now" in found[0]["reason"]
 
 
 def test_findings_applies_the_tr2508_threshold(tmp_path):
@@ -116,7 +150,14 @@ def test_findings_applies_the_tr2508_threshold(tmp_path):
     assert finding["terrakey"] == "1"
     assert finding["adm_ref_id"] == "EST-1"
     assert finding["intent"] == "ADD"
-    assert finding["tables"] == ["fxm_terra", "fxm_geo", "fxm_ant"]
+    assert finding["tables"] == ["fxm_terra", "fxm_geo", "fxm_ant", "fxm_coord"]
+    assert (finding["tx_lat"], finding["tx_lon"]) == (59.4, 24.7)
+    assert finding["border"]["distance_km"] > 0
+    assert finding["bandwidth_source"] == "freq_max - freq_min"  # no bdwdth in the fixture
+    assert (
+        "Table 21-4" not in doc["criterion"]
+        and "national M4 value not confirmed" in (doc["criterion"])
+    )
     # 450-455 MHz is a 5 MHz channel: A1.2.3 adds 10*log10(5000/25) to the 20 dB(uV/m) base.
     assert finding["threshold_dbuv_m"] == pytest.approx(20.0 + 10 * math.log10(200.0))
     assert finding["coordination"] is not None
@@ -145,8 +186,18 @@ def test_params_say_what_the_field_strength_is_computed_for(tmp_path):
 
 
 def test_field_strength_matches_p1546_table_node():
-    # ITU:n referenssitoteutus (Py1546) antaa 26.15 dB(uV/m) pisteelle 600 MHz, 50 km, h1 37.5 m.
-    assert t.field_strength_p1546(600, 50, 37.5, 1.0) == pytest.approx(26.15, abs=0.01)
+    # Py1546 at 10 % time: 28.89 dB(uV/m) for 600 MHz, 50 km, h1 37.5 m (1 kW ERP).
+    assert t.field_strength_p1546(600, 50, 37.5, 1.0) == pytest.approx(28.89, abs=0.01)
+
+
+def test_field_strength_interpolates_logarithmically_per_annex_5():
+    # The geometric mean of two nodes is the arithmetic mean of their values (log f, log h1).
+    f_mid = math.sqrt(100 * 600)
+    assert t.field_strength_p1546(f_mid, 50, 20, 1.0) == pytest.approx((30.72 + 25.23) / 2)
+    h_mid = math.sqrt(20 * 37.5)
+    assert t.field_strength_p1546(600, 50, h_mid, 1.0) == pytest.approx((25.23 + 28.89) / 2)
+    # Below 100 MHz the frequency is extrapolated from the 100 and 600 MHz curves.
+    assert t.field_strength_p1546(50, 50, 20, 1.0) > t.field_strength_p1546(100, 50, 20, 1.0)
 
 
 def test_field_strength_falls_with_distance_and_follows_power():
@@ -171,22 +222,49 @@ def test_extrapolated_flags_clamped_query():
     assert t.extrapolated(450, 0.5, 40) is True  # below the distance axis
 
 
-def test_findings_flags_extrapolation_when_a_border_sample_is_outside_the_table(tmp_path):
-    """The flag must follow the worst border sample: a notice deep in Poland is
-    inside the table near the Baltic but far outside it toward Lapland."""
-    notice = _notice(terrakey="1", lat=52.0, lon=19.0)
-    issue = _issue([notice])
-    doc = t.findings(issue, issue, _register(tmp_path))
-    assert len(doc["notices"]) == 1
-    assert doc["notices"][0]["extrapolated"] is True
+def test_extrapolated_follows_the_point_that_gives_the_maximum(tmp_path):
+    """A notice deep in Poland has border samples beyond 1000 km toward Lapland, but its
+    maximum sits on the Baltic inside the table: no flag. A 5 m antenna is below the table."""
+    far_samples = _issue([_notice(terrakey="1", lat=52.0, lon=19.0)])
+    doc = t.findings(far_samples, far_samples, _register(tmp_path))
+    assert doc["notices"][0]["extrapolated"] is False
+    low = _issue([_notice(ant_h_m=5.0)])
+    finding = t.findings(low, low, _register(tmp_path))["notices"][0]
+    assert finding["extrapolated"] is True
+    assert "clamped to 10 m" in finding["assumptions"][0]
 
 
-def test_a_notice_without_antenna_height_gets_no_value(tmp_path):
-    """Mobile stations carry no height; the row is reported with a dash, not a guess."""
+def test_a_notice_without_antenna_height_uses_the_stated_assumption(tmp_path):
+    """Mobile stations carry no height: 10 m is assumed, stated and still decided."""
     issue = _issue([_notice(ant_h_m=None)])
     doc = t.findings(issue, issue, _register(tmp_path))
-    assert doc["notices"][0]["ant_h_m"] is None
-    assert doc["notices"][0]["border"]["max_dbuv_m"] is None
+    finding = doc["notices"][0]
+    assert finding["ant_h_m"] is None and finding["ant_h_used_m"] == 10.0
+    assert "hgt_agl missing" in finding["assumptions"][0]
+    assert finding["border"]["max_dbuv_m"] is not None
+    assert "oletetaan 10 m" in t.render_md(doc)
+
+
+def test_an_uncomputable_notice_is_undecided_never_clear(tmp_path):
+    """No T/R 25-08 row below 29.7 MHz: coordination is None with the reason, not False."""
+    notice = _notice(
+        freq_min_mhz=20.0, freq_max_mhz=20.1, coord=[("RR6.7", "FIN", "COORD REQUIRED", "ITU")]
+    )
+    doc = t.findings(_issue([notice]), _issue([notice]), _register(tmp_path))
+    finding = doc["notices"][0]
+    assert finding["coordination"] is None
+    assert "threshold_dbuv_m" in finding["empty_reason"]
+    assert doc["summary"]["undecided"] == 1
+    assert "ratkaisematta" in t.render_md(doc)
+
+
+def test_bandwidth_comes_from_bdwdth_when_present():
+    notice = _notice(freq_min_mhz=152.89, freq_max_mhz=152.91, bdwdth_khz=50.0)
+    assert t._bandwidth(notice) == (50.0, "fxm_terra.bdwdth")
+    assert t._bandwidth(_notice()) == (5000.0, "freq_max - freq_min")
+    assert t.tr2508_threshold(152.9, t._bandwidth(notice)[0]) == pytest.approx(
+        12.0 + 10 * math.log10(2.0)
+    )
 
 
 def test_tr2508_threshold_is_frequency_dependent_and_bandwidth_corrected():
@@ -384,15 +462,29 @@ def test_real_3076_russian_federation_notices(issue3076):
 def test_real_mdb_prints_the_example_finding(issue3075, issue3076, tmp_path):
     """The example in the handoff: POL 92817506 at 801-806 MHz, 43 dB(uV/m) with the extension."""
     doc = t.run(issue3075, issue3076, REGISTER, tmp_path)
-    assert len(doc["notices"]) == 28
+    assert len(doc["notices"]) == 32
+    assert doc["summary"] == {
+        "in_reach": 32,
+        "above_threshold": 6,
+        "undecided": 0,
+        "with_assumptions": 2,
+        "coord_fin_kept": 11,
+    }
+    assert doc["filter"]["dropped"]["own"] == 4
+    # Kept only because fxm_coord names FIN (no register overlap): the audit cases.
+    by_key = {n["terrakey"]: n for n in doc["notices"]}
+    for key in ("93005610", "93082392", "93082323", "92326149"):
+        assert by_key[key]["coord_fin"] is True
+    assert by_key["93005610"]["coord_fin_rows"][0].startswith("4.2.2.2: COORD REQUIRED")
+    assert len(doc["anomalies"]) <= 5 and all(a["neighbour"] for a in doc["anomalies"])
     assert doc["diff"]["counts"]["ADD"] == 2905
     assert doc["missing"] == {"power": 31, "location": 9}
     assert doc["missing_prev"] == {"power": 19, "location": 6}
     finding = next(n for n in doc["notices"] if n["terrakey"] == "92817506")
     assert finding["adm"] == "POL" and finding["band"] == "801-806 MHz"
-    # The 12 nm territorial-sea line is closer to the POL transmitter than the
-    # coastline was, so the border maximum rose from -51.1 to -46.9 dB(uV/m).
-    assert finding["border"]["max_dbuv_m"] == pytest.approx(-46.9, abs=0.2)
+    # 10 % time curves, max on the 12 nm territorial-sea line ~625 km away.
+    assert finding["border"]["max_dbuv_m"] == pytest.approx(-38.1, abs=0.2)
+    assert finding["bandwidth_source"] == "fxm_terra.bdwdth"
     assert finding["border"]["section"] == "TS"
     # 803.5 MHz: Traficom extends the 400-470 MHz criterion above 470 MHz, 5 MHz channel
     assert finding["threshold_dbuv_m"] == pytest.approx(20.0 + 10 * math.log10(200.0))
@@ -402,14 +494,16 @@ def test_real_mdb_prints_the_example_finding(issue3075, issue3076, tmp_path):
 
 @pytest.mark.data
 @needs_mdb
-def test_real_run_flags_the_vhf_stations_below_the_threshold(issue3075, issue3076, tmp_path):
-    """The worst Finnish station against the 152.9 MHz RUS notices sits just under 12 dB(uV/m)."""
+def test_real_run_flags_the_vhf_stations_above_the_threshold(issue3075, issue3076, tmp_path):
+    """At 10 % time four Finnish VHF stations exceed 12 dB(uV/m) from the RUS 152-153 MHz notices
+    (Py1546 at 10 % gives 16.5 / 14.7 / 12.4 / 12.1 dB(uV/m) for these points)."""
     doc = t.run(issue3075, issue3076, REGISTER, tmp_path)
     rows = doc["flagged_stations"]["stations"]
     assert rows and rows[0]["threshold_dbuv_m"] == 12.0
-    assert rows[0]["e_dbuv_m"] == pytest.approx(11.5, abs=0.2)
-    assert rows[0]["exceeds"] is False
-    assert doc["flagged_stations"]["count"] == 0
+    assert rows[0]["station"] == "614221"
+    assert rows[0]["e_dbuv_m"] == pytest.approx(16.5, abs=0.2)
+    assert [r["station"] for r in rows if r["exceeds"]] == ["614221", "617699", "601062", "615366"]
+    assert doc["flagged_stations"]["count"] == 4
 
 
 @pytest.mark.data
