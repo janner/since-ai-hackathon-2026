@@ -142,11 +142,11 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             "offset_db": case.offset_db,
             "perigee_km": case.perigee_km,
         },
-        # Services are the worst row's; the satellite-use verdict and the gaps cover every row.
+        # Services and gaps are the worst row's; the verdict and notice_gaps cover every row.
         "m4": {
             **m4_lookup(m4_rows, case.band_lo_mhz, case.band_hi_mhz),
             "satellite_use": case.band_satellite,
-            "gaps": list(case.band_gaps),
+            "notice_gaps": list(case.band_gaps),
         },
         "unscreened": [
             {"lo_mhz": lo, "hi_mhz": hi, "reason": reason} for lo, hi, reason in case.unscreened

@@ -205,7 +205,7 @@ def test_the_allocation_is_checked_on_every_row(challenge):
     case = challenge.all.result.case_by_id()["109500876"]
     assert case.klass == "not_space"
     assert case.band_satellite is False
-    assert any(low >= 3700 and high <= 3760 for low, high in case.band_gaps)
+    assert (3702.0, 3800.0) in case.band_gaps
 
 
 @pytest.mark.data

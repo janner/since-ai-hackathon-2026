@@ -241,17 +241,21 @@ def test_golden_case_103500417(challenge):
         "ITU RR 2024 Art. 21 Table 21-4, 3\u00a0400-4\u00a0200 MHz, "
         "FSS (space-to-Earth), GSO, p. 287"
     )
-    assert card["m4"] | {"gaps": None, "segments": None} == {
+    assert card["m4"] | {"gaps": None, "segments": None, "notice_gaps": None} == {
         "rows": [4060, 4091],
         "band_mhz": [3400.0, 3800.0],
         "services_in_finland": "MOBILE AND FIXED",
         "satellite_use": False,
         "gaps": None,
         "segments": None,
+        "notice_gaps": None,
         "source": "opendata.traficom.fi/api/v13/Taajuusjakotaulukko",
     }
     # The whole notified band has no satellite allocation in Finland, so it is one gap.
     assert card["m4"]["gaps"] == [(3442.0, 3478.0)]
+    # The notice repeats the same 36 MHz channel on many rows; the notice-wide gaps merge into
+    # one range over the rows this run screened (the slice keeps the rows on the demo band).
+    assert card["m4"]["notice_gaps"] == [(3442.0, 3798.0)]
     assert [part["satellite"] for part in card["m4"]["segments"]] == [False]
     assert card["missing"] == [
         "s_beam.bore_long",

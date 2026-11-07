@@ -132,7 +132,7 @@ def allocation_text(m4: dict) -> str:
     services = m4.get("services_in_finland") or "no information"
     if m4.get("satellite_use"):
         return services
-    gaps = m4.get("gaps") or []
+    gaps = m4.get("notice_gaps") or m4.get("gaps") or []
     if not gaps:
         return f"{services} (no satellite downlink allocation)"
     ranges = ", ".join(f"{fmt_mhz(lo)}-{fmt_mhz(hi)} MHz" for lo, hi in gaps)

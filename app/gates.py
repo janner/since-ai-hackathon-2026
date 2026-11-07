@@ -395,9 +395,7 @@ def _worst_for_notice(
         )
         for freq in freqs
     }
-    notice_gaps = tuple(
-        sorted({gap for band in lookups.values() for gap in map(tuple, band["gaps"])})
-    )
+    notice_gaps = _merge_gaps(gap for band in lookups.values() for gap in band["gaps"])
     worst: Case | None = None
     missing: str | None = None
     unscreened: list[tuple[float, float, str]] = []
@@ -497,6 +495,17 @@ def _worst_for_notice(
     if worst is not None and unscreened:
         worst = replace(worst, unscreened=tuple(sorted(set(unscreened))))
     return worst, missing
+
+
+def _merge_gaps(gaps) -> tuple[tuple[float, float], ...]:
+    """The parts of the notice without a Finnish downlink allocation, overlapping parts merged."""
+    merged: list[list[float]] = []
+    for low, high in sorted(tuple(gap) for gap in gaps):
+        if merged and low <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], high)
+        else:
+            merged.append([low, high])
+    return tuple((low, high) for low, high in merged)
 
 
 def _worst_reference(
