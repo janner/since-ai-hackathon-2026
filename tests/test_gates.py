@@ -101,9 +101,9 @@ def test_notice_deadlines_pick_the_earliest_upcoming():
     }
 
 
-def test_queue_orders_by_stage_then_deadline_then_margin():
-    """Inside a class: the stage first, then the soonest upcoming deadline, then the margin.
-    A passed deadline is behind every upcoming one; a notice with no deadline comes last."""
+def test_queue_orders_by_stage_then_deadline():
+    """Inside one stage and class: the soonest upcoming deadline first. A passed deadline is
+    behind every upcoming one; a notice with no deadline comes last."""
     notices = {str(i): _notice(str(i)) for i in range(1, 5)}  # all 11.2, one stage rank
     deadlines = {
         "1": (date(2031, 1, 19), False),
@@ -241,23 +241,29 @@ def test_a_clear_margin_on_a_non_satellite_band_is_still_a_finding(challenge):
 
 @pytest.mark.data
 def test_queue_order(challenge):
-    """Class first; inside a class stage, then deadline, then margin descending."""
+    """Stage first, then class, then deadline, then the notice id; the margin is not a key."""
     queue = challenge.slice.result.queue
     assert {item.klass for item in queue} == {"exceeds", "near", "not_space", "cannot_decide"}
-    ranks = [gates.CLASS_ORDER.index(item.klass) for item in queue]
-    assert ranks == sorted(ranks)
-    for klass in gates.CLASS_ORDER:
-        keys = [gates.queue_key(item) for item in queue if item.klass == klass]
-        assert keys == sorted(keys)
-    # with the deadline out of the way, the margin still decides inside one stage
-    for stage_rank in {item.stage_rank for item in queue if item.klass == "exceeds"}:
-        margins = [
-            item.margin_db
-            for item in queue
-            if item.klass == "exceeds" and item.stage_rank == stage_rank and not item.deadline
-        ]
-        assert margins == sorted(margins, reverse=True)
+    keys = [gates.queue_key(item) for item in queue]
+    assert keys == sorted(keys)
+    assert [item.stage_rank for item in queue] == sorted(item.stage_rank for item in queue)
+    assert len(keys[0]) == 5  # stage, class, deadline rank, deadline ordinal, ntc_id
     assert [item.reason for item in queue if item.klass == "cannot_decide"] == ["no_power"]
+
+
+@pytest.mark.data
+def test_stage_beats_a_bigger_margin(challenge):
+    """A 9.1/9.6 filing comes before an 11.2 one, even when the 11.2 margin is far bigger and
+    the 9.x case is only `near` (Traficom, S1: the margin does not change the action)."""
+    result, notices = challenge.slice.result, challenge.slice.ific.notices
+    recorded = next(c for c in result.cases if notices[c.ntc_id].prov == "11.2")
+    open_ = next(c for c in result.cases if notices[c.ntc_id].prov in ("9.1/IA", "9.6"))
+    cases = [
+        replace(recorded, klass="exceeds", margin_db=99.0),
+        replace(open_, klass="near", margin_db=-1.0),
+    ]
+    queue = gates.gate4(cases, {}, notices)
+    assert [item.ntc_id for item in queue] == [open_.ntc_id, recorded.ntc_id]
 
 
 @pytest.mark.data
@@ -278,12 +284,13 @@ def test_only_one_demo_case_carries_a_res35_deadline(challenge):
 
 @pytest.mark.data
 def test_queue_puts_coordination_before_notification(challenge):
-    """The stage another administration can still influence comes before a recorded filing."""
+    """The stage another administration can still influence comes before a recorded filing,
+    across the whole queue, not only inside a class."""
     queue = challenge.slice.result.queue
-    assert queue[0].stage == "No. 9.1"  # advance publication, rank 0
-    for klass in ("exceeds", "near"):
-        ranks = [item.stage_rank for item in queue if item.klass == klass]
-        assert ranks == sorted(ranks)
+    assert queue[0].stage_rank == 0  # advance publication or coordination request
+    first_recorded = next(i for i, item in enumerate(queue) if item.stage == "No. 11.2")
+    assert all(item.stage in ("No. 9.1", "No. 9.6") for item in queue[:first_recorded])
+    assert all(item.stage not in ("No. 9.1", "No. 9.6") for item in queue[first_recorded:])
 
 
 @pytest.mark.data

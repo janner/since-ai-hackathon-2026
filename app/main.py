@@ -10,12 +10,14 @@ import json
 import os
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
+from app.config import REGULATORY_STAGES
 from app.gates import CLASS_ORDER
 
 app = FastAPI(title="Kaista")
@@ -49,11 +51,6 @@ def load(name: str) -> Any:
         raise HTTPException(503, f"{path}: {exc}. {NEED_PIPELINE}") from exc
 
 
-def margin_db(case: dict) -> float:
-    value = case.get("calculation", {}).get("margin_db")
-    return float(value) if isinstance(value, int | float) else 0.0
-
-
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
@@ -84,21 +81,32 @@ def case(case_id: str) -> Any:
 
 @app.get("/api/queue")
 def queue() -> Any:
-    """cases.json in queue order: class order, biggest margin first.
+    """cases.json in queue order: stage, then class, then the Resolution 35 deadline, then
+    case id, as in queue.md. The margin does not order (Traficom, S1).
 
     shortcut: cannot_decide notices have no card in cases.json, so they are absent
     from this list; the funnel endpoint carries their count. Upgrade if the UI must
     show them as queue rows (then read out/queue.md instead).
     """
     order = {klass: i for i, klass in enumerate(CLASS_ORDER)}
-    return sorted(
-        load("cases.json"),
-        key=lambda case: (
+    stage = {row["provision"]: row["rank"] for row in REGULATORY_STAGES.values()}
+
+    def key(case: dict) -> tuple:
+        deadline_rank, ordinal = 2, 0  # the rule of app/gates.py::queue_key
+        if case.get("deadline"):
+            day, month, year = (int(part) for part in case["deadline"].split("."))
+            stamp = date(year, month, day).toordinal()
+            deadline_rank, ordinal = (1, -stamp) if case.get("deadline_passed") else (0, stamp)
+        provision = case.get("regulatory_stage", {}).get("provision", "")
+        return (
+            stage.get(provision, len(REGULATORY_STAGES)),
             order.get(case.get("class"), len(order)),
-            -margin_db(case),
+            deadline_rank,
+            ordinal,
             case["case_id"],
-        ),
-    )
+        )
+
+    return sorted(load("cases.json"), key=key)
 
 
 def run_monitor() -> None:

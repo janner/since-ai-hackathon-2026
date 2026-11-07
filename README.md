@@ -39,10 +39,12 @@ question for the other administration. A notice that passes G1 and G2 but cannot
 a card: it keeps its row in `queue.md` and `3074_results.csv` under class `cannot_decide`, and its
 count is in `funnel.json`. The accuracy slice (IFIC 3074) therefore has 20 cards and one notice
 without (limitation 14); the auto-fetch demo (IFIC 3075) has 7 cards and two undecidables. The queue
-lists every case a human should look at: exceedances first, then the near-limit cases, then the
-bands Finland has not allocated to satellite downlinks, then the ones that cannot be decided, and
-inside a class the stage another administration can still influence (advance publication,
-coordination request) comes before a filing already recorded in the MIFR. It is not capped. A
+lists every case a human should look at. It orders by regulatory stage first: a filing another
+administration can still influence (advance publication, coordination request) comes before one
+already recorded in the MIFR. Inside a stage it orders by class (exceedance, near-limit, band without
+satellite use, cannot decide), then by the earliest upcoming Resolution 35 deadline. The margin does
+not order, because the specialist reviews every case the filter passes (Traficom, S1). It is not
+capped. A
 separate accuracy file covers all 196 notices, the dropped ones included (it ships as
 `results/3074_results.csv` inside the submission zip, not in the repository). A human decides.
 
@@ -161,7 +163,7 @@ preparation that downloads the fixed packages by hand.
 |---|---|
 | `cases.json` | One card per computed case, full schema, plus the prose block |
 | `cases.md` | The same cards as Markdown |
-| `queue.md` | The queue in decision order: class first, then stage, then the earliest upcoming Resolution 35 deadline, then margin |
+| `queue.md` | The queue in decision order: regulatory stage first, then class, then the earliest upcoming Resolution 35 deadline |
 | `funnel.json` | Counts per gate, drop reasons, queue state, input hash, rules version, mode |
 | `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 26 columns starting with `ific`, `case_id`, `ntc_id`, dropped notices with stage and reason, plus the regulatory stage of every notice |
 | `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, the letter count, elapsed time |

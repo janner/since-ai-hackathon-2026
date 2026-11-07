@@ -164,11 +164,13 @@ case (see F3) keeps its margin but is capped at `near`: the Table 21-4 limit bel
 band and does not apply outside it. The register's rows on the band are a reference only: the block
 names the one with the highest margin, and the number itself is taken at the territory edge.
 
-`gate4()` orders the queue `exceeds`, `near`, `not_space`, `cannot_decide`, and inside a class by
-stage rank (advance publication and coordination request before the MIFR notification, then
-Resolution 49), then by the notice's earliest upcoming Resolution 35 deadline, then by margin. A
-stage another administration can still influence therefore comes before a filing already recorded,
-and a filing whose group falls due soonest comes first inside its stage. A notice whose groups carry
+`gate4()` sorts the whole queue with `queue_key()`: regulatory stage rank first (advance
+publication and coordination request before the MIFR notification, then Resolution 49), then class
+(`exceeds`, `near`, `not_space`, `cannot_decide`), then the notice's earliest upcoming Resolution 35
+deadline, then the notice id. The margin is not in the key: once a notice passes the filter the
+specialist reviews all of them, and the stage is the one order that changes the action (Traficom,
+S1). A `near` coordination request therefore comes before an 11.2 exceedance with a far bigger
+margin, and a filing whose group falls due soonest comes first inside its stage and class. A notice whose groups carry
 no `grp_res35` deadline sorts behind one that has one; a passed deadline behind every upcoming one
 (most recent first). The deadline is chosen per notice by `notice_deadlines()`: the earliest
 upcoming date over the groups of the notice, else the latest one that has passed. `clear` cases stay
@@ -182,9 +184,11 @@ so the demo queue moves by one row and every other number is unchanged.
 
 Tests (`tests/test_gates.py`, 17 collected): `test_class_boundaries`,
 `test_notice_deadlines_pick_the_earliest_upcoming` (a notice with several group deadlines, one
-upcoming, one passed, one absent), `test_queue_orders_by_stage_then_deadline_then_margin`,
-`test_queue_holds_every_concern_and_no_clear`, `test_queue_puts_coordination_before_notification`,
-`test_queue_order`, `test_only_one_demo_case_carries_a_res35_deadline` (125500277, due 19 Dec 2026,
+upcoming, one passed, one absent), `test_queue_orders_by_stage_then_deadline`,
+`test_queue_holds_every_concern_and_no_clear`, `test_queue_puts_coordination_before_notification`
+(every 9.1/9.6 row before the first 11.2 row, across classes), `test_queue_order`,
+`test_stage_beats_a_bigger_margin` (a `near` 9.x case ahead of an 11.2 exceedance at +99 dB),
+`test_only_one_demo_case_carries_a_res35_deadline` (125500277, due 19 Dec 2026,
 sorts ahead of a larger margin in its stage), `test_an_adjacent_case_is_capped_at_near`,
 `test_demo_slice_funnel`, `test_all_bands_funnel`, `test_vector_2_from_the_real_data`,
 `test_case_126590032_cannot_be_decided`.
@@ -417,7 +421,7 @@ files, and every number on the page comes from them.
 | `GET /api/funnel` | `out/funnel.json` |
 | `GET /api/cases` | `out/cases.json` |
 | `GET /api/cases/{case_id}` | one card, 404 when the id is unknown |
-| `GET /api/queue` | `cases.json` in queue order |
+| `GET /api/queue` | `cases.json` in queue order: stage, class, Resolution 35 deadline, case id; no margin |
 
 `KAISTA_OUT` (default `out`) points the API at another output directory. A missing file or broken
 JSON answers 503 with the message from `app.pipeline`, not 500: a half-finished run is an expected
@@ -441,7 +445,9 @@ Tests (`tests/test_api.py`, 16): the page, the fetch status and its lock, the `r
 the funnel numbers, every card, one card and its 404, the queue order, and the 503/504 error paths.
 The tests that read content take it from one real pipeline run into a temporary `out/` (a private
 copy per test, so one may corrupt its files); the index, health and error paths need no challenge
-data.
+data. The page sorts the queue with the same key as `queue.md` (`queueKey` in
+`app/static/index.html`: stage, class, deadline, case id), so the stage another administration can
+still influence is at the top and the margin is shown but never orders.
 
 ## F11: the optional Teams digest
 
@@ -449,7 +455,8 @@ data.
 `out/funnel.json` and `out/cases.json`, imports nothing from `app/` (its stage rank table is a copy
 of `app/config.REGULATORY_STAGES`, marked `shortcut` in the code), and computes nothing: the counts
 are the ones in `funnel.json` and the three lines are the first three decidable rows of `queue.md`,
-ordered by class, then stage, then margin, then case id. `--dry-run` writes `out/teams_message.md`
+ordered by stage, then class, then the Resolution 35 deadline, then case id; the margin does not
+order. `--dry-run` writes `out/teams_message.md`
 and `out/teams_message.json` (the Adaptive Card envelope) and, with `--html`,
 `out/teams_message.html`; `--send` POSTs the card to `TEAMS_WEBHOOK_URL` and returns 1 with one line
 on stderr when the variable is unset. A run whose queue is empty gets the single line `Käsitelty, ei
@@ -459,8 +466,8 @@ This is a wish, not a requirement: no bot, no chat surface, no cron, and no live
 was no test channel). The README section "Teams notification (optional)" carries the commands and
 the limits.
 
-Tests (`tests/test_notify.py`, 6): `test_message_carries_numbers_and_link` (the funnel numbers, the
-queue size, the link, the Finnish decimal comma), `test_top_three_is_queue_order_not_margin`,
+Tests (`tests/test_notify.py`, 7): `test_message_carries_numbers_and_link` (the funnel numbers, the
+queue size, the link, the Finnish decimal comma), `test_top_three_is_stage_first_not_margin`,
 `test_zero_cases_gets_the_short_message` (the empty message in both the text and the card),
 `test_dry_run_writes_markdown_json_and_html`, `test_send_without_webhook_fails_cleanly` (exit 1, no
 traceback) and `test_send_posts_the_card_to_the_webhook` (a stubbed `urlopen`: the URL, the content
@@ -558,7 +565,6 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 | Step | What it would take | Estimate |
 |---|---|---|
 | Scheduled cadence | The monitor is built (`scripts/monitor.py`) and the issue number is no longer given by hand, but nothing is installed: the cadence needs one line in whatever scheduler the operator already runs | Small |
-| Stage-first queue order | Sort the whole queue by regulatory stage before class; the customer said stage is the only priority that matters after filtering. The card keeps the margin as information | Small |
 | Space-side trends | The customer's first next step. Needs a second space IFIC issue; the terrestrial side already has trends | Medium, blocked on data |
 | M15 cross-check | The brief lists it; the tool does not use it | Medium |
 | CEPT/ECC DocDB | The third tier of the protection framework; not used | Medium |

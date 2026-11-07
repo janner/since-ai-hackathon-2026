@@ -5,9 +5,11 @@ import json
 from scripts import notify
 
 
-def make_case(ntc_id, klass, provision, margin, ific="3074"):
+def make_case(ntc_id, klass, provision, margin, ific="3074", deadline=None):
     return {
         "case_id": f"{ific}-{ntc_id}",
+        "deadline": deadline,
+        "deadline_passed": False,
         "class": klass,
         "regulatory_stage": {"provision": provision, "label": "", "source": ""},
         "calculation": {"margin_db": margin},
@@ -45,19 +47,18 @@ def test_message_carries_numbers_and_link(tmp_path):
     assert "60,44 dB" in message  # Finnish decimal comma
 
 
-def test_top_three_is_queue_order_not_margin(tmp_path):
+def test_top_three_is_stage_first_not_margin(tmp_path):
     cases = [
         make_case("A", "exceeds", "No. 11.2", 99.0),  # biggest margin, but recorded in the MIFR
-        make_case("B", "exceeds", "No. 9.6", 2.0),  # can still be influenced: ranks first
-        make_case("C", "exceeds", "No. 9.6", 1.0),
-        make_case("D", "exceeds", "No. 9.1", 0.5),  # same rank as B, smaller margin
-        make_case("E", "near", "No. 9.6", -0.5),  # another class, last
+        make_case("B", "exceeds", "No. 9.6", 0.5),
+        make_case("C", "exceeds", "No. 9.1", 2.0),  # bigger margin than B, same stage and class
+        make_case("D", "near", "No. 9.6", -0.5),  # near, but its stage still beats A
+        make_case("E", "exceeds", "No. 9.6", 0.1, deadline="19.12.2026"),  # falls due: first
         make_case("F", "clear", "No. 9.6", -9.0),  # never queued
     ]
-    # Rank 0 (9.6/9.1) sorts by margin desc: B(2.0), C(1.0), D(0.5) -> ["B", "C", "D"].
-    top = notify.top_cases(cases)
-    assert [case["source"]["keys"]["ntc_id"] for case in top] == ["B", "C", "D"]
-    assert top[0]["calculation"]["margin_db"] == 2.0
+    # Rank 0 (9.1/9.6), then class, then the deadline, then case id; the margin never decides.
+    top = notify.top_cases(cases, limit=5)
+    assert [case["source"]["keys"]["ntc_id"] for case in top] == ["E", "B", "C", "D", "A"]
 
 
 def test_zero_cases_gets_the_short_message():

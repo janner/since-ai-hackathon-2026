@@ -15,6 +15,7 @@ SPACE_MDB = ROOT / "data" / "itu-ific-3074" / "ific3074.mdb"
 REGISTER = ROOT / "data" / "frequencies_of_interest.csv"
 M4 = ROOT / "data" / "taajuusjakotaulukko.json"
 CLASSES = ("exceeds", "near", "not_space", "cannot_decide", "clear")
+STAGE_RANK = {"No. 9.1": 0, "No. 9.6": 0, "No. 11.2": 1, "Resolution 49": 2}
 needs_data = pytest.mark.skipif(
     not (SPACE_MDB.is_file() and REGISTER.is_file() and M4.is_file()),
     reason="challenge data missing: run scripts/fetch_data.py",
@@ -196,10 +197,16 @@ def test_unknown_case_id_is_404(client):
 
 @pytest.mark.data
 @needs_data
-def test_queue_is_ordered_by_class(client):
+def test_queue_is_ordered_by_stage_first(client):
     body = client.get("/api/queue").json()
     assert len(body) == 20  # cases.json in queue order: every card, clear included
-    ranks = [CLASSES.index(item["class"]) for item in body]
-    assert ranks == sorted(ranks)
-    exceeds = [item["calculation"]["margin_db"] for item in body if item["class"] == "exceeds"]
-    assert exceeds == sorted(exceeds, reverse=True)
+    stage = [STAGE_RANK[item["regulatory_stage"]["provision"]] for item in body]
+    assert stage == sorted(stage)
+    for rank in set(stage):
+        classes = [CLASSES.index(i["class"]) for s, i in zip(stage, body, strict=True) if s == rank]
+        assert classes == sorted(classes)
+    # the margin never orders: 124545403 (+60,44 dB, No. 9.1) is behind two 9.6 exceedances,
+    # and 125500277 (due 19.12.2026) heads the 11.2 exceedances ahead of bigger margins
+    ids = [item["case_id"].removeprefix("3074-") for item in body]
+    assert ids[:3] == ["124520183", "124520184", "124545403"]
+    assert ids[6] == "125500277"

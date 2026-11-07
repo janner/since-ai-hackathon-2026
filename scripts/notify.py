@@ -14,6 +14,7 @@ or out/ when no run has been ingested. KAISTA_URL is the UI (default http://loca
 from __future__ import annotations
 
 import argparse
+import datetime
 import html
 import json
 import os
@@ -23,10 +24,10 @@ import urllib.request
 from pathlib import Path
 
 # Mirrors app/config.REGULATORY_STAGES so the digest reads only out/ and stays stdlib-only.
-# Within a class a filing another administration can still influence (9.1/9.6) outranks one
-# already recorded (11.2); that is why the top three is not a plain margin sort.
+# A filing another administration can still influence (9.1/9.6) outranks one already recorded
+# (11.2), whatever the class or margin; the margin does not order (Traficom, S1).
 # shortcut: rank table copied from app/config.py, import it if the stage table starts growing.
-CLASS_ORDER = ("exceeds", "near", "cannot_decide", "clear")
+CLASS_ORDER = ("exceeds", "near", "not_space", "cannot_decide", "clear")
 STAGE_RANK = {"No. 9.1": 0, "No. 9.6": 0, "No. 11.2": 1, "Resolution 49": 2}
 UNKNOWN_RANK = 9
 EMPTY_MESSAGE = "Käsitelty, ei uusia huomioitavia tapauksia."
@@ -57,15 +58,22 @@ def ific_tag(cases: list[dict]) -> str:
 
 
 def top_cases(cases: list[dict], limit: int = 3) -> list[dict]:
-    """The first rows of the queue: class, then stage, then margin, then case id."""
+    """The first rows of queue.md: stage, then class, then the Resolution 35 deadline, then
+    case id. The margin does not order (Traficom, S1)."""
     queue = [case for case in cases if case["class"] != "clear"]
 
     def key(case: dict) -> tuple:
         stage = case["regulatory_stage"]["provision"]
+        deadline_rank, ordinal = 2, 0  # same rule as app/gates.py::queue_key
+        if case.get("deadline"):
+            day, month, year = (int(part) for part in case["deadline"].split("."))
+            stamp = datetime.date(year, month, day).toordinal()
+            deadline_rank, ordinal = (1, -stamp) if case.get("deadline_passed") else (0, stamp)
         return (
-            CLASS_ORDER.index(case["class"]) if case["class"] in CLASS_ORDER else len(CLASS_ORDER),
             STAGE_RANK.get(stage, UNKNOWN_RANK),
-            -(case["calculation"]["margin_db"] or 0.0),
+            CLASS_ORDER.index(case["class"]) if case["class"] in CLASS_ORDER else len(CLASS_ORDER),
+            deadline_rank,
+            ordinal,
             case["case_id"],
         )
 

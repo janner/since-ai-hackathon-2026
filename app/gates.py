@@ -140,16 +140,18 @@ def notice_deadlines(ific: IficData, today: date) -> dict[str, tuple[date, bool]
 
 
 def queue_key(item: QueueItem) -> tuple:
-    """Order inside a class: stage rank, then the earliest upcoming Resolution 35 deadline, then
-    margin descending, then the notice id. A passed deadline comes after every upcoming one
-    (most recent first), a notice with no deadline last."""
+    """Order the queue: regulatory stage, then class, then the earliest upcoming Resolution 35
+    deadline, then the notice id. A passed deadline comes after every upcoming one (most recent
+    first), a notice with no deadline last. The margin does not order: the expert reviews every
+    case the filter passes (Traficom, S1, 7 Nov 2026)."""
     if item.deadline is None:
         deadline_rank, ordinal = 2, 0
     elif item.deadline_passed:
         deadline_rank, ordinal = 1, -item.deadline.toordinal()
     else:
         deadline_rank, ordinal = 0, item.deadline.toordinal()
-    return (item.stage_rank, deadline_rank, ordinal, -(item.margin_db or 0.0), item.ntc_id)
+    class_rank = CLASS_ORDER.index(item.klass) if item.klass in CLASS_ORDER else len(CLASS_ORDER)
+    return (item.stage_rank, class_rank, deadline_rank, ordinal, item.ntc_id)
 
 
 def run(
@@ -481,8 +483,8 @@ def gate4(
     required: dict[str, tuple[str, float]] | None = None,
     deadlines: dict[str, tuple[date, bool]] | None = None,
 ) -> list[QueueItem]:
-    """Queue every concern: class, then stage, then the earliest upcoming Resolution 35 deadline,
-    then margin descending; clear stays out.
+    """Queue every concern: regulatory stage first, then class, then the earliest upcoming
+    Resolution 35 deadline. Clear stays out; the margin does not order (Traficom, S1).
 
     Every case is a concern unless the margin is clear *and* Finland allocates the band to a
     satellite downlink: a satellite transmitting where Finland has no such use is a finding on
@@ -521,8 +523,4 @@ def gate4(
         if case.klass != "clear"
     ]
     items += [item(ntc_id, "cannot_decide", reason, None) for ntc_id, reason in undecided.items()]
-    queue: list[QueueItem] = []
-    for klass in CLASS_ORDER:
-        same = [row for row in items if row.klass == klass]
-        queue += sorted(same, key=queue_key)
-    return queue
+    return sorted(items, key=queue_key)

@@ -220,8 +220,11 @@ tuotokset eivät ole enää niin tärkeitä. Vaiheen priorisointi on tärkein fi
 **What changed.** The product is a filter, not a ranking. Once a notice passes the filter, the
 expert reviews all of them; the size of the margin does not change the action. The one ordering
 that matters is the regulatory stage: a filing another administration can still influence comes
-before one already recorded in the MIFR. Pending after the freeze: order the queue by stage first,
-then class, then the Resolution 35 deadline; do not sort by margin.
+before one already recorded in the MIFR. Done 7 Nov 2026: `app/gates.py::queue_key` sorts the whole
+queue by stage, then class, then the Resolution 35 deadline, then the notice id, and the margin is
+not in the key. The UI (`queueKey`), `GET /api/queue` and the Teams digest (`top_cases`) use the
+same order. In the demo slice the four 9.1/9.6 cases now head the queue, including a `near` one,
+ahead of every 11.2 exceedance.
 
 ### S2. False positive or false negative
 

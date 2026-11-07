@@ -35,7 +35,7 @@ flowchart LR
   G3 -->|"case with a number"| CARD["app/cards.py<br/>card, Markdown, CSV, run log"]
   G2 -->|"survived, no number: queue.md + CSV row"| CARD
   G3 -->|"no number: queue.md + CSV row"| CARD
-  CARD --> QUEUE["queue.md: class, then stage, then Res 35 deadline, then margin; no cap"]
+  CARD --> QUEUE["queue.md: stage, then class, then Res 35 deadline; no margin, no cap"]
   CARD --> PROSE["app/prose.py<br/>optional, uses app/llm.py"]
   TPL["templates/"] --> PROSE
   PROSE --> GUARD["app/guard.py<br/>every number must exist in the card"]
@@ -64,7 +64,7 @@ calculation: without `out/` the page still loads and the API answers 503 with th
 | `app/territory.py` | The Finnish territory edge: the vertices of `rules/finland_border.csv` (land borders with Sweden, Norway and Russia plus the territorial sea outer limit), read once and cached. The PFD is evaluated at these 552 points, because the worst case over an area sits on its edge. |
 | `app/allocation.py` | The Finnish allocation (M4) for a notified band: the overlapping sub-band rows, the services, and `space_to_earth`, which is true only for a satellite service with the space-to-Earth direction. A false value makes the case `not_space`. |
 | `app/pfd.py` | Geometry and the limit: slant range and elevation from GEO longitude or a non-GSO sweep, free-space loss, and the Article 21 Table 21-4 limit read from `rules/rr21_table21_4.csv`. No limit is hardcoded in code. |
-| `app/gates.py` | The funnel G1 to G4: band overlap against the run's scope (with an optional adjacent-channel guard), visibility from Finland, the PFD computation at the territory edge and the class (`exceeds` / `near` / `not_space` / `clear`, an adjacent case capped at `near`), plus the reason code for every drop and the queue ordered by class, then regulatory stage, then the notice's earliest upcoming Resolution 35 deadline, then margin. |
+| `app/gates.py` | The funnel G1 to G4: band overlap against the run's scope (with an optional adjacent-channel guard), visibility from Finland, the PFD computation at the territory edge and the class (`exceeds` / `near` / `not_space` / `clear`, an adjacent case capped at `near`), plus the reason code for every drop and the queue ordered by regulatory stage, then class, then the notice's earliest upcoming Resolution 35 deadline; the margin does not order. |
 | `app/cards.py` | Builds the case card (source rows, calculation, M4 lookup, missing fields, one question), renders the Markdown, the queue, the CSV and the run log, and writes the output files — including one letter per `exceeds` case under `letters/`. |
 | `app/pipeline.py` | The CLI: one BR IFIC `.mdb` in, the output files out. Add `--terrestrial <3076.mdb> --terrestrial-prev <3075.mdb>` and the same run also writes the terrestrial side feature into the same `out/`; without the flags the space run is unchanged. The deterministic path never touches the network; the optional prose step calls the endpoint in `LLM_BASE_URL` through `app/llm.py`. |
 | `app/prose.py` | Card prose. The LLM drafts it, the guard checks it, the deterministic template in `templates/` is the floor. Also holds the correspondence-letter template and function. |

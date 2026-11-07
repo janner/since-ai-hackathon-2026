@@ -400,9 +400,9 @@ function renderFunnel(data) {
   );
 }
 
-// The queue order mirrors scripts/notify.py: class, then stage (a stage another
-// administration can still influence before one already recorded in the MIFR),
-// then margin descending, then case id.
+// The queue order mirrors app/gates.py::queue_key and scripts/notify.py: stage first (a stage
+// another administration can still influence before one already recorded in the MIFR), then
+// class, then the Resolution 35 deadline, then case id. The margin does not order (Traficom, S1).
 const QUEUE_CLASS = ["exceeds", "near", "not_space", "cannot_decide", "clear"];
 const QUEUE_STAGE = { "No. 9.1": 0, "No. 9.6": 0, "No. 11.2": 1, "Resolution 49": 2 };
 const QUEUE_STAGE_UNKNOWN = 9;
@@ -410,11 +410,18 @@ const QUEUE_STAGE_UNKNOWN = 9;
 function queueKey(item) {
   const klass = QUEUE_CLASS.indexOf(item["class"]);
   const stage = item.regulatory_stage && item.regulatory_stage.provision;
-  const margin = Number(item.calculation && item.calculation.margin_db);
+  let deadlineRank = 2; // upcoming 0 (soonest first), passed 1 (latest first), none 2
+  let ordinal = 0;
+  if (item.deadline) {
+    const [day, month, year] = item.deadline.split(".").map(Number);
+    const stamp = Date.UTC(year, month - 1, day);
+    [deadlineRank, ordinal] = item.deadline_passed ? [1, -stamp] : [0, stamp];
+  }
   return [
-    klass < 0 ? QUEUE_CLASS.length : klass,
     QUEUE_STAGE[stage] === undefined ? QUEUE_STAGE_UNKNOWN : QUEUE_STAGE[stage],
-    -(isFinite(margin) ? margin : 0),
+    klass < 0 ? QUEUE_CLASS.length : klass,
+    deadlineRank,
+    ordinal,
     item.case_id,
   ];
 }

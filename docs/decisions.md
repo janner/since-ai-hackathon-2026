@@ -71,8 +71,9 @@ bound produces too many false flags.
 
 ### D5. Queue without a cap, not padded, everything in the files
 
-Choice: order `exceeds`, `near`, `not_space`, `cannot_decide`; leave `clear` cases out of the queue;
-keep every notice in `cases.json` and `3074_results.csv`.
+Choice: inside a regulatory stage, order `exceeds`, `near`, `not_space`, `cannot_decide`; the stage
+orders first (I17); leave `clear` cases out of the queue; keep every notice in `cases.json` and
+`3074_results.csv`.
 
 Reason: the written challenge brief names no target number, and the task is to find the problems and
 report them rather than shorten the list. The queue holds every case that needs a human decision,
@@ -443,16 +444,29 @@ Tests: `tests/test_prose.py::test_an_empty_llm_answer_falls_back`.
 `app/config.py::REGULATORY_STAGES` and `app/gates.py::gate4()`. The BR IFIC carries the stage of a
 filing in `notice.prov`: `9.1/IA` (advance publication, ITU RR 2024 No. 9.1), `9.6` (coordination
 request, No. 9.6), `11.2` (notification, No. 11.2) and `RS49` (Resolution 49). In IFIC 3074 the
-counts are 50 / 76 / 65 / 5. The card shows the stage as `{provision, label, source}` and the queue
-orders inside a class by stage rank before the margin: an advance publication or coordination
-request, where another administration can still influence the filing, is worth more to a specialist
-than a filing already recorded in the MIFR. The stage is a property of the notice, not a deadline:
-no window length is computed or guessed, and `label` is one sentence of what the stage means.
+counts are 50 / 76 / 65 / 5. The card shows the stage as `{provision, label, source}`. The stage is a
+property of the notice, not a deadline: no window length is computed or guessed, and `label` is one
+sentence of what the stage means.
+
+The queue order (revised 7 Nov 2026 after Traficom's S1 answer): `queue_key()` sorts the whole queue
+by stage rank, then class, then the Resolution 35 deadline (I21), then the notice id. The margin is
+not in the key. An advance publication or coordination request, where another administration can
+still influence the filing, comes before a filing already recorded in the MIFR, whatever the class
+or margin of either. The specialists review every case the filter passes; the size of the margin
+does not change their action, the stage does.
+
+Alternatives: class first, then stage, then margin (the earlier order, rejected by S1: it put an
+11.2 exceedance at +21 dB ahead of a 9.6 `near` case the administration can still act on); keep the
+margin as the last tie-break (rejected: S1 says it does not order, and the notice id is a stable
+tie-break that implies no priority).
 
 Tests: `tests/test_cards.py::test_prov_distribution_and_the_card_stage` (data) locks the 50 / 76 / 65
 / 5 distribution and the card block;
-`tests/test_gates.py::test_queue_puts_coordination_before_notification` locks the order (coordination
-request before notification at the same margin).
+`tests/test_gates.py::test_queue_puts_coordination_before_notification` (every 9.1/9.6 row before
+the first 11.2 row), `test_stage_beats_a_bigger_margin` (a `near` 9.x case ahead of an 11.2
+exceedance at +99 dB), `tests/test_api.py::test_queue_is_ordered_by_stage_first` and
+`tests/test_notify.py::test_top_three_is_stage_first_not_margin` lock the same order in the API and
+the digest.
 
 ### I18. The adjacent-channel guard is one constant, off by default
 
@@ -510,9 +524,9 @@ belong to three notices only, 125500277, 126500053 and 325500168. The chain `fre
 deadline read like any other in the queue (the gap was listed in `docs/features.md`).
 
 Choice: a notice's deadline is the earliest date still upcoming over all of its groups, else the
-latest date that has already passed; the queue orders inside a class by stage rank, then that
+latest date that has already passed; the queue orders by stage rank, then class, then that
 deadline (soonest upcoming first, a passed one behind every upcoming one, a notice with no deadline
-last), then the margin. The card carries `deadline` (Finnish `d.m.yyyy`) and `deadline_passed`, and
+last), then the notice id (I17; the margin left the key on 7 Nov 2026). The card carries `deadline` (Finnish `d.m.yyyy`) and `deadline_passed`, and
 `render_card_md()` writes `- **Resolution 35 deadline:** <date>`, appending `(passed)` for one
 already gone. The classes, the margins and every other number do not change: in the demo slice one
 row (125500277, due 19 Dec 2026) moves ahead of a larger margin in its stage, and its card gains one
@@ -532,17 +546,17 @@ notice's earliest.
 Tests: `tests/test_ingest.py::test_deadline_reads_the_exported_date`;
 `tests/test_gates.py::test_notice_deadlines_pick_the_earliest_upcoming` (synthetic: earliest
 upcoming, latest passed, a group with no deadline),
-`test_queue_orders_by_stage_then_deadline_then_margin` (synthetic: upcoming ascending, then passed,
+`test_queue_orders_by_stage_then_deadline` (synthetic: upcoming ascending, then passed,
 then none) and `test_only_one_demo_case_carries_a_res35_deadline` (data: 125500277 ahead of a larger
 margin in its stage); `tests/test_cards.py::test_deadline_line_marks_a_passed_deadline` and
 `test_queue_md_carries_a_deadline_column` (synthetic) and
 `test_the_demo_card_shows_its_res35_deadline` (data).
 
-Known limit: the order lives in three places (`gate4`, `scripts/notify.py::top_cases`, and
-`app/static/index.html`'s `compareQueue`); only `gate4` gained the deadline key here, so the digest
-and the UI still sort by stage then margin. `out/queue.md` is the queue of record. Updating the two
-copies is a separate change, because a new key can reorder the UI and invalidate the committed
-screenshot.
+Known limit: the order lives in four places (`gate4`, `app/main.py::queue`,
+`scripts/notify.py::top_cases` and `app/static/index.html`'s `queueKey`). All four carry the same
+stage, class, deadline key since 7 Nov 2026; the copies exist because `notify.py` stays stdlib-only
+and the page sorts what the API sends. `out/queue.md` is the queue of record. A new key changes
+four files, and the committed screenshot shows the old order until it is retaken.
 
 ### T1. The P.1546 table is generated once and committed
 
