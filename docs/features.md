@@ -147,7 +147,10 @@ A notice with nothing computable lands in `undecided` with one reason: `no_orbit
 `no_limit_for_band`, `no_power`, `no_gain`, `x_needs_nv` or `no_station`. Classification uses the
 margin rounded to two decimals: `exceeds` above 0 dB, `near` between −3 and 0 dB, `clear` at or
 below −3 dB. An adjacent-channel case (see F3) keeps its margin but is capped at `near`: the
-Table 21-4 limit belongs to the notified band and does not apply outside it.
+Table 21-4 limit belongs to the notified band and does not apply outside it. The victim is the
+row's own site: RX is the receiver's frequency and TX is the fallback. For BC/BT the row is a
+transmitter, so its whole coverage area is protected; the station-site PFD is the upper bound,
+since the beam is assumed to point at the station.
 
 `gate4()` orders the queue `exceeds`, `near`, `cannot_decide`, and inside a class by stage rank
 (advance publication and coordination request before the MIFR notification, then Resolution 49),
@@ -302,21 +305,21 @@ guessed.
 | Step | Behaviour |
 |---|---|
 | Diff | from `fxm_terra.intent`: ADD → `new`, MODIFY → `modified`, SUPPRESS → `withdrawn`, RECORDED → the stock, not a change. The IFIC is not a cumulative database (3075 and 3076 share no `terrakey`), so the change is this field, not a key comparison |
-| Filter | keeps `stn_cls` in `{FB, ML, FL}`, within 1 000 km of the nearest of the four Finnish test points, and overlapping the register on RX or TX |
+| Filter | keeps `stn_cls` in `{FB, ML, FL}`, within 1 000 km of the nearest point on the Finnish border, and overlapping the register on RX or TX |
 | Field strength | `field_strength_p1546(freq, dist, h_ant, p_erp_kw)` interpolates the P.1546-6 land table linearly in frequency, height and distance, then adds `10*log10(p)`. Model: land path, 50 % of time, 50 % of locations, no terrain, 10 m receiving antenna |
-| Extrapolation | a query outside any of the three table axes (frequency, antenna height, distance) clamps to the nearest node; the notice is flagged `extrapolated: true` when any of the four test points is outside |
+| Extrapolation | a query outside any of the three table axes (frequency, antenna height, distance) clamps to the nearest node; the notice is flagged `extrapolated: true` when any border sample is outside |
 | Trends | grouped by administration, band label, class and bandwidth; new, modified and withdrawn against the same group in the previous number (3075) |
 | Anomalies | a group with nothing in the previous number and three or more now |
-| Threshold | `protection_threshold_dbuVm` is `null`; the criterion line names the three tiers (ITU RR Art. 21 Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4 / Traficomin taajuusjakotaulukko) and marks the ECC and national values as not confirmed |
+| Threshold | the ECC T/R 25-08 A1.2.3 coordination values are confirmed (0/6/12/18/20 dBµV/m by band, 25 kHz reference, 10 % time, 10 m receiving antenna) and applied per notice; Traficom 7.11.2026 applies the same 20 dBµV/m above 470 MHz. The national M4 value is not confirmed. The criterion line names the three tiers (ITU RR Art. 21 Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4 / Traficomin taajuusjakotaulukko) |
 
 Every finding carries its own source reference: the IFIC number, `terrakey`, `adm_ref_id`, `adm`,
 `intent` and the tables it came from, alongside `band`, `distance_to_finland_km`, `p_erp_kw`,
-`ant_h_m` and the four field-strength values. The document carries `source` / `prev_source` (file,
+`ant_h_m` and the border field-strength values. The document carries `source` / `prev_source` (file,
 SHA256, tables, keys), `audit` (input SHA256, rules version, run time) and `missing`; the readable
 report header shows the file name and SHA256 of both MDBs.
 
-The distance to Finland is the nearest of the four test points (Helsinki, Turku, Lappeenranta,
-Maarianhamina), not a polygon border. Both register directions count as overlap, because a channel
+The distance to Finland is the nearest point on the border polyline in
+`rules/finland_border.csv`, not a single representative point. Both register directions count as overlap, because a channel
 is a pair: RX 464.04 MHz and TX 454.04 MHz belong to the same licence.
 
 Measured on the real pair: 3076 has 4 057 `fxm_terra` rows, `intent` ADD 2 905 / MODIFY 163 /

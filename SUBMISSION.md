@@ -30,7 +30,7 @@ Everything before the card text is deterministic. The pipeline reads the BR IFIC
 The tool is built as one module per feature, each with its own test file, 137 tests in all (94 of
 them run in a clean clone; the rest need the challenge data). A slice run takes about 3.5 seconds and
 the seven-band run about 7.7 seconds on the hackathon machine, most of it `mdb-export` reading the
-BR IFIC database. The repository also carries a side feature for terrestrial land-mobile notices. It is not a second program: one command runs it, `python -m app.pipeline --terrestrial`, in the same pass and into the same output directory as the space funnel, and each file it writes carries the same `source` (file, SHA256, tables, keys) and `audit` (input SHA256, rules version, run time) blocks as a space case card; only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates. It reads two real BR IFIC terrestrial databases (3075 and 3076), takes each notice's change from its intent field, keeps what is within 1,000 km of Finland and overlaps the register, and computes the field strength at four Finnish test points.
+BR IFIC database. The repository also carries a side feature for terrestrial land-mobile notices. It is not a second program: one command runs it, `python -m app.pipeline --terrestrial`, in the same pass and into the same output directory as the space funnel, and each file it writes carries the same `source` (file, SHA256, tables, keys) and `audit` (input SHA256, rules version, run time) blocks as a space case card; only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates. It reads two real BR IFIC terrestrial databases (3075 and 3076), takes each notice's change from its intent field, keeps what is within 1,000 km of Finland and overlaps the register, and computes the field strength at points along the Finnish border.
 
 Two things the build met on the way. Beam geometry is empty in IFIC 3074, so the tool cannot decide whether a beam actually illuminates Finland; instead of guessing, every card carries that as a question and lists the missing fields. And the reference tool behind the plan read the register cell `0,1G` as 0.1 MHz, while this code reads the `Channel bandwidth` column as 0.1 GHz = 100 MHz; that is why the seven-band funnel sits one notice above the plan (101 against 100). The demo slice is identical either way, and the difference is written up in docs/decisions.md.
 
@@ -97,8 +97,10 @@ confidential), so no personal ticks are needed.
   regulator's own paper on LLM failure modes in spectrum work (arXiv:2403.17819), the abstention
   metric behind `cannot_decide`, the e-discovery screening result that explains why the gates read
   every notice instead of a sample, and the reason reproducibility is the acceptance test the ITU
-  itself applies: EPFD examination rests on Rec. ITU-R S.1503, and the Bureau required at least two
-  independent implementations before relying on the software.
+  itself applies: EPFD examination rests on Rec. ITU-R S.1503-2 and Resolution 85 (Rev. WRC-23), and
+  the Bureau required at least two independent implementations before relying on the software
+  (https://www.itu.int/epfdsupport/). All sources are listed in README and in part 4 of
+  `docs/decisions.md`.
 - Partner technologies: Red Hat OpenShift AI, see below.
 - Teams digest: no field of its own. The optional `scripts/notify.py` builds one message per IFIC for
   an incoming Teams webhook (dry-run output `out/teams_message.md`, preview `out/teams_message.html`).

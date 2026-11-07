@@ -49,7 +49,7 @@ A side feature applies the same style to terrestrial land-mobile notices under t
 runs in the same `app.pipeline` pass (`--terrestrial`), writes into the same `out/`, and carries the
 same `source` / `audit` / `missing` fields. It reads two real BR IFIC terrestrial databases (3075 and
 3076), takes the change from each notice's `intent` field, filters what is within 1 000 km of Finland
-and overlaps the register, and computes ITU-R P.1546-6 field strength at four Finnish test points.
+and overlaps the register, and computes ITU-R P.1546-6 field strength at points along the Finnish border.
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
@@ -250,12 +250,13 @@ at all: open `out/teams_message.html`.
 9. The P.1546 table in `rules/p1546_land.csv` is coarse: three frequencies (100, 600, 2000 MHz),
    eight antenna heights, 70 distances from 1 to 1 000 km, rounded to 0.01 dB. A query outside any
    of those three ranges clamps to the nearest node; the notice is then flagged `extrapolated: true`
-   if any of the four test points is outside the table. The model is land path, 50 % of time, 50 %
+   if any border point is outside the table. The model is land path, 50 % of time, 50 %
    of locations, no terrain, 10 m receiving antenna, 1 kW ERP basis.
-10. Nothing names a protection threshold for the terrestrial path, so
-    `protection_threshold_dbuVm` stays `null`. The report names the framework in three tiers
-    (ITU RR Art. 21 Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4) and marks
-    the ECC and national values as to be confirmed. The tool claims neither a pass nor a fail.
+10. The ECC T/R 25-08 A1.2.3 trigger values are confirmed (0/6/12/18/20 dBµV/m by band on a
+    25 kHz reference, and the same 20 dBµV/m above 470 MHz per Traficom 7.11.2026); the national M4
+    value is not confirmed. The report names the three tiers in its criterion line (ITU RR Art. 21
+    Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4) and applies the ECC
+    threshold per notice.
 11. Not implemented: the labelled evaluation set (plan R16) and the LUMI run (R20). The OpenShift AI
     part (R19) was built and used: Granite 3.3 2B Instruct served by KServe and the vLLM CPU runtime
     in the sandbox, called by the prose step. See `deploy/openshift/README.md`. The demo video, the
@@ -356,6 +357,34 @@ Traficom's synthetic dataset from the Since AI platform and has to be copied in 
 
 The runtime needs nothing beyond what the pre-event template already pinned: the numbers are
 standard-library math over CSV and JSON.
+
+## Prior art this design answers
+
+Four published sources cover the same ground. None is a dependency; they are the reasons the code is
+arranged this way. Part 4 of `docs/decisions.md` records what each one changed, with the same links.
+
+- A spectrum regulator's own paper on LLMs. Ghasemi and Guinand (Communications Research Centre (CRC)
+  Canada, Ottawa; the authors' addresses are @ised-isde.gc.ca) list the failure modes in section III of *Accelerating Radio Spectrum Regulation Workflows
+  with Large Language Models*: "Inaccuracy" (III-B, output "appearing credible but being factually
+  wrong" and able to "misinform policies or public communication") and "Automation Bias" (III-C,
+  "automatically generated outputs are preferred even when faced with contradictory evidence").
+  https://arxiv.org/html/2403.17819v1 Here the model writes prose only, a numeric guard rejects any
+  number the code did not produce, and the decision stays with the specialist.
+- Selective classification, the literature name for `cannot_decide`. Heng and Soh define the two
+  metrics a selective classifier is judged by, "Coverage" and "Selective Risk", and the trade-off
+  between them. https://arxiv.org/html/2505.15008v3 `funnel.json` reports the same pair in its own
+  terms: 196 notices in, 15 rows in the queue, and a reason code for every abstention.
+- Technology-assisted review. Grossman and Cormack compared review with automated ranking against
+  exhaustive manual review "as measured by recall, precision, and F1" (Richmond Journal of Law and
+  Technology 17(3), Article 11, 2011). https://grossman.uwaterloo.ca/grossman-publications/jolt-2011/
+  Their process is defensible because it reports those three numbers over a sample. The gates here
+  read every notice, so their recall is 1 by construction and only the undecidable class carries
+  uncertainty. That last sentence is our reading, not theirs.
+- The ITU's own test for a compliance tool. EPFD examination under Article 22 rests on Rec. ITU-R
+  S.1503-2 and Resolution 85 (Rev. WRC-23), and the Radiocommunication Bureau states that "at least
+  two independent implementations" of S.1503 were needed before it would rely on the software.
+  https://www.itu.int/epfdsupport/ This repository carries the same kind of evidence for a smaller
+  check: the input SHA256, the rules version, and a fixed test vector.
 
 ## AI tools used
 

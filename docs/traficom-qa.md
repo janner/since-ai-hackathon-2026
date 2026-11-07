@@ -1,0 +1,137 @@
+# Traficom Q&A, 7 Nov 2026
+
+The challenge's Q&A point ran 9.00–12.00 and 14.30–18.00. The full question list and the answer form
+live in `~/hackathon-prep/KYSY-TRAFICOM.md`; this file is the repository's memory of what was asked,
+what was answered and what each answer changed. Questions are in English because the brief and the
+data are English. The respondent is named where the answer came from a person rather than a source.
+
+## Answered in the Discord thread
+
+### Q1. Register nature and the broadcasting coverage area
+
+> We treat the delivered Excel table (Frequencies of interest, 874 stations) as the list of Finnish
+> stations to be protected. So we check satellite downlinks (space-to-Earth) against each station's
+> RX frequency and location. Is that correct?
+> For broadcasting rows (Class of licence BC and BT), TX and RX frequency are the same. Should we
+> protect only the transmitter site, or the whole coverage area around it?
+
+**Answer.** The satellite downlink is the interferer. The protected side is Finnish use: the
+register's RX frequencies, and TX frequencies where RX is not separately marked. The general rule is
+that every TX is received in Finland. For BC/BT the row is a transmitter, so the whole coverage area
+around it is protected.
+
+**What changed.** No code change. `app/ingest.py` already reads RX first and TX as the fallback
+(`Station.centre_mhz`). The coverage area is not in the data, so the PFD at the transmitter's site is
+its upper bound; the beam is assumed to point at the station. Recorded in `docs/decisions.md` D3 and
+`docs/features.md` F5.
+
+### Q2. Protection criterion: Table 21-4, CEPT or national
+
+> As the protection criterion we use the power flux-density (PFD) limits for space stations in RR
+> Article 21, Table 21-4. Example: 3 400–4 200 MHz, GSO, −152 dB(W/m²) in 4 kHz at 0–5° elevation.
+> You said that exceeding the defined limit is a concern. Is Table 21-4 the defined limit for the
+> stations in the table, or is there another one (a national limit, or I/N)? If another, which value
+> and source?
+
+**Answer.** Table 21-4 is the internationally agreed limit and the primary source. CEPT may elaborate
+the European "concern" thresholds. National limits are not relevant here.
+
+**What changed.** No code change. Table 21-4 stays the PFD limit. The −3 dB `near` class is a
+screening convention, not a CEPT threshold. Recorded in `docs/decisions.md` D4.
+
+### Q3. Beam geometry and the worst-case assumption
+
+> In the free IFIC 3074 database the beam table (`s_beam`) has no boresight coordinates and no beam
+> axes, so we cannot tell where a satellite beam points. We therefore assume the worst case: the
+> beam's peak gain is aimed at the Finnish station. This gives an upper bound, not a prediction, and
+> can over-flag cases. Is this acceptable for screening? Or can you provide the beam data (GIMS
+> graphical data) for the relevant notices?
+
+**Answer.** Beams are not relevant to the analysis; the worst case is always assumed. Satellites
+move, rotate and can change their pointing, except GSO.
+
+**What changed.** No code change. The worst-case assumption is confirmed; GIMS data is not needed.
+The "beam geometry missing" note stays as the description of the upper bound.
+
+### Q4. Terrestrial field strength: border line or the register's stations
+
+> For the terrestrial land-mobile side quest we calculate the field strength from each foreign
+> station with ITU-R P.1546 and compare it with the ECC T/R 25-08 trigger field strengths. Where
+> should we calculate it: at points on the Finnish border or coastline, or at the station locations
+> in your Excel table? If at the border, which points matter most?
+
+**Answer.** At points on the border line, not at four cities. Pay attention to the points closest to
+the foreign transmitters and to the border sections where the field strength can be highest. Cover
+the relevant border sections, not one representative point. Also mark the Finnish stations in the
+Excel table whose field strength exceeds the coordination threshold.
+
+**What changed.** Code change: the four test points became the border polyline in
+`rules/finland_border.csv`, the nearest point to each transmitter and the highest-field-strength
+border section are reported, and the register's stations are flagged against the threshold.
+Recorded in `docs/decisions.md` T2 and T5 and in `docs/features.md` F6.
+
+### Q5. Output format
+
+> The brief says the processed results for IFIC 3074 and 3076 must be submitted as separate files,
+> but does not define the format. Our plan: one CSV per IFIC with one row per notice (notice ID,
+> administration, frequency, result class, PFD or field strength, margin, reason), plus the case
+> cards as JSON. Is that fine, or do you expect another format, for example the same MDB format as
+> the IFIC? Which fields are mandatory?
+
+**Answer.** xls/csv or doc/pdf is the primary format; JSON is preferred over MDB; any
+machine-readable open format is fine. The mandatory fields were not answered.
+
+**What changed.** No change: one CSV per IFIC plus `cases.json` stays. The mandatory-field question
+is open (Q8 below).
+
+### Q6. Showing data in the demo video
+
+> May we show rows of the delivered Excel table and an unfinished prototype in the demo video?
+
+**Answer.** Yes.
+
+**What changed.** The demo may show the real table rows and the unfinished prototype. Recorded in
+`docs/demo.md`.
+
+### Q7. T/R 25-08 above 470 MHz
+
+> T/R 25-08 ends at 470 MHz and 81 % of the 3076 land-mobile rows are above that. What criterion do
+> you use there?
+
+**Answer.** For frequencies above 470 MHz, apply the same criteria as T/R 25-08 defines for the range
+above 400 MHz.
+
+**What changed.** Code: `rules/tr2508_thresholds.csv` gained the row 470–10 000 MHz at 20 dBµV/m, and
+`tr2508_threshold()` now returns a value for the >470 MHz notices instead of `None`. The docs'
+"not confirmed" text for the ECC tier was replaced with the confirmed values. Recorded in
+`docs/decisions.md` T5.
+
+## Also answered in the Discord thread
+
+**Bandwidth.** If `Channel bandwidth` and `Transmission bandwidth` disagree, use the smaller. Station
+440557 has 2 500 kHz against 118 600 kHz, a typo in the data generation. For BC stations, 9 or 10 kHz
+is fine. Code: `app/ingest.py` uses `Channel bandwidth` and keeps `Transmission bandwidth` as the
+fallback; the fix is `min()`.
+
+**"Concern".** Exceeding the defined limit is always a concern. A near-limit or "semi-high" PFD near
+the frequency may also be one; this matches the `near` class (−3 dB) and also means an adjacent band.
+The threshold falls if the Finnish station has a high antenna gain pointed at the transmitter's
+location, so the register's `Ant gain` and `Radiation direction` fields matter. IFIC 3074 and 3076
+contain "several cases which are foundable clearly"; the ground-truth question was dropped because the
+cases are the evaluation set.
+
+**AP30 plan positions.** Otto Julkunen pointed to ITU SpaceExplorer (filter Finland, GEO only). The
+data is already local: `SPS_ALL_IFIC3083.zip` → 387 MB MDB, four Finnish notices (`100550080`,
+`100550081`, `100550722`, `100550723`), two at 22.8°E. The free 3074 zip has empty AP30B tables; the
+plan data is separate. SpaceExplorer needs a TIES account or SNS subscription, which we do not have.
+
+## Open
+
+- **Mandatory fields (Q5 follow-up).** Not answered. The current CSV fields stay until Traficom names
+  them.
+- **Empty Class of licence.** 294 rows are treated as unclassified and marked in the card. Asked, not
+  answered in the quoted reply; not asked again.
+- **The "same criteria as above 400 MHz" reading.** The answer names the 400 MHz range; the table
+  applies A1.2.3's 20 dBµV/m plus the bandwidth correction. The 400 MHz range also has the NB/WB and
+  LTE/LTE tables (20/55/37 dBµV/m); those are not used for the land-mobile rows, and the choice is
+  recorded in `rules/tr2508_thresholds.csv`.

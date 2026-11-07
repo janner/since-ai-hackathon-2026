@@ -8,7 +8,8 @@ Part 1 holds the product decisions from the plan (task 0). They were made in the
 without asking the user, as the plan's own instruction required, and are repeated here because a
 reader of the repository cannot follow the code without them. Part 2 holds the decisions that
 appeared while the code was written, each one greppable in the source. Part 3 holds the decisions of
-this documentation pass. The last section holds the optional Teams digest, decided on 7 Nov 2026.
+this documentation pass. Part 4 lists the published work the design answers, with a source for every
+claim. The last section holds the optional Teams digest, decided on 7 Nov 2026.
 
 ## Part 1: product and scope
 
@@ -44,7 +45,10 @@ Reopen if: Traficom supplies calculation parameters for the other bands.
 Choice: `emi_rcp = E`, space transmits and Finland receives. Uplink is a configuration, not a demo.
 
 Reason: the challenge's own example is a satellite that disturbs terrestrial use in Finland, and the
-register carries the RX frequency and the antenna direction.
+register carries the RX frequency and the antenna direction. The RX frequency is the receiver's
+frequency; TX is the fallback when RX is not separately noted. For BC/BT the row is the
+transmitter, so the whole coverage area around it is protected; the PFD at the transmitter's site
+is the upper bound for that area, because the beam is assumed to point at the station.
 
 Reopen if: Traficom answers that their register is a transmitter register. The engine is the same;
 only the filter and the receiver side change.
@@ -55,7 +59,9 @@ Choice: a 13-row limit table in `rules/rr21_table21_4.csv` covering GSO, non-GSO
 
 Reason: `c_pfd` covers four frequency ranges and none of the seven space bands. An I/N criterion
 needs a receiver noise figure and a bandwidth that the register does not carry. Table 21-4 is public,
-citable and a function of elevation.
+citable and a function of elevation. Traficom confirmed Table 21-4 as the internationally agreed
+limit; CEPT may elaborate the European concern thresholds, and the −3 dB `near` class is a
+screening convention rather than a CEPT threshold.
 
 Reopen if: Traficom names a protection criterion, gives receiver parameters, or shows that the upper
 bound produces too many false flags.
@@ -454,11 +460,12 @@ documents in its own output.
 
 Test: `tests/test_terrestrial.py::test_field_strength_matches_p1546_table_node`.
 
-### T2. Distance to Finland is the nearest of four test points
+### T2. Distance to Finland is the nearest point on the border line
 
-`app/terrestrial.py::distance_to_finland_km()`. The same four points serve as the field strength
-sample locations, so the filter and the report use one definition. A polygon border would be more
-accurate and is not worth the geometry for a screening filter at 1 000 km.
+`app/terrestrial.py::distance_to_border_km()`. The border polyline in `rules/finland_border.csv`
+serves as the field strength sample locations, so the filter and the report use one definition.
+Traficom asked for the nearest points to the foreign transmitters and the border sections with the
+highest field strength, so the border line is not optional.
 
 Test: `tests/test_terrestrial.py::test_filter_keeps_land_mobile_in_reach`.
 
@@ -479,19 +486,20 @@ question.
 
 Test: covered by `tests/test_terrestrial.py::test_run_writes_three_outputs` and the fixture output.
 
-### T5. The protection threshold stays `null`, and the framework is named
+### T5. The protection threshold follows T/R 25-08 A1.2.3
 
-`app/terrestrial.py`, `THRESHOLD_DBUV_M = None` with `CRITERION` naming the three tiers a
-field-strength limit would come from: ITU RR Art. 21 Table 21-4 (PFD, the level the space path
-already applies) → CEPT/ECC T/R 25-08 (the field strength that triggers protection) → the national
-M4 / Traficomin taajuusjakotaulukko (the Finnish protection threshold). No threshold was given for
-the challenge, and the ECC and national values are the two that are not confirmed, so the tool
-reports the calculated field strength and says nothing about pass or fail. A guessed threshold
-would turn a report into a false verdict.
+`app/terrestrial.py`, `tr2508_threshold()` reads `rules/tr2508_thresholds.csv`: 0/6/12/18/20
+dBµV/m by band on a 25 kHz reference, and the same 20 dBµV/m above 470 MHz per Traficom 7.11.2026.
+The threshold is applied per notice and the margin is reported. `CRITERION` still names the three
+tiers a field-strength limit would come from: ITU RR Art. 21 Table 21-4 (PFD, the level the space
+path already applies) → CEPT/ECC T/R 25-08 (the field strength that triggers protection) → the
+national M4 / Traficomin taajuusjakotaulukko (the Finnish protection threshold). The ECC values are
+confirmed; the national value is not. A guessed threshold would turn a report into a false verdict,
+so the national tier stays named and unused.
 
-Test: `tests/test_terrestrial.py::test_findings_leaves_threshold_open_and_cites_the_source` (the
-criterion still says "to be confirmed"), `test_run_writes_three_outputs` (the framework line lands
-in `TERRESTRIAL.md`).
+Test: `tests/test_terrestrial.py::test_findings_applies_the_tr2508_threshold` (the criterion names
+the confirmed values), `test_tr2508_threshold_is_frequency_dependent_and_bandwidth_corrected` (the
+>470 MHz row), `test_run_writes_three_outputs` (the framework line lands in `TERRESTRIAL.md`).
 
 ### T6. The terrestrial filter keeps the land-mobile station classes
 
@@ -549,6 +557,135 @@ for a case that reached G3. The README limitation and `docs/features.md` F6 were
 Every command and number in these files was executed on 6 Nov 2026 against commit `26187c3`, with
 the outputs recorded in the handoff. A number that appears in the documentation comes from a run,
 not from the plan.
+
+## Part 4: prior art
+
+This part exists because the design was not invented from nothing. Four published sources cover the
+same ground, and each one either confirmed a choice or changed one. None is a dependency, none is
+cited in code, and the repository does not need any of them to run.
+
+### P1. A spectrum regulator's own paper names the two blockers, and both are answered
+
+Choice: the model writes prose only. Code computes every number, a guard rejects any sentence that
+carries a number the card does not hold, and the class and the letter are the specialist's call.
+
+Alternatives: let the model select which notices matter; let it summarise a row into a number; skip
+the model entirely and ship templates.
+
+Reason: the closest published work comes from the Canadian spectrum regulator's own research arm.
+Ghasemi and Guinand are at the Communications Research Centre (CRC) Canada in Ottawa, and the paper's
+contact addresses are @ised-isde.gc.ca, the department that runs spectrum regulation there. They put
+LLMs through spectrum regulation workflows. Section
+III-B, "Inaccuracy", says the output can appear "credible but being factually wrong (so-called
+hallucination)" and that this "could misinform policies or public communication". Section III-C,
+"Automation Bias", says that when it is relied on too much, "automatically generated outputs are
+preferred even when faced with contradictory evidence suggesting other manually-derived outputs might
+be better". Section II-D3 argues for human oversight on the same grounds. Source: *Accelerating Radio
+Spectrum Regulation Workflows with Large Language Models*, arXiv:2403.17819, full text at
+https://arxiv.org/html/2403.17819v1 (abstract: https://arxiv.org/abs/2403.17819). A tool that let a
+model decide would import both problems into a decision with legal consequences. Skipping the model
+would have left the letter and the card text to a template, which is what happens anyway when
+`LLM_BASE_URL` is unset: the template is the floor, not the fallback nobody tested.
+
+What it changed: it is the reason the guard exists as a rejection rule rather than a warning, and the
+reason the guard's rejections are counted in the run instead of logged quietly.
+
+Reopen if: Traficom states that a model may rank or decide. That is unlikely, and it would still need
+the guard.
+
+### P2. The abstention class comes from selective prediction, not from convenience
+
+Choice: `cannot_decide` is a first-class outcome. It keeps a row in the queue, it keeps a row in
+`3074_results.csv`, and it carries the reason the calculation stopped (`no_power`, `no_gain`,
+`no_limit_for_band`, `x_needs_nv`, `no_perigee`).
+
+Alternatives: drop what cannot be computed; assume a default beam gain; let the model guess a value
+from the notice text.
+
+Reason: a classifier that refuses to answer is measured in the selective classification literature by
+two numbers, and both are defined there: "Coverage" (the share of inputs it answered) and "Selective
+Risk" (the error rate on the part it did answer), with the trade-off between them as the objective
+(Heng and Soh, *Know When to Abstain: Optimal Selective Classification with Likelihood Ratios*,
+arXiv:2505.15008, section III, https://arxiv.org/html/2505.15008v3). That pair fits
+this tool better than a single accuracy figure, because the tool has no labelled ground truth and
+will not have one before the submission. `funnel.json` therefore reports the coverage and the
+abstention reason codes instead of an accuracy number, and the queue ordering puts the abstentions
+where a specialist sees them rather than at the bottom. Assuming a default gain would have moved a
+number into a card that no source supports, and a model guessing a PSD from prose would have been
+the exact failure mode the numeric guard exists to stop.
+
+What it changed: nothing in the code. It gave the class its name and its metric, and it is the reason
+the abstention count is reported next to the class counts rather than hidden in a log line.
+
+Reopen if: Traficom supplies a labelled set of decisions. Then coverage can be replaced by real
+recall on the two classes that matter.
+
+### P3. The gates read everything, so recall is structural, not estimated
+
+Choice: every notice passes all gates, and every drop is recorded with a stage and a reason in
+`3074_results.csv`. The queue is not a sample and has no cap.
+
+Alternatives: score and rank notices, review the top N, and estimate the recall of that sample.
+
+Reason: the neighbouring field solved this problem first. Technology-assisted review in e-discovery
+screens a large document set down to a small relevant subset. Grossman and Cormack compared a process
+that combined human judgment with automated ranking against exhaustive manual review, and report the
+result "as measured by recall, precision, and F1" (*Technology-Assisted Review in E-Discovery Can Be
+More Effective and More Efficient Than Exhaustive Manual Review*, Richmond Journal of Law and
+Technology 17(3), Article 11, 2011,
+https://grossman.uwaterloo.ca/grossman-publications/jolt-2011/). The next sentence is our reading,
+not theirs: a process judged on those three numbers over a sample is defensible by its statistics,
+whereas a full read is defensible by its construction. A sample-based method would have been cheaper to
+build and impossible to defend here: 196 notices take 3.4 seconds to read in full, so there is no
+reason to sample, and a ranked top N would have hidden the `cannot_decide` notices, which are the
+ones a specialist most needs to see. Reading everything makes the recall of the gates 1 by
+construction and leaves uncertainty only in the class that declares it.
+
+What it changed: the queue keeps every exceeds, near and cannot_decide row, and the CSV keeps the
+rest, so no number in this repository is an estimate of what the filter might have missed.
+
+Reopen if: an IFIC grows past the point where a full read fits the run budget, or Traficom names a
+target size for the queue.
+
+### P4. Reproducibility is the acceptance test the ITU already uses
+
+Choice: each run writes the input SHA256, the rules version and the run timestamp, and the
+calculation is pinned by a fixed test vector (`docs/features.md`, the COMPASS-80E case).
+
+Alternatives: state the method and trust the reader; ship a UI screenshot as the evidence.
+
+Reason: EPFD examination under Article 22 of the Radio Regulations is done by software, not by hand.
+Rec. ITU-R S.1503 describes that software, and the Radiocommunication Bureau required at least two
+independent implementations of it before relying on the result. The Bureau's page states it directly:
+"in order to increase the confidence in any software tool, the Bureau felt that at least two
+independent implementations of Recommendation ITU-R S.1503 would be necessary", and names the two
+commercial tools, EPFD-A and EPFD-T (https://www.itu.int/epfdsupport/, Resolution 85 (Rev. WRC-23),
+Rec. ITU-R S.1503-2). The same standard, applied to a much smaller calculation, is a hash of the
+input, a version of the rules, and one case whose numbers are written out by hand and checked in the
+tests. Two implementations, the same answer, without asking anyone to trust the program.
+
+What it changed: `run.log` carries `input_sha256` and `rules_version`, and the limits live in
+`rules/rr21_table21_4.csv` rather than in code, so a second reader can recompute a card by hand.
+
+Reopen if: a second implementation of this funnel appears, which would let the two be compared the way
+the Bureau compares EPFD tools.
+
+### Sources for part 4
+
+Every claim above is checkable at one of these four places. Accessed 7 Nov 2026.
+
+1. A. Ghasemi and P. Guinand, *Accelerating Radio Spectrum Regulation Workflows with Large Language
+   Models (LLMs)*, arXiv:2403.17819, sections II-D3, III-B, III-C. Full text
+   https://arxiv.org/html/2403.17819v1, abstract https://arxiv.org/abs/2403.17819
+2. A. Heng and H. Soh, *Know When to Abstain: Optimal Selective Classification with Likelihood
+   Ratios*, arXiv:2505.15008, section III (Coverage and Selective Risk). Full text
+   https://arxiv.org/html/2505.15008v3, abstract https://arxiv.org/abs/2505.15008
+3. M. R. Grossman and G. V. Cormack, *Technology-Assisted Review in E-Discovery Can Be More Effective
+   and More Efficient Than Exhaustive Manual Review*, Richmond Journal of Law and Technology 17(3),
+   Article 11, 2011. https://grossman.uwaterloo.ca/grossman-publications/jolt-2011/
+4. International Telecommunication Union, EPFD examination support, Resolution 85 (Rev. WRC-23) and
+   Rec. ITU-R S.1503-2, including the statement about two independent implementations.
+   https://www.itu.int/epfdsupport/
 
 ## The optional Teams digest
 

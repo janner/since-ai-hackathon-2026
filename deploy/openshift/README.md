@@ -44,7 +44,7 @@ curl $U/v1/chat/completions -H 'Content-Type: application/json' \
 ```bash
 export LLM_BASE_URL=https://granite-janner-1-dev.apps.rm2.thpm.p1.openshiftapps.com/v1
 export LLM_MODEL=granite
-uv run python -m app.pipeline --ific data/itu-ific-3074 \
+uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json --out out/
 ```

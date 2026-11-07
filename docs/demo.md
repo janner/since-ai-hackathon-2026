@@ -174,16 +174,16 @@ uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 terrestrial 3075→3076: 2905 new, 163 modified, 413 withdrawn, 576 recorded, 28 notices in reach
 ```
 
-`out/TERRESTRIAL.md` is the readable report: the intent table, the field strength at the four
-Finnish test points, the trends and the anomalies.
+`out/TERRESTRIAL.md` is the readable report: the intent table, the field strength at the border
+samples, the trends and the anomalies.
 
 ```
-| terrakey | hallinto | tila | kaista | Helsinki | Turku | Lappeenranta | Maarianhamina |
+| terrakey | hallinto | tila | kaista | etäisyys km | max rajalla | kynnys | marginaali |
 |---|---|---|---|---|---|---|---|
-| 92817506 | POL | ADD | 801-806 MHz | -56.9 | -56.5 | -70.8 | -53.0 |
-| 93005609 | RUS | ADD | 791.14-798.34 MHz | -82.6 | -84.0 | -95.8 | -82.3 |
-| 93075637 | RUS | ADD | 152.892-152.908 MHz | -29.9 | -40.2 | -8.8 | -51.1 |
-| 93075638 | RUS | ADD | 152.892-152.908 MHz | - | - | - | - |
+| 92817506 | POL | ADD | 801-806 MHz | 676 | -51.1 | 43.0 | -94.1 |
+| 93005609 | RUS | ADD | 791.14-798.34 MHz | 598 | -77.9 | 44.6 | -122.5 |
+| 93075637 | RUS | ADD | 152.892-152.908 MHz | 42 | 17.5 | 12.0 | +5.5 |
+| 93075638 | RUS | ADD | 152.892-152.908 MHz | 42 | - | 12.0 | - |
 
 ## Poikkeamat
 
@@ -193,11 +193,11 @@ Finnish test points, the trends and the anomalies.
 (Three of the 28 rows are shown; the same table covers all of them. A mobile station carries no
 antenna height, so its row reports a dash.)
 
-The header of the same file states the source and the open question: both MDB file names with their
-SHA256, model `P.1546-6 land, 50/50, no terrain`, and protection threshold `None` with the framework
-named in three tiers (ITU RR Art. 21 Table 21-4 → ECC T/R 25-08 → national M4); the ECC and national
-values are to be confirmed. The tool reports a calculated estimate and claims no exceedance, because
-no threshold was given.
+The header of the same file states the source and the criterion: both MDB file names with their
+SHA256, model `P.1546-6 land, 50/50, no terrain`, and the three-tier framework (ITU RR Art. 21
+Table 21-4 → ECC T/R 25-08 A1.2.3 → national M4). The ECC values are confirmed and applied per
+notice; the national value is not confirmed. The tool reports the margin against the ECC threshold
+and claims no exceedance against the national one.
 
 ## 7. Proving the deterministic path
 
