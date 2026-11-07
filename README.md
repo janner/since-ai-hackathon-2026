@@ -37,16 +37,18 @@ Finnish allocation, not a hand-picked band list (D18).
 Every notice that survives the gates and gets a number becomes a case card with the source rows,
 the calculation, the Finnish allocation, the regulatory stage of the filing, the missing data, and one
 question for the other administration. A notice that passes G1 and G2 but cannot be computed is not
-a card: it keeps its row in `queue.md` and `3074_results.csv` under class `cannot_decide`, and its
-count is in `funnel.json`. The accuracy slice (IFIC 3074) therefore has 20 cards and one notice
-without (limitation 14); the auto-fetch demo (IFIC 3075) has 7 cards and two undecidables. The queue
-lists every case a human should look at. It orders by regulatory stage first: a filing another
-administration can still influence (advance publication, coordination request) comes before one
-already recorded in the MIFR. Inside a stage it orders by class (exceedance, near-limit, band without
-satellite use, cannot decide), then by the earliest upcoming Resolution 35 deadline. The margin does
-not order, because the specialist reviews every case the filter passes (Traficom, S1). It is not
-capped. A separate accuracy file covers all 196 notices, the dropped ones included (it ships as
-`results/3074_results.csv` inside the submission zip, not in the repository). A human decides.
+a card: it keeps its row in `queue.md`, `queue.json`, `3074_results.csv` and the web queue under class
+`cannot_decide`, and its count is in `funnel.json`. The accuracy slice (IFIC 3074) therefore has 20
+cards and one notice without (limitation 14); the auto-fetch demo (IFIC 3075) has 7 cards and two
+undecidables. The queue lists every notice in three tiers: `attention` (what a human should look at),
+`checked` (clear of the limit) and `no_effect` (dropped by a gate, with the reason). It orders by
+regulatory stage first: a filing another administration can still influence (advance publication,
+coordination request) comes before one already recorded in the MIFR. Inside a stage it orders by
+class (exceedance, near-limit, band without satellite use, cannot decide), then by the earliest
+upcoming Resolution 35 deadline. The margin does not order, because the specialist reviews every
+case the filter passes (Traficom, S1). It is not capped. The results CSV still covers all 196
+notices, the dropped ones included (it ships as `results/3074_results.csv` inside the submission
+zip, not in the repository). A human decides.
 
 The language model writes the card summary and, for each case above the limit, the correspondence
 letter. Every number comes from code, and a numeric guard rejects a sentence that carries a number
@@ -195,6 +197,7 @@ preparation that downloads the fixed packages by hand.
 | `cases.json` | One card per computed case, full schema, plus the prose block |
 | `cases.md` | The same cards as Markdown |
 | `queue.md` | The queue in decision order: regulatory stage first, then class, then the earliest upcoming Resolution 35 deadline |
+| `queue.json` | The same queue as data: every notice in the run, in queue order, with its tier (`attention`, `checked`, `no_effect`) and reason; the page reads this file |
 | `funnel.json` | Counts per gate, drop reasons, queue state, input hash, rules version, mode |
 | `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 26 columns starting with `ific`, `case_id`, `ntc_id`, dropped notices with stage and reason, plus the regulatory stage of every notice |
 | `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, the letter count, elapsed time |
@@ -329,13 +332,15 @@ at all: open `out/teams_message.html`.
     form are the owner's steps; `SUBMISSION.md` lists them under the final check.
 12. The queue has no cap. The written challenge brief names no target number, and the job is to
     find the problems and report them, not to shorten the list. Everything stays in the files; the
-    clear cases keep their row in `cases.json` and `3074_results.csv` and are left out of the queue.
+    clear cases keep their row in `cases.json`, `queue.json` and `3074_results.csv`, and sit in the
+    `checked` tier of the queue.
 13. `main` has been pushed before, but every new commit needs its own push, which is Janne's call.
 14. A notice that survives G1 and G2 but cannot be computed gets no case card. In the demo slice
-    126590032 passes both gates and carries no emission power, so it lands in `queue.md` and
-    `3074_results.csv` under class `cannot_decide`, while `cases.json` holds the 20 computed cards.
-    The row, the reason and the count stay in the files, so nothing drops out of the audit trail,
-    but the notice has no card in the web UI. Recorded as I15 in `docs/decisions.md`.
+    126590032 passes both gates and carries no emission power, so it lands in `queue.md`,
+    `queue.json` and `3074_results.csv` under class `cannot_decide`, while `cases.json` holds the
+    20 computed cards. The web queue lists it as a text row, so the row, the reason and the count
+    stay in the files and on the page; only the card is missing. Recorded as I15 in
+    `docs/decisions.md`.
 15. The adjacent-channel guard is off by default (`GUARD_MHZ = 0.0` in `app/config.py`), so G1 needs
     a real band overlap. Raise that one constant when Traficom confirms a channel-spacing threshold:
     a notice that then enters only through the guard is marked `adjacent: true` on its card and is

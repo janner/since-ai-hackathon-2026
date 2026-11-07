@@ -72,12 +72,13 @@ bound produces too many false flags.
 ### D5. Queue without a cap, not padded, everything in the files
 
 Choice: within a stage, order `exceeds`, `near`, `not_space`, `cannot_decide`; the stage orders
-first (D18); leave `clear` cases out of the queue; keep every notice in `cases.json` and
-`3074_results.csv`.
+first (D18); `clear` cases are the `checked` tier of the queue; keep every notice in `cases.json`,
+`queue.json`, `queue.md` and `3074_results.csv`.
 
 Reason: the written challenge brief names no target number, and the task is to find the problems and
-report them rather than shorten the list. The queue holds every case that needs a human decision,
-and the files keep the accuracy record. A short queue is not padded with invented cases.
+report them rather than shorten the list. The queue holds every notice with a tier and a reason:
+attention first, then checked, then no effect. The files keep the accuracy record. A short queue is
+not padded with invented cases.
 
 Reopen if: Traficom names a target queue size.
 
@@ -462,11 +463,11 @@ injection property rests on the code shape rather than a test.
 ### I15. A notice that cannot be computed gets no card
 
 `app/pipeline.py` builds a card only for a case that reached G3 with a number. A notice that passes
-G1 and G2 but lands in `undecided` keeps its row in `queue.md` and `3074_results.csv` (class
-`cannot_decide`) and is counted in `funnel.json`, but has no entry in `cases.json`. In the demo
-slice that is notice 126590032 (`no_power`): 20 cards from the 21 notices that reach G3. The row,
-the reason and the count stay in the files, so the audit
-trail is whole, but the notice has no card in the web UI. Stated as README limitation 14; a card for
+G1 and G2 but lands in `undecided` keeps its row in `queue.md`, `queue.json` and `3074_results.csv`
+(class `cannot_decide`) and is counted in `funnel.json`, but has no entry in `cases.json`. In the
+demo slice that is notice 126590032 (`no_power`): 20 cards from the 21 notices that reach G3. The
+row, the reason and the count stay in the files and the web queue lists the notice as a text row,
+so the audit trail is whole; only the card is missing. Stated as README limitation 14; a card for
 it would be an owner decision, not a silent gap.
 
 Test: `tests/test_gates.py::test_case_126590032_cannot_be_decided` locks the notice and its reason.

@@ -35,11 +35,11 @@ flowchart LR
   G3 -->|"case with a number"| CARD["app/cards.py<br/>card, Markdown, CSV, run log"]
   G2 -->|"survived, no number: queue.md + CSV row"| CARD
   G3 -->|"no number: queue.md + CSV row"| CARD
-  CARD --> QUEUE["queue.md: class, then stage, then Res 35 deadline, then margin; no cap"]
+  CARD --> QUEUE["queue: stage, then class, then Res 35 deadline; no margin, no cap"]
   CARD --> PROSE["app/prose.py<br/>optional, uses app/llm.py"]
   TPL["templates/"] --> PROSE
   PROSE --> GUARD["app/guard.py<br/>every number must exist in the card"]
-  GUARD --> OUT["out/<br/>cases.json, cases.md, queue.md,<br/>funnel.json, 3074_results.csv, run.log,<br/>letters/&lt;case_id&gt;.md"]
+  GUARD --> OUT["out/<br/>cases.json, cases.md, queue.md, queue.json,<br/>funnel.json, 3074_results.csv, run.log,<br/>letters/&lt;case_id&gt;.md"]
   OUT --> API["app/main.py<br/>read-only API"]
   API --> UI["app/static/index.html<br/>funnel, queue, selected card"]
 
