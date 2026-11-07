@@ -12,7 +12,8 @@ No package yet (404, an HTML page instead of a zip, or a non-zip body) is
 
 A new package runs the funnel into runs/<ific>/ and only a clean run moves the
 runs/latest pointer. out/ is never touched: it keeps the 3074 outputs the brief
-asks for as separate files. A failed run leaves out/ and runs/ as they were.
+asks for as separate files. A failed run never moves runs/latest and leaves out/
+untouched; a half-written runs/<ific>/ is wiped by the next attempt.
 
 Nothing is installed: the cadence is one line in whatever scheduler already exists, e.g.
     */30 * * * * cd /repo && uv run python scripts/monitor.py --check >> out/monitor.log 2>&1
@@ -29,6 +30,7 @@ import sys
 import tempfile
 import zipfile
 from datetime import UTC, datetime, timedelta
+from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -204,7 +206,7 @@ def check() -> dict:
         return status
     try:
         body = download(IFIC_URL.format(last + 1))
-    except (URLError, OSError, TimeoutError) as error:
+    except (URLError, OSError, TimeoutError, HTTPException) as error:
         status = {
             "status": "error",
             "last_ific": last,
@@ -223,7 +225,19 @@ def check() -> dict:
         }
         write_status(control_dir(), status)
         return status
-    return ingest(last + 1, body)
+    try:
+        return ingest(last + 1, body)
+    except (HTTPException, OSError, TimeoutError, zipfile.BadZipFile, StopIteration) as error:
+        # A truncated body, a corrupt zip or a zip without .mdb must not crash the check;
+        # write the error the way a network failure does, so the UI never shows a stale success.
+        status = {
+            "status": "error",
+            "last_ific": last,
+            "checked_at": checked_at,
+            "message": f"uusi paketti ific{last + 1} oli rikki tai putki kaatui: {error}",
+        }
+        write_status(control_dir(), status)
+        return status
 
 
 def render(status: dict) -> str:

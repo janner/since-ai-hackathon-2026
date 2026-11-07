@@ -104,7 +104,7 @@ def queue() -> Any:
 def run_monitor() -> None:
     """Ask ITU now, synchronously; the UI button waits for the answer.
 
-    A timeout leaves the last status file in place, so the page keeps the last good run.
+    A timeout is a 504 so the UI shows a failed check instead of the last good status.
     """
     try:
         subprocess.run(
@@ -113,8 +113,8 @@ def run_monitor() -> None:
             check=False,
             timeout=180,
         )
-    except subprocess.TimeoutExpired:
-        pass
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(504, "tarkistus aikakatkaistiin (180 s)") from exc
 
 
 @app.get("/api/fetch-status")

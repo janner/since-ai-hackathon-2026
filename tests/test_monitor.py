@@ -3,6 +3,7 @@
 import io
 import json
 import zipfile
+from http.client import IncompleteRead
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 
@@ -115,6 +116,38 @@ def test_failed_run_keeps_out_and_runs_untouched(out, monkeypatch):
     status = monitor.check()
     assert status["status"] == "error"
     assert "putki" in status["message"]
+    assert monitor.main(["--check"]) == 1
+    assert untouched(out)
+    assert not (out.parent / "runs" / "latest").exists()
+
+
+def test_truncated_download_is_error_and_exit_1(out, monkeypatch):
+    # ITU closing the connection mid-body: http.client.IncompleteRead is an HTTPException,
+    # not an OSError, so it must still be caught and turned into an error status.
+    monkeypatch.setattr(monitor, "urlopen", raises(IncompleteRead(b"PK\x03\x04", 999)))
+    status = monitor.check()
+    assert status["status"] == "error"
+    assert status["last_ific"] == 3074
+    assert status["message"]
+    assert monitor.main(["--check"]) == 1
+    assert untouched(out)
+    assert not (out.parent / "runs" / "latest").exists()
+
+
+def test_broken_zip_is_error_and_exit_1(out, monkeypatch):
+    # PK-magic but corrupt: zipfile.BadZipFile must not escape check().
+    monkeypatch.setattr(monitor, "urlopen", responds(b"PK\x03\x04 not a real zip"))
+    status = monitor.check()
+    assert status["status"] == "error"
+    assert monitor.main(["--check"]) == 1
+    assert untouched(out)
+    assert not (out.parent / "runs" / "latest").exists()
+
+
+def test_zip_without_mdb_is_error_and_exit_1(out, monkeypatch):
+    monkeypatch.setattr(monitor, "urlopen", responds(zip_with_mdb("readme.txt")))
+    status = monitor.check()
+    assert status["status"] == "error"
     assert monitor.main(["--check"]) == 1
     assert untouched(out)
     assert not (out.parent / "runs" / "latest").exists()

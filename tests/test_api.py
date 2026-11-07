@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -115,6 +116,18 @@ def test_fetch_check_without_a_status_file_is_503(tmp_path, monkeypatch):
     response = TestClient(main.app).post("/api/fetch-check")
     assert response.status_code == 503
     assert "monitor.py" in response.json()["detail"]
+
+
+def test_fetch_check_timeout_is_504(tmp_path, monkeypatch):
+    monkeypatch.setenv("KAISTA_OUT", str(tmp_path / "out"))
+
+    def boom(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd="monitor", timeout=180)
+
+    monkeypatch.setattr(main.subprocess, "run", boom)
+    response = TestClient(main.app).post("/api/fetch-check")
+    assert response.status_code == 504
+    assert "aikakatkaistiin" in response.json()["detail"]
 
 
 def test_page_follows_the_runs_latest_pointer(tmp_path, monkeypatch):
