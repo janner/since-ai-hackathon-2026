@@ -94,6 +94,11 @@ def test_demo_slice_funnel(challenge):
     assert result.reason_counts("G1") == {"no_band_overlap": 155}
     assert result.reason_counts("G2") == {"geo_below_horizon": 21, "ngso_never_visible": 1}
     assert result.undecided == {"126590032": "no_power"}
+    # sensitivity: with the unknown PSD at 0 the margin is -required, so no grid search is needed
+    field, required = result.required["126590032"]
+    assert field == "psd"
+    row = {item.ntc_id: item for item in result.queue}["126590032"]
+    assert (row.unknown_field, row.required_db) == ("psd", required)
     assert (result.geo_visible, result.ngso_visible) == (16, 3)
     assert len(result.queue) == 15  # 9 exceeds + 5 near + 1 cannot_decide; the 4 clear stay out
     assert len(result.cases) == 18
@@ -150,7 +155,7 @@ def test_missing_perigee_cannot_be_decided(challenge):
     orbits = [replace(orbit, perig_km=None) for orbit in challenge.slice.ific.orbits[ntc_id]]
     ific = replace(challenge.slice.ific, orbits={**challenge.slice.ific.orbits, ntc_id: orbits})
     found, _, _ = gates.gate1(ific, challenge.slice.bands)
-    cases, undecided = gates.gate3(
+    cases, undecided, _ = gates.gate3(
         ific, {ntc_id: found[ntc_id]}, challenge.slice.result.stations, challenge.slice.limits
     )
     assert cases == []
@@ -164,7 +169,7 @@ def test_an_adjacent_case_is_capped_at_near(challenge):
     freqs = {
         ntc_id: [f for f in challenge.slice.ific.freqs if f.ntc_id == ntc_id and f.emi_rcp == "E"]
     }
-    cases, _ = gates.gate3(
+    cases, _, _ = gates.gate3(
         challenge.slice.ific,
         freqs,
         challenge.slice.result.stations,

@@ -70,6 +70,8 @@ class QueueItem:
     case: Case | None = None
     stage_rank: int = 0
     stage: str = ""
+    unknown_field: str = ""  # "psd" or "gain" when the case cannot be computed
+    required_db: float | None = None  # value of that field at which margin reaches 0
 
 
 @dataclass
@@ -91,6 +93,7 @@ class GateResult:
     rules_version: str = ""
     freq_rows: int = 0
     elapsed_s: float = 0.0
+    required: dict[str, tuple[str, float]] = field(default_factory=dict)
 
     def case_by_id(self) -> dict[str, Case]:
         return {case.ntc_id: case for case in self.cases}
@@ -112,10 +115,10 @@ def run(
 ) -> GateResult:
     found, g1_dropped, adjacent = gate1(ific, bands)
     visible, g2_dropped = gate2(ific, found, stations)
-    cases, undecided = gate3(ific, visible, stations, limits, adjacent)
+    cases, undecided, required = gate3(ific, visible, stations, limits, adjacent)
     cases.sort(key=lambda case: -case.margin_db)
     dropped = {**g1_dropped, **g2_dropped}
-    queue = gate4(cases, undecided, ific.notices)
+    queue = gate4(cases, undecided, ific.notices, required)
 
     counts = {
         "notices": len(ific.notices),
@@ -130,6 +133,7 @@ def run(
     result = GateResult(
         cases=cases,
         undecided=undecided,
+        required=required,
         dropped=dropped,
         queue=queue,
         counts=counts,
@@ -212,20 +216,35 @@ def gate3(
     stations: list[Station],
     limits: list[pfd.LimitRow],
     adjacent: set[str] | None = None,
-) -> tuple[list[Case], dict[str, str]]:
-    """Worst-case PFD against the Table 21-4 limit, per notice."""
+) -> tuple[list[Case], dict[str, str], dict[str, tuple[str, float]]]:
+    """Worst-case PFD against the Table 21-4 limit, per notice.
+
+    The third value is the sensitivity of a notice that cannot be computed: the value of the one
+    missing field at which its margin would reach 0. `margin = psd + gain - fspl - limit`, so with
+    the unknown set to 0 the required value is `-margin`, and no search over a grid is needed.
+    """
     adjacent = adjacent or set()
     cases: list[Case] = []
     undecided: dict[str, str] = {}
+    required: dict[str, tuple[str, float]] = {}
     for ntc_id, freqs in visible.items():
         worst, missing = _worst_for_notice(
             ific, ntc_id, freqs, stations, limits, ntc_id in adjacent
         )
+        # shortcut: one second pass with the missing scalar at 0. Both missing is labelled by the
+        # first one the loop met, which is enough for the one question a card asks.
+        if worst is None and missing in ("no_power", "no_gain"):
+            filled, _ = _worst_for_notice(
+                ific, ntc_id, freqs, stations, limits, ntc_id in adjacent, fill_unknown=True
+            )
+            if filled is not None:
+                field_name = {"no_power": "psd", "no_gain": "gain"}.get(missing, missing)
+                required[ntc_id] = (field_name, round(-filled.margin_db, 2))
         if worst is None:
             undecided[ntc_id] = missing or "no_station"
         else:
             cases.append(worst)
-    return cases, undecided
+    return cases, undecided, required
 
 
 def _worst_for_notice(
@@ -235,6 +254,7 @@ def _worst_for_notice(
     stations: list[Station],
     limits: list[pfd.LimitRow],
     adjacent: bool = False,
+    fill_unknown: bool = False,
 ) -> tuple[Case | None, str | None]:
     geo = ific.geo.get(ntc_id)
     sat_lon = geo.long_nom if geo is not None else None
@@ -264,12 +284,16 @@ def _worst_for_notice(
             continue
         psd = ific.emiss.get(freq.grp_id)
         if psd is None:
-            missing = "no_power"
-            continue
+            if not fill_unknown:
+                missing = "no_power"
+                continue
+            psd = 0.0
         gain = _beam_gain(ific, freq)
         if gain is None:
-            missing = "no_gain"
-            continue
+            if not fill_unknown:
+                missing = "no_gain"
+                continue
+            gain = 0.0
         victims = [
             s
             for s in stations
@@ -343,7 +367,10 @@ def _beam_gain(ific: IficData, freq: Freq) -> float | None:
 
 
 def gate4(
-    cases: list[Case], undecided: dict[str, str], notices: dict[str, Notice]
+    cases: list[Case],
+    undecided: dict[str, str],
+    notices: dict[str, Notice],
+    required: dict[str, tuple[str, float]] | None = None,
 ) -> list[QueueItem]:
     """Queue every concern: class, then stage, then margin descending; clear stays out.
 
@@ -354,9 +381,22 @@ def gate4(
     stages = {ntc_id: config.regulatory_stage(notice.prov) for ntc_id, notice in notices.items()}
     unknown = config.regulatory_stage("")
 
+    required = required or {}
+
     def item(ntc_id, klass, reason, margin, case=None) -> QueueItem:
         stage = stages.get(ntc_id, unknown)
-        return QueueItem(ntc_id, klass, reason, margin, case, stage["rank"], stage["provision"])
+        field_name, value = required.get(ntc_id, ("", None))
+        return QueueItem(
+            ntc_id,
+            klass,
+            reason,
+            margin,
+            case,
+            stage["rank"],
+            stage["provision"],
+            unknown_field=field_name,
+            required_db=value,
+        )
 
     items = [
         item(case.ntc_id, case.klass, case.klass, case.margin_db, case)

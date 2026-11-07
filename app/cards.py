@@ -227,14 +227,30 @@ def render_queue_md(result: GateResult) -> str:
         f"# Queue ({len(result.queue)})\n\n"
         f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
         f"{counts['g3']} + {counts['cannot_decide']}\n\n"
-        "| # | case | class | stage | margin dB | reason |\n|---|---|---|---|---|---|\n"
+        "| # | case | class | stage | margin dB | settles at | reason |\n"
+        "|---|---|---|---|---|---|---|\n"
     )
     rows = [
         f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
-        f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | {item.reason} |"
+        f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | "
+        f"{_settles(item)} | {item.reason} |"
         for index, item in enumerate(result.queue, start=1)
     ]
-    return head + "\n".join(rows) + "\n"
+    note = (
+        "\n`settles at` is the value the missing field would need to reach the Table 21-4 limit: "
+        "a PSD in dBW/Hz, a beam gain in dBi. It comes from `margin = psd + gain - fspl - limit`, "
+        "solved for the missing term at margin 0, so it is an exact bound and not a search "
+        "result.\n"
+    )
+    return head + "\n".join(rows) + "\n" + note
+
+
+def _settles(item) -> str:
+    """The value the missing field would need for the case to reach the limit."""
+    if item.required_db is None:
+        return "-"
+    unit = "dBW/Hz" if item.unknown_field == "psd" else "dBi"
+    return f"{item.unknown_field} ≥ {fmt_num(item.required_db)} {unit}"
 
 
 def funnel_json(result: GateResult) -> dict:
@@ -246,6 +262,10 @@ def funnel_json(result: GateResult) -> dict:
         "counts": result.counts,
         "drops": result.drops,
         "queue": {"shown": len(result.queue)},
+        "undecided_detail": {
+            ntc_id: {"reason": result.undecided[ntc_id], "field": field, "required_db": value}
+            for ntc_id, (field, value) in result.required.items()
+        },
     }
 
 
