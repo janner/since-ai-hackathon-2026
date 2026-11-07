@@ -103,7 +103,7 @@ the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 
 9 need attention out of 129 queue rows; the first queue row is `125520114`, a coordination-stage near case, and the APSTAR-92E
 exceedance is fifth because its filing is already in the MIFR. The accuracy dataset is the challenge's
 IFIC 3074 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026:
-`make check` 196 tests (142 passed, 54 skipped without `data/`). The deterministic pipeline is offline; the
+`make check` 208 tests (152 passed, 56 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
@@ -230,7 +230,7 @@ under a `kaista/` prefix, plus the accuracy files from the last run under `resul
 | Environment | Result (7 Nov 2026) |
 |---|---|
 | With `data/` | 196 passed |
-| Clean clone, no `data/` | 142 passed, 54 skipped |
+| Clean clone, no `data/` | 152 passed, 56 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs

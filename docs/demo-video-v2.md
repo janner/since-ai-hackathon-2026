@@ -185,7 +185,7 @@ English; the English mockup is the cleaner choice for an international jury.
 
 | Feature | What it does (evidence) | In the v2 cut |
 |---|---|---|
-| **F0** repository, lint, CI, test base | `make check`; 192 tests collected at the current HEAD (7 Nov 2026); the data tests skip in a clean clone | Feature-grid tile `192 tests`; not spoken |
+| **F0** repository, lint, CI, test base | `make check`; 208 tests collected at the current HEAD (7 Nov 2026); the data tests skip in a clean clone | Feature-grid tile `208 tests`; not spoken |
 | **F1** ingest and normalisation | `app/ingest.py` reads 17 IFIC tables with `mdb-export`, keeps the source file, SHA256 and keys | Raw-row scene; spoken "reads the package" |
 | **F2** the register's own bands | `app/bands.py`; the register defines the scope; `--all` screens all 299 Finnish allocations (132 need attention) | "your band scope"; feature-grid tile |
 | **F3** G1 band overlap and G2 visibility | GEO sampled over the 552-point territory edge; non-GSO over a 0–90° pass; a satellite below the horizon is dropped with a reason | Funnel scene; feature-grid tile |

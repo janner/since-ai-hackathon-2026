@@ -358,7 +358,7 @@ cards, because no endpoint was set.
 make check        # ruff check, ruff format --check, pytest: 196 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 142 passed, 54 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 152 passed, 56 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. The optional Teams digest (15 seconds)
