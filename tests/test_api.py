@@ -165,10 +165,10 @@ def test_funnel_numbers(client):
         "cannot_decide": 1,
         "exceeds": 11,
         "near": 5,
-        "not_space": 2,
-        "clear": 2,
+        "not_space": 4,
+        "clear": 0,
     }
-    assert body["queue"] == {"shown": 19}
+    assert body["queue"] == {"shown": 196, "attention": 21, "checked": 0, "no_effect": 175}
 
 
 @pytest.mark.data

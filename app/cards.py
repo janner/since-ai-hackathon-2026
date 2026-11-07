@@ -248,29 +248,72 @@ def render_cases_md(cards: list[dict]) -> str:
 
 def render_queue_md(result: GateResult) -> str:
     counts = result.counts
+    tiers = _tier_counts(result)
     head = (
-        f"# Queue ({len(result.queue)})\n\n"
+        f"# Queue ({len(result.queue)} notices: {tiers['attention']} need attention, "
+        f"{tiers['checked']} checked, {tiers['no_effect']} without effect on Finland)\n\n"
         f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
         f"{counts['g3']} + {counts['cannot_decide']}\n\n"
-        f"| # | case | class | stage | action | deadline | margin dB | Finland band | "
-        f"settles at | reason |\n"
+        f"Every notice in the package has a row here. The ones that need attention come first; "
+        f"the rest stay visible with their reason.\n\n"
+    )
+    header = (
+        "| # | case | class | stage | action | deadline | margin dB | Finland band | "
+        "settles at | reason |\n"
         "|---|---|---|---|---|---|---|---|---|---|\n"
     )
-    rows = [
-        f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
-        f"{item.filing_action or '-'} | {_deadline_cell(item)} | "
-        f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | "
-        f"{item.band_use or '-'} | {_settles(item)} | {item.reason} |"
-        for index, item in enumerate(result.queue, start=1)
-    ]
+    parts = [head, f"## Needs attention ({tiers['attention']})\n\n", header]
+    parts.append(
+        "\n".join(
+            f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
+            f"{item.filing_action or '-'} | {_deadline_cell(item)} | "
+            f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | "
+            f"{item.band_use or '-'} | {_settles(item)} | {item.reason} |"
+            for index, item in enumerate(_tier(result, "attention"), start=1)
+        )
+    )
+    parts.append(f"\n\n## Checked, nothing to note ({tiers['checked']})\n\n{header}")
+    parts.append(
+        "\n".join(
+            f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
+            f"{item.filing_action or '-'} | {_deadline_cell(item)} | "
+            f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | "
+            f"{item.band_use or '-'} | {_settles(item)} | {item.reason} |"
+            for index, item in enumerate(_tier(result, "checked"), start=1)
+        )
+    )
+    parts.append(
+        f"\n\n## No effect on Finland ({tiers['no_effect']})\n\n"
+        "| # | case | stage | reason |\n|---|---|---|---|\n"
+    )
+    parts.append(
+        "\n".join(
+            f"| {index} | {item.ntc_id} | {item.stage or '-'} | {item.reason} |"
+            for index, item in enumerate(_tier(result, "no_effect"), start=1)
+        )
+    )
     note = (
-        "\n`settles at` is the value the missing field would need to reach the Table 21-4 limit: "
+        "\n\n`settles at` is the value the missing field would need to reach the Table 21-4 limit: "
         "a PSD in dBW/Hz, a beam gain in dBi. It comes from `margin = psd + gain - fspl - limit`, "
         "solved for the missing term at margin 0, so it is an exact bound and not a search "
         "result. `deadline` is the notice's earliest upcoming Resolution 35 deadline "
-        "(`grp_res35`); a passed one is marked, and `-` means no group of the notice carries one.\n"
+        "(`grp_res35`); a passed one is marked, and `-` means no group of the notice carries one. "
+        "A `not_space` reason names the part of the band where Finland has no satellite "
+        "allocation: one such part is enough, because the use of the frequency is what is "
+        "protected.\n"
     )
-    return head + "\n".join(rows) + "\n" + note
+    return "".join(parts) + note
+
+
+def _tier(result: GateResult, tier: str) -> list:
+    return [item for item in result.queue if item.tier == tier]
+
+
+def _tier_counts(result: GateResult) -> dict[str, int]:
+    counts = {"attention": 0, "checked": 0, "no_effect": 0}
+    for item in result.queue:
+        counts[item.tier] = counts.get(item.tier, 0) + 1
+    return counts
 
 
 def _deadline_cell(item) -> str:
@@ -297,7 +340,7 @@ def funnel_json(result: GateResult) -> dict:
         "mode": result.mode,
         "counts": result.counts,
         "drops": result.drops,
-        "queue": {"shown": len(result.queue)},
+        "queue": {"shown": len(result.queue), **_tier_counts(result)},
         "undecided_detail": {
             ntc_id: {"reason": result.undecided[ntc_id], "field": field, "required_db": value}
             for ntc_id, (field, value) in result.required.items()
