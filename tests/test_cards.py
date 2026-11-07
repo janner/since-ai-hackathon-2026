@@ -93,6 +93,28 @@ def test_m4_lookup_names_the_service_and_satellite_use(challenge):
 
 
 @pytest.mark.data
+def test_m4_lookup_splits_the_band_and_flags_the_part_without_satellite_use(challenge):
+    # 3 625-4 200 MHz: MOBILE AND FIXED up to 3 800, FSS space-to-Earth above it.
+    split = m4_lookup(challenge.slice.m4, 3625.0, 4200.0)
+    assert [(part["lo_mhz"], part["hi_mhz"]) for part in split["segments"]] == [
+        (3625.0, 3800.0),
+        (3800.0, 4200.0),
+    ]
+    assert [part["satellite"] for part in split["segments"]] == [False, True]
+    assert split["gaps"] == [(3625.0, 3800.0)]
+    # One part without a satellite use makes the whole notice a finding.
+    assert split["satellite_use"] is False
+
+
+@pytest.mark.data
+def test_m4_lookup_does_not_borrow_a_row_that_only_touches_the_edge(challenge):
+    # A band that ends exactly at 3 800 MHz must not pick up the 3 800-4 200 MHz row.
+    ends_at_edge = m4_lookup(challenge.slice.m4, 3700.0, 3800.0)
+    assert ends_at_edge["satellite_use"] is False
+    assert ends_at_edge["gaps"] == [(3700.0, 3800.0)]
+
+
+@pytest.mark.data
 def test_missing_register_field_is_reported(challenge):
     """A victim without a gain still gets a card; the gap is named, not guessed."""
     case = challenge.slice.result.case_by_id()["103500417"]
@@ -206,13 +228,18 @@ def test_golden_case_103500417(challenge):
         "ITU RR 2024 Art. 21 Table 21-4, 3\u00a0400-4\u00a0200 MHz, "
         "FSS (space-to-Earth), GSO, p. 287"
     )
-    assert card["m4"] == {
+    assert card["m4"] | {"gaps": None, "segments": None} == {
         "rows": [4060, 4091],
         "band_mhz": [3400.0, 3800.0],
         "services_in_finland": "MOBILE AND FIXED",
         "satellite_use": False,
+        "gaps": None,
+        "segments": None,
         "source": "opendata.traficom.fi/api/v13/Taajuusjakotaulukko",
     }
+    # The whole notified band has no satellite allocation in Finland, so it is one gap.
+    assert card["m4"]["gaps"] == [(3442.0, 3478.0)]
+    assert [part["satellite"] for part in card["m4"]["segments"]] == [False]
     assert card["missing"] == [
         "s_beam.bore_long",
         "s_beam.bore_lat",

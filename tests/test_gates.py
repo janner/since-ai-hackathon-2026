@@ -1,5 +1,6 @@
 """Gates G1-G4: the funnel counts, the drop reasons and the queue rules."""
 
+from collections import Counter
 from dataclasses import replace
 from datetime import date
 
@@ -127,8 +128,8 @@ def test_demo_slice_funnel(challenge):
         "cannot_decide": 1,
         "exceeds": 11,
         "near": 5,
-        "not_space": 2,
-        "clear": 2,
+        "not_space": 4,
+        "clear": 0,
     }
     assert result.reason_counts("G1") == {"no_band_overlap": 155}
     assert result.reason_counts("G2") == {"geo_below_horizon": 19, "ngso_never_visible": 1}
@@ -140,7 +141,12 @@ def test_demo_slice_funnel(challenge):
     assert (row.unknown_field, row.required_db) == ("psd", required)
     assert "MOBILE AND FIXED" in row.band_use  # the band is on the row even without a card
     assert (result.geo_visible, result.ngso_visible) == (18, 3)
-    assert len(result.queue) == 19  # 11 exceeds + 5 near + 2 not_space + 1 cannot_decide
+    # Every notice has a row: 21 need attention, the other 175 say why they do not.
+    assert len(result.queue) == 196
+    assert dict(Counter(item.tier for item in result.queue)) == {
+        "attention": 21,
+        "no_effect": 175,
+    }
     assert len(result.cases) == 20
     assert len(result.places) == 552  # the territory edge, not the register's 871 rows
 
@@ -172,7 +178,12 @@ def test_all_bands_funnel(challenge):
         "geo_below_horizon": 35,
         "ngso_never_visible": 3,
     }
-    assert len(result.queue) == 116  # 30 + 19 + 2 + 65 cannot_decide; 22 clear stay out
+    assert len(result.queue) == 196
+    assert dict(Counter(item.tier for item in result.queue)) == {
+        "attention": 116,
+        "checked": 22,
+        "no_effect": 58,
+    }
 
 
 @pytest.mark.data
@@ -217,11 +228,19 @@ def test_an_adjacent_case_is_capped_at_near(challenge):
 
 
 @pytest.mark.data
-def test_queue_holds_every_concern_and_no_clear(challenge):
+def test_queue_holds_every_notice(challenge):
+    """Nothing is invisible: every notice in the package has a queue row with a tier."""
     result = challenge.slice.result
     queued = {item.ntc_id for item in result.queue}
-    assert queued == {c.ntc_id for c in result.cases if c.klass != "clear"} | set(result.undecided)
-    assert all(c.ntc_id not in queued for c in result.cases if c.klass == "clear")
+    assert queued == {c.ntc_id for c in result.cases} | set(result.undecided) | set(result.dropped)
+    attention = {item.ntc_id for item in result.queue if item.tier == "attention"}
+    assert attention == {c.ntc_id for c in result.cases if c.klass != "clear"} | set(
+        result.undecided
+    )
+    checked = {item.ntc_id for item in result.queue if item.tier == "checked"}
+    assert checked == {c.ntc_id for c in result.cases if c.klass == "clear"}
+    no_effect = {item.ntc_id for item in result.queue if item.tier == "no_effect"}
+    assert no_effect == set(result.dropped)
 
 
 @pytest.mark.data
@@ -235,17 +254,18 @@ def test_a_clear_margin_on_a_non_satellite_band_is_still_a_finding(challenge):
         assert case.band_satellite is False
         assert case.margin_db <= NEAR_DB
         assert case.ntc_id in {item.ntc_id for item in result.queue}
-    # a clear case on a band Finland does allocate to a downlink stays out of the queue
+    # a clear case on a band Finland does allocate to a downlink stays in the queue as checked
     clear = [case for case in result.cases if case.klass == "clear"]
+    tiers = {item.ntc_id: item.tier for item in result.queue}
     for case in clear:
         assert case.band_satellite is True
-        assert case.ntc_id not in {item.ntc_id for item in result.queue}
+        assert tiers[case.ntc_id] == "checked"
 
 
 @pytest.mark.data
 def test_queue_order(challenge):
     """Stage first, then class, then the deadline; the margin does not order (Traficom, S1)."""
-    queue = challenge.slice.result.queue
+    queue = [item for item in challenge.slice.result.queue if item.tier == "attention"]
     assert {item.klass for item in queue} == {"exceeds", "near", "not_space", "cannot_decide"}
     keys = [gates.queue_key(item) for item in queue]
     assert keys == sorted(keys)
@@ -278,7 +298,7 @@ def test_only_one_demo_case_carries_a_res35_deadline(challenge):
 @pytest.mark.data
 def test_queue_puts_coordination_before_notification(challenge):
     """The stage another administration can still influence comes before a recorded filing."""
-    queue = challenge.slice.result.queue
+    queue = [item for item in challenge.slice.result.queue if item.tier == "attention"]
     assert queue[0].stage_rank == 0  # advance publication or coordination request
     ranks = [item.stage_rank for item in queue]
     assert ranks == sorted(ranks)

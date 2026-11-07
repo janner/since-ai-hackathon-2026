@@ -57,10 +57,10 @@ def test_slice_run_matches_the_documented_anchors(slice_out):
         "cannot_decide": 1,
         "exceeds": 11,
         "near": 5,
-        "not_space": 2,
-        "clear": 2,
+        "not_space": 4,
+        "clear": 0,
     }
-    assert funnel["queue"] == {"shown": 19}
+    assert funnel["queue"] == {"shown": 196, "attention": 21, "checked": 0, "no_effect": 175}
     assert funnel["mode"] == "slice"
     assert len(funnel["input_sha256"]) == 64
     with (slice_out / "3074_results.csv").open(newline="", encoding="utf-8") as handle:
@@ -101,10 +101,11 @@ def test_run_log_records_the_source_and_the_counts(slice_out):
 def test_letters_are_written_for_the_exceeds_cards(slice_out):
     cards = json.loads((slice_out / "cases.json").read_text(encoding="utf-8"))
     exceeds = {card["case_id"] for card in cards if card["class"] == "exceeds"}
-    clear = {card["case_id"] for card in cards if card["class"] == "clear"}
+    others = {card["case_id"] for card in cards if card["class"] != "exceeds"}
     written = {path.stem for path in (slice_out / "letters").iterdir()}
     assert len(exceeds) == 11 and written == exceeds
-    assert clear and not written & clear
+    # A letter is only ever drafted for a case that exceeds the limit.
+    assert not written & others
     assert "letters=11" in (slice_out / "run.log").read_text(encoding="utf-8")
 
 
