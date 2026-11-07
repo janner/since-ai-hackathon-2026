@@ -39,7 +39,7 @@ uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 ```
 196 notices → G1 41 → G2 21 → G3 20 + 1 cannot decide
 exceeds 11, near 5, not_space 4, clear 0, 196 in the queue (1 bands, 4.31 s)
-wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log, letters/
+wrote out/cases.json, cases.md, queue.md, queue.json, funnel.json, 3074_results.csv, run.log, letters/
 ```
 
 The first line is the funnel: 196 notices, 41 overlap a band in the run's scope, 21 of those can be
@@ -79,9 +79,10 @@ elapsed_s=2.05
 ```
 
 `runs/3075/funnel.json` carries the counts as `129 → 19 → 9 → 7 + 2`, with the drops
-`no_band_overlap` 110 and `geo_below_horizon` 10, and 9 rows in the queue. The run wrote seven cards
-to `cases.json` (3 exceeds, 4 near, no clear), 129 rows to `3075_results.csv`, three letters to
-`runs/3075/letters/`, and its own `queue.md`, `run.log` and `teams_message.*`. The first queue row is
+`no_band_overlap` 110 and `geo_below_horizon` 10, and 129 rows in the queue (9 need attention). The
+run wrote seven cards to `cases.json` (3 exceeds, 4 near, no clear), 129 rows to
+`3075_results.csv`, three letters to `runs/3075/letters/`, and its own `queue.md`, `queue.json`,
+`run.log` and `teams_message.*`. The first queue row is
 `125520114`, a near case at a coordination request; the APSTAR card `3075-108501259` is fifth, because
 its filing is already in the MIFR and the stage orders first. The two notices the tool refuses to
 decide are rows 8 and 9 of `queue.md`: `126590034` and `126590035`, Resolution 49, no PSD, each with

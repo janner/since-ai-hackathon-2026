@@ -163,16 +163,18 @@ case (see F3) keeps its margin but is capped at `near`: the Table 21-4 limit bel
 band and does not apply outside it. The register's rows on the band are a reference only: the block
 names the one with the highest margin, and the number itself is taken at the territory edge.
 
-`gate4()` orders the queue by regulatory stage (advance publication and coordination request before
-the MIFR notification, then Resolution 49), then by class (`exceeds`, `near`, `not_space`,
-`cannot_decide`), then by the notice's earliest upcoming Resolution 35 deadline. The margin does not
-order: the specialist reviews every case the filter passes (D18). A filing whose group falls due
-soonest comes first inside its stage and class. A notice whose groups carry
-no `grp_res35` deadline sorts behind one that has one; a passed deadline behind every upcoming one
-(most recent first). The deadline is chosen per notice by `notice_deadlines()`: the earliest
-upcoming date over the groups of the notice, else the latest one that has passed. `clear` cases stay
-in `cases.json` and the CSV but out of the queue. There is no cap. The stage itself comes from
-`notice.prov` through `app/config.py::regulatory_stage()`.
+`gate4()` returns every notice in three tiers. Inside `attention` it orders by regulatory stage
+(advance publication and coordination request before the MIFR notification, then Resolution 49),
+then by class (`exceeds`, `near`, `not_space`, `cannot_decide`), then by the notice's earliest
+upcoming Resolution 35 deadline. `checked` follows attention with the `clear` cases; `no_effect`
+keeps the dropped notices and their reason. The margin does not order: the specialist reviews every
+case the filter passes (D18). A filing whose group falls due soonest comes first inside its stage
+and class. A notice whose groups carry no `grp_res35` deadline sorts behind one that has one; a
+passed deadline behind every upcoming one (most recent first). The deadline is chosen per notice by
+`notice_deadlines()`: the earliest upcoming date over the groups of the notice, else the latest one
+that has passed. `clear` cases stay in `cases.json`, `queue.json` and the CSV in the `checked` tier.
+There is no cap. The stage itself comes from `notice.prov` through
+`app/config.py::regulatory_stage()`.
 
 Measured in IFIC 3074: `grp_res35` (`grp_id`, `d_ms_next_deadline`) has 254 rows — 26 groups due
 19 Dec 2026, 126 due 19 Jan 2031, 6 due 19 Jul 2031 and 96 already passed (18 Dec 2019). They
@@ -181,8 +183,8 @@ so the demo queue moves by one row and every other number is unchanged.
 
 Tests (`tests/test_gates.py`, 18 collected): `test_class_boundaries`,
 `test_notice_deadlines_pick_the_earliest_upcoming` (a notice with several group deadlines, one
-upcoming, one passed, one absent), `test_queue_orders_by_stage_then_deadline_then_margin`,
-`test_queue_holds_every_concern_and_no_clear`, `test_queue_puts_coordination_before_notification`,
+upcoming, one passed, one absent), `test_queue_orders_by_stage_then_class_then_deadline`,
+`test_queue_holds_every_notice`, `test_queue_puts_coordination_before_notification`,
 `test_queue_order`, `test_only_one_demo_case_carries_a_res35_deadline` (125500277, due 19 Dec 2026,
 sorts ahead of a larger margin in its stage), `test_an_adjacent_case_is_capped_at_near`,
 `test_demo_slice_funnel`, `test_all_bands_funnel`, `test_vector_2_from_the_real_data`,
@@ -267,8 +269,9 @@ python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 ```
 
 It loads the inputs, derives the bands, runs the gates, builds a card per case with its prose
-block, and writes `cases.json`, `cases.md`, `queue.md`, `funnel.json`, `3074_results.csv` and
-`run.log` into `--out` (created if missing), plus `letters/<case_id>.md` for every `exceeds` case.
+block, and writes `cases.json`, `cases.md`, `queue.md`, `queue.json`, `funnel.json`,
+`3074_results.csv` and `run.log` into `--out` (created if missing), plus `letters/<case_id>.md` for
+every `exceeds` case.
 `3074_results.csv` has one row per notice and 26 columns: `ific`, `case_id`, `ntc_id`, `adm`,
 `sat_name`, `ntc_type`, `orbit`, `dropped_at`, `reason`, `class`, `regulatory_stage`,
 `freq_min_mhz`, `freq_max_mhz`, `bandwidth_mhz`, `station`, `lat`, `lon`, `victim_rx_mhz`,
@@ -455,8 +458,9 @@ data.
 of `app/config.REGULATORY_STAGES`, marked `shortcut` in the code), and computes nothing: the counts
 are the ones in `funnel.json` and the three lines are the first three decidable rows of `queue.md`,
 ordered by stage, then class, then the Resolution 35 deadline, then case id; the margin does not
-order. The queue size counts every class except `clear`, so a `not_space` case is in the headline
-too. `--dry-run` writes `out/teams_message.md`
+order. The digest's queue size is the needs-attention count (`exceeds`, `near`, `not_space`,
+`cannot_decide`), not the full queue of every notice; a `not_space` case is in the headline too.
+`--dry-run` writes `out/teams_message.md`
 and `out/teams_message.json` (the Adaptive Card envelope) and, with `--html`,
 `out/teams_message.html`; `--send` POSTs the card to `TEAMS_WEBHOOK_URL` and returns 1 with one line
 on stderr when the variable is unset. A run whose queue is empty gets the single line `Käsitelty, ei
