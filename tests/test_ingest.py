@@ -124,6 +124,15 @@ def test_missing_mdb_export_is_a_clear_error(tmp_path, monkeypatch):
         ingest.load_ific(mdb)
 
 
+# The missing-table wording only appears once mdb-export runs against the file.
+# Without mdbtools the clear error is the install hint, which the test above covers.
+needs_mdbtools = pytest.mark.skipif(
+    ingest.shutil.which("mdb-export") is None,
+    reason="mdbtools not installed: the table-name error needs mdb-export",
+)
+
+
+@needs_mdbtools
 def test_unreadable_table_is_a_clear_error(tmp_path):
     """A file that is not an Access database: the first required table names itself."""
     mdb = tmp_path / "fake.mdb"
