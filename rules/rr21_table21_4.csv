@@ -1,14 +1,52 @@
-freq_lo_mhz,freq_hi_mhz,orbit,a_db,k_db,ref_hz,offset,service,page,source
-3400,4200,GSO,-152,10,4000,,FSS (space-to-Earth),p. 287,ITU RR 2024 Art. 21 Table 21-4
-3400,4200,NGSO,-138,12,1000000,Y,FSS (space-to-Earth),p. 287,ITU RR 2024 Art. 21 Table 21-4
-7250,7900,any,-152,10,4000,,"FSS, MetSat, MSS, SR",p. 288,ITU RR 2024 Art. 21 Table 21-4
-8025,8500,any,-150,10,4000,,"EESS, SR",p. 288,ITU RR 2024 Art. 21 Table 21-4
-10700,11700,GSO,-150,10,4000,,FSS,p. 288,ITU RR 2024 Art. 21 Table 21-4
-10700,11700,NGSO,-126,10,1000000,,FSS (footnote 25),p. 288,ITU RR 2024 Art. 21 Table 21-4
-10700,11700,HEO,-129,15,1000000,,FSS (footnote 24),p. 288,ITU RR 2024 Art. 21 Table 21-4
-11700,12500,NGSO,-124,10,1000000,,FSS Region 1 (footnote 25),p. 289,ITU RR 2024 Art. 21 Table 21-4
-11700,12500,HEO,-129,15,1000000,,FSS Region 1 (footnote 24),p. 289,ITU RR 2024 Art. 21 Table 21-4
-17700,19300,GSO,-115,10,1000000,,"FSS, ISS, MetSat (footnote 14)",p. 289,ITU RR 2024 Art. 21 Table 21-4
-17700,19300,NGSO,-115,10,1000000,X,FSS (footnote 13),p. 289,ITU RR 2024 Art. 21 Table 21-4
-19300,19700,any,-115,10,1000000,,FSS (footnote 15),p. 290,ITU RR 2024 Art. 21 Table 21-4
-25250,27500,any,-115,10,1000000,,"EESS, SR, ISS",p. 290,ITU RR 2024 Art. 21 Table 21-4
+freq_lo_mhz,freq_hi_mhz,orbit,a_db,k_db,ref_hz,offset,service,page,source,breaks
+1525,1530,any,-154,10,4000,,"MetSat, SR, SO, EESS (space-to-Earth, space-to-space) Region 1 (footnotes 7, 9)",p. 287,ITU RR 2024 Art. 21 Table 21-4,
+1670,1690,any,-154,10,4000,,"MetSat, SR, SO, EESS (footnotes 9, 12)",p. 287,ITU RR 2024 Art. 21 Table 21-4,
+1670,1700,any,-133,0,1500000,,"EESS, MetSat (sharing with MetAids)",p. 287,ITU RR 2024 Art. 21 Table 21-4,
+1690,1700,any,-154,10,4000,,"MetSat, SR, SO, EESS (Nos. 5.381, 5.382; footnote 9)",p. 287,ITU RR 2024 Art. 21 Table 21-4,
+1700,1710,any,-154,10,4000,,"MetSat, SR, SO, EESS (footnote 9)",p. 287,ITU RR 2024 Art. 21 Table 21-4,
+2025,2110,any,-154,10,4000,,"MetSat, SR, SO, EESS (footnote 9)",p. 287,ITU RR 2024 Art. 21 Table 21-4,
+2200,2300,any,-154,10,4000,,"MetSat, SR, SO, EESS (footnote 9)",p. 287,ITU RR 2024 Art. 21 Table 21-4,
+2500,2690,any,-136,11,1000000,,"FSS, BSS (2520-2670), RDSS (2500-2516.5 No. 5.404), MSS (2500-2520; 2520-2535 No. 5.403) (footnote 10)",p. 287,ITU RR 2024 Art. 21 Table 21-4,
+3400,4200,GSO,-152,10,4000,,FSS (space-to-Earth),p. 287,ITU RR 2024 Art. 21 Table 21-4,
+3400,4200,NGSO,-138,12,1000000,Y,FSS (space-to-Earth),p. 287,ITU RR 2024 Art. 21 Table 21-4,
+4500,4800,any,-152,10,4000,,FSS (space-to-Earth),p. 288,ITU RR 2024 Art. 21 Table 21-4,
+5150,5216,any,-164,0,4000,,FSS (space-to-Earth),p. 288,ITU RR 2024 Art. 21 Table 21-4,
+5670,5725,any,-152,10,4000,,"MetSat, MSS (Nos. 5.453, 5.455)",p. 288,ITU RR 2024 Art. 21 Table 21-4,
+6700,6825,any,-137,10,1000000,,FSS (space-to-Earth) (footnote 17),p. 288,ITU RR 2024 Art. 21 Table 21-4,
+6825,7075,any,-154,10,4000,,FSS (space-to-Earth) 4 kHz limit,p. 288,ITU RR 2024 Art. 21 Table 21-4,
+6825,7075,any,-134,10,1000000,,FSS (space-to-Earth) 1 MHz limit,p. 288,ITU RR 2024 Art. 21 Table 21-4,
+7250,7900,any,-152,10,4000,,"FSS, MetSat, MSS, SR",p. 288,ITU RR 2024 Art. 21 Table 21-4,
+8025,8500,any,-150,10,4000,,"EESS, SR",p. 288,ITU RR 2024 Art. 21 Table 21-4,
+9900,10400,any,-113,46.4,1000000,,EESS (active) (footnote 18),p. 288,ITU RR 2024 Art. 21 Table 21-4,0:-113;5.7:-113;6:-109.00;7:-101.47;8:-97.07;10:-91.53;12:-87.87;15:-84.00;20:-79.60;25:-76.47;30:-74.05;35:-72.07;40:-70.40;45:-68.95;53:-66.97;53.01:-66.6;90:-66.6
+10700,11700,GSO,-150,10,4000,,FSS,p. 288,ITU RR 2024 Art. 21 Table 21-4,
+10700,11700,HEO,-129,15,1000000,,FSS (footnote 24),p. 288,ITU RR 2024 Art. 21 Table 21-4,
+10700,11700,NGSO,-126,10,1000000,,FSS (footnote 25),p. 288,ITU RR 2024 Art. 21 Table 21-4,
+11700,12500,HEO,-129,15,1000000,,FSS Region 1 (footnote 24),p. 289,ITU RR 2024 Art. 21 Table 21-4,
+11700,12500,NGSO,-124,10,1000000,,FSS Region 1 (footnote 25),p. 289,ITU RR 2024 Art. 21 Table 21-4,
+13400,13650,GSO,-159,8,4000,,FSS Region 1 (footnote 19),p. 289,ITU RR 2024 Art. 21 Table 21-4,0:-159;25:-149;80:-149;84:-151;90:-151
+17700,19300,GSO,-115,10,1000000,,"FSS, ISS, MetSat (footnote 14)",p. 289,ITU RR 2024 Art. 21 Table 21-4,
+17700,19300,HEO,-120,15,1000000,,"FSS, ISS (footnote 16)",p. 289,ITU RR 2024 Art. 21 Table 21-4,0:-120;3:-120;12:-112;25:-105;90:-105
+17700,19300,NGSO,-115,10,1000000,X,FSS (footnote 13),p. 289,ITU RR 2024 Art. 21 Table 21-4,
+19300,19700,HEO,-120,15,1000000,,"FSS, ISS (footnote 16)",p. 289,ITU RR 2024 Art. 21 Table 21-4,0:-120;3:-120;12:-112;25:-105;90:-105
+19300,19700,any,-115,10,1000000,,FSS (footnote 15),p. 290,ITU RR 2024 Art. 21 Table 21-4,
+21400,22000,any,-115,10,1000000,,BSS Region 1 (row shared with 19.3-19.7 GHz),p. 290,ITU RR 2024 Art. 21 Table 21-4,
+22550,23550,any,-115,10,1000000,,EESS (space-to-Earth) (row shared with 19.3-19.7 GHz),p. 290,ITU RR 2024 Art. 21 Table 21-4,
+24450,24750,any,-115,10,1000000,,ISS (row shared with 19.3-19.7 GHz),p. 290,ITU RR 2024 Art. 21 Table 21-4,
+25250,27500,any,-115,10,1000000,,"EESS, SR, ISS",p. 290,ITU RR 2024 Art. 21 Table 21-4,
+27500,27501,any,-115,10,1000000,,FSS (space-to-Earth),p. 290,ITU RR 2024 Art. 21 Table 21-4,
+27500,30000,NGSO,-120,10,1000000,,ISS (footnote 26),p. 290,ITU RR 2024 Art. 21 Table 21-4,
+31000,31300,any,-115,10,1000000,,SR,p. 290,ITU RR 2024 Art. 21 Table 21-4,
+31800,32300,any,-120,15,1000000,,SR (footnote 20),p. 290,ITU RR 2024 Art. 21 Table 21-4,
+32300,33000,any,-135,20,1000000,,ISS,p. 290,ITU RR 2024 Art. 21 Table 21-4,
+37000,38000,GSO,-125,20,1000000,,SR,p. 290,ITU RR 2024 Art. 21 Table 21-4,
+37000,38000,NGSO,-120,15,1000000,,SR (footnote 20),p. 290,ITU RR 2024 Art. 21 Table 21-4,
+37500,40000,GSO,-127,22,1000000,,"FSS, MSS (footnote 21)",p. 290,ITU RR 2024 Art. 21 Table 21-4,0:-127;5:-127;20:-107;25:-105;90:-105
+37500,40000,NGSO,-120,15,1000000,,"FSS, MSS (footnotes 11, 21)",p. 290,ITU RR 2024 Art. 21 Table 21-4,
+40000,40500,any,-115,10,1000000,,"FSS, MSS",p. 290,ITU RR 2024 Art. 21 Table 21-4,
+40500,42000,GSO,-120,15,1000000,,"FSS, BSS (footnote 21)",p. 291,ITU RR 2024 Art. 21 Table 21-4,0:-120;5:-120;15:-110;25:-105;90:-105
+40500,42000,NGSO,-115,10,1000000,,"FSS, BSS (footnotes 11, 21)",p. 290,ITU RR 2024 Art. 21 Table 21-4,
+42000,42500,GSO,-127,22,1000000,,"FSS, BSS (footnote 21)",p. 291,ITU RR 2024 Art. 21 Table 21-4,0:-127;5:-127;20:-107;25:-105;90:-105
+42000,42500,NGSO,-120,15,1000000,,"FSS, BSS (footnotes 11, 21)",p. 291,ITU RR 2024 Art. 21 Table 21-4,
+47500,47900,GSO,-115,10,1000000,,FSS Region 1,p. 291,ITU RR 2024 Art. 21 Table 21-4,
+48200,48540,GSO,-115,10,1000000,,FSS Region 1,p. 291,ITU RR 2024 Art. 21 Table 21-4,
+49440,50200,GSO,-115,10,1000000,,FSS Region 1,p. 291,ITU RR 2024 Art. 21 Table 21-4,

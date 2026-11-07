@@ -22,8 +22,8 @@ def gso_row(limits) -> pfd.LimitRow:
     return row
 
 
-def test_table_has_thirteen_rows(limits):
-    assert len(limits) == 13
+def test_table_has_every_region_1_row(limits):
+    assert len(limits) == 51
     assert {row.orbit for row in limits} == {"GSO", "NGSO", "HEO", "any"}
 
 
@@ -35,10 +35,53 @@ def test_limit_row_needs_a_row_that_contains_the_whole_band(limits):
 
 
 def test_heo_uses_the_ngso_row_when_there_is_no_heo_row(limits):
-    row = pfd.limit_row(limits, 17800.0, 18000.0, "HEO")
-    assert row.orbit == "NGSO"  # 17,7-19,3 GHz has no HEO row, so footnote 13 applies
+    row = pfd.limit_row(limits, 3600.0, 3700.0, "HEO")
+    assert row.orbit == "NGSO" and row.offset == "Y"  # 3,4-4,2 GHz has no HEO row
     heo_band = pfd.limit_row(limits, 11000.0, 11200.0, "HEO")
     assert heo_band.orbit == "HEO"  # here the footnote 24 row exists
+
+
+def test_heo_takes_the_footnote_16_row_at_17_7_to_19_7_ghz(limits):
+    for lo, hi in ((17800.0, 18000.0), (19400.0, 19500.0), (19000.0, 19600.0)):
+        row = pfd.limit_row(limits, lo, hi, "HEO")
+        assert row.orbit == "HEO" and "footnote 16" in row.service, (lo, hi)
+    assert pfd.limit_row(limits, 17800.0, 18000.0, "NGSO").offset == "X"  # NGSO keeps fn 13
+
+
+def test_breaks_interpolate_and_are_continuous(limits):
+    row = pfd.limit_row(limits, 17800.0, 18000.0, "HEO")
+    assert row.breaks[0] == (0.0, -120.0)
+    for elevation, expected in (
+        (0, -120),
+        (3, -120),
+        (7.5, -116),
+        (12, -112),
+        (25, -105),
+        (90, -105),
+    ):
+        assert pfd.limit_hz(row, elevation) == pytest.approx(expected - 60, abs=1e-9)
+    for row in (r for r in limits if r.breaks):
+        assert row.a_db == row.breaks[0][1] and row.a_db + row.k_db == row.breaks[-1][1], row
+        for d, _ in row.breaks:
+            assert abs(pfd.limit_hz(row, d - 1e-6) - pfd.limit_hz(row, d + 1e-6)) < 1e-3, row
+
+
+def test_straddling_band_takes_the_strictest_row(limits):
+    row = pfd.limit_row(limits, 6750.0, 6900.0, "GSO")  # 6 700-6 825 and 6 825-7 075 MHz
+    assert (row.freq_lo_mhz, row.a_db, row.ref_hz) == (6700.0, -137.0, 1e6)  # -197 dB/Hz wins
+    two = pfd.limit_row(limits, 6900.0, 7000.0, "GSO")  # one band, two limits
+    assert two.a_db == -134.0
+    assert pfd.limit_row(limits, 6825.0, 6825.0, "GSO") is not None  # point on the edge
+
+
+def test_gap_between_rows_gives_no_limit(limits):
+    assert pfd.limit_row(limits, 4700.0, 4900.0, "GSO") is None  # 4 800-5 150 MHz has no row
+    assert pfd.limit_row(limits, 4700.0, 4800.0, "GSO").freq_lo_mhz == 4500.0  # touching edge
+
+
+def test_2200_2300_mhz_row(limits):
+    row = pfd.limit_row(limits, 2200.0, 2290.0, "NGSO")
+    assert (row.a_db, row.k_db, row.ref_hz, row.page) == (-154.0, 10.0, 4000.0, "p. 287")
 
 
 def test_vector_1_arithmetic(gso_row):
@@ -55,7 +98,7 @@ def test_vector_1_arithmetic(gso_row):
 
 def test_vector_2_arithmetic():
     """The plan's non-GSO vector: perigee 592 km, worst angle 5,0 deg, 2 310 km."""
-    row = pfd.load_limits(RULES)[1]  # 3 400-4 200 MHz NGSO, footnote 22/23
+    row = pfd.limit_row(pfd.load_limits(RULES), 3400.0, 4200.0, "NGSO")  # footnote 22/23
     assert row.a_db == -138.0 and row.offset == "Y"
     distance = pfd.slant(592.0, 5.0)
     assert distance == pytest.approx(2310, abs=2)
