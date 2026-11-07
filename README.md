@@ -29,7 +29,9 @@ keeps the ones a satellite can bring over Finnish territory, and computes an upp
 density (PFD) at the edge of that territory against the ITU Radio Regulations Article 21, Table 21-4
 limit. Every band is also checked against Finland's own allocation (Regulation M4): a band with no
 space-to-Earth satellite service is a finding on its own, even when the PFD is below the limit. The
-delivered register is a reference, not the boundary of the analysis.
+delivered register is a reference, not the boundary of the analysis. That is Traficom's rule of
+7 Nov 2026 (`docs/traficom-qa.md` F5): a limit exceedance alone is not enough, the level over
+Finnish territory is what matters, and the band is what a case is about.
 
 Every notice that survives the gates and gets a number becomes a case card with the source rows,
 the calculation, the Finnish allocation, the regulatory stage of the filing, the missing data, and one
