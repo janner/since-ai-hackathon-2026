@@ -443,11 +443,12 @@ Tests: `tests/test_prose.py::test_letter_template_asks_the_question`, `test_a_cl
 `app/main.py`. Every number on the page comes from `out/`, so the UI can never disagree with the
 run. A missing or half-written output is answered with 503 and the command to run, because that is
 an expected state rather than a bug. `KAISTA_OUT` exists so the tests can point the API at a
-temporary directory. The queue endpoint builds its list from `cases.json`, and the code carries a
-`shortcut` comment that `cannot_decide` notices therefore have no row there; their count is in the
-funnel endpoint.
+temporary directory. `/api/queue` builds its list from `cases.json`; `/api/queue/full` reads
+`queue.json`, which the pipeline writes with one row per notice and its tier, so the page can show
+a `cannot_decide` or dropped notice even when it has no card. The funnel endpoint carries the counts
+and the missing-field detail.
 
-Tests: `tests/test_api.py` (all nine), in particular
+Tests: `tests/test_api.py` (all 18), in particular
 `test_missing_out_is_503_and_the_page_still_loads` and `test_broken_json_is_503_not_500`.
 
 ### I14. The page writes text, not HTML

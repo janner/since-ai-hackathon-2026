@@ -236,8 +236,9 @@ and the selected card. It reads the files the pipeline wrote and does no analysi
 call, no network, no calculation. `KAISTA_OUT` points it at another output directory. Without
 `out/`, the page still loads and the API answers 503 with the command to run.
 
-The queue endpoint builds its list from `cases.json`, so notices that could not be computed have no
-row; the funnel endpoint carries their count.
+`/api/queue` builds its list from `cases.json`; `/api/queue/full` reads `queue.json`, which the
+pipeline writes with one row per notice and its tier, so a notice that could not be computed or was
+dropped still has a row. The funnel endpoint carries the counts and the missing-field detail.
 
 ## Teams notification (optional)
 

@@ -86,9 +86,8 @@ def case(case_id: str) -> Any:
 def queue() -> Any:
     """cases.json in queue order: regulatory stage, then class, then the deadline.
 
-    shortcut: cannot_decide notices have no card in cases.json, so they are absent
-    from this list; the funnel endpoint carries their count. Upgrade if the UI must
-    show them as queue rows (then read out/queue.md instead).
+    This endpoint keeps the card list. `/api/queue/full` is the page's queue: every notice in
+    the run, with its tier, including the ones that cannot be decided or had no effect.
     """
     order = {klass: i for i, klass in enumerate(CLASS_ORDER)}
 
@@ -108,6 +107,12 @@ def queue() -> Any:
         return (stage, klass, deadline_rank, ordinal, case["case_id"])
 
     return sorted(load("cases.json"), key=key)
+
+
+@app.get("/api/queue/full")
+def queue_full() -> Any:
+    """Every notice in the run, in queue order, with tier: attention, checked or no_effect."""
+    return load("queue.json")
 
 
 def run_monitor() -> None:

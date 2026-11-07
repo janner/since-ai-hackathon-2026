@@ -396,6 +396,35 @@ def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[
     return rows
 
 
+def queue_json(result: GateResult, ific: IficData, cards: list[dict]) -> list[dict]:
+    """Every notice in the run, in queue order, with its tier and its reason.
+
+    The page reads this file: it is the same queue as `queue.md`, one row per notice, so a
+    notice that cannot be decided or had no effect still has a row to show.
+    """
+    rows = {row["ntc_id"]: row for row in results_rows(result, ific, cards)}
+    return [
+        {
+            "tier": item.tier,
+            "ntc_id": item.ntc_id,
+            "case_id": rows[item.ntc_id]["case_id"],
+            "sat_name": rows[item.ntc_id]["sat_name"],
+            "adm": rows[item.ntc_id]["adm"],
+            "class": item.klass,
+            "stage": item.stage,
+            "action": item.filing_action,
+            "deadline": item.deadline.isoformat() if item.deadline else "",
+            "deadline_passed": item.deadline_passed,
+            "margin_db": rows[item.ntc_id]["margin_db"],
+            "band_use": item.band_use,
+            "reason": rows[item.ntc_id]["reason"],
+            "reason_text": item.reason,
+            "dropped_at": rows[item.ntc_id]["dropped_at"],
+        }
+        for item in result.queue
+    ]
+
+
 RESULT_COLUMNS = (
     "ific",
     "case_id",
@@ -467,6 +496,9 @@ def write_outputs(
     )
     (out / "cases.md").write_text(render_cases_md(cards), encoding="utf-8")
     (out / "queue.md").write_text(render_queue_md(result), encoding="utf-8")
+    (out / "queue.json").write_text(
+        json.dumps(queue_json(result, ific, cards), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     (out / "funnel.json").write_text(
         json.dumps(funnel_json(result), ensure_ascii=False, indent=2), encoding="utf-8"
     )

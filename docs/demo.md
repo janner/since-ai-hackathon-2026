@@ -234,9 +234,9 @@ KAISTA_OUT=/tmp/nothing uv run uvicorn app.main:app
 ```
 
 The API endpoints for a scripted demo: `/api/funnel`, `/api/cases`, `/api/cases/{case_id}`,
-`/api/queue`, `/health`. The queue endpoint lists computed cards only, so the one `cannot_decide`
-notice in the 3074 slice has no row there (the 3075 run the page shows has two); its count is in
-the funnel panel.
+`/api/queue`, `/api/queue/full`, `/health`. `/api/queue` lists computed cards only; `/api/queue/full`
+is the page's queue: every notice in the run with its tier, so the one `cannot_decide` notice in
+the 3074 slice has a row there (the 3075 run the page shows has two).
 
 ## 5b. The complaint register and the statistics
 

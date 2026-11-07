@@ -146,7 +146,10 @@ def run(
         f"({len(bands)} bands, {result.elapsed_s:.2f} s)"
     )
     results = f"{card_writer.ifact_tag(ific)}_results.csv"
-    print(f"wrote {out}/cases.json, cases.md, queue.md, funnel.json, {results}, run.log, letters/")
+    print(
+        f"wrote {out}/cases.json, cases.md, queue.md, queue.json, funnel.json, {results}, "
+        "run.log, letters/"
+    )
 
     if ledger_events:
         registered = register_complaints(built, out)
