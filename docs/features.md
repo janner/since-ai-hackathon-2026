@@ -1,7 +1,7 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Verified on 7 Nov
-2026 with `make check` (188 passed) and a clean clone (140 passed, 48 skipped).
+2026 with `make check` (190 passed) and a clean clone (140 passed, 50 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 

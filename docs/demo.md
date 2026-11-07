@@ -38,7 +38,7 @@ uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 
 ```
 196 notices → G1 41 → G2 21 → G3 20 + 1 cannot decide
-exceeds 11, near 5, not_space 2, clear 2, 19 in the queue (1 bands, 4.31 s)
+exceeds 11, near 5, not_space 4, clear 0, 196 in the queue (1 bands, 4.31 s)
 wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log, letters/
 ```
 
@@ -341,7 +341,7 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 188 passed with data/
+make check        # ruff check, ruff format --check, pytest: 190 passed with data/
 ```
 
 In a clean clone without `data/`, the data tests skip themselves: 140 passed, 48 skipped. The number
