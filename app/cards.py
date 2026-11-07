@@ -87,6 +87,9 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
         "same_network": ific.same_network(case.ntc_id),
         "source": {
             "file": ific.file,
+            # The run's input digest; the terrestrial path carries the same key in
+            # its own `source` block. Same contract, different calculation path.
+            "sha256": audit["input_sha256"],
             "tables": ["notice", "freq", "emiss", "s_beam", "geo", "orbit"],
             "keys": {"ntc_id": case.ntc_id, "grp_id": case.grp_id, "beam_name": case.beam},
         },

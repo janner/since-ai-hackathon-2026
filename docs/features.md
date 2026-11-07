@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `d33f783`, verified on 7 Nov 2026 with `make check` (128 passed) and a clean clone
-(111 passed, 17 skipped).
+commit `51c211c`, verified on 7 Nov 2026 with `make check` (131 passed) and a clean clone
+(112 passed, 19 skipped).
 
 Read a feature row in the tables below as: the module that owns the job, the tests that would fail
 if the behaviour changed, and the number the tests lock in.
@@ -261,14 +261,20 @@ no test opens a connection.
 
 ## F9: terrestrial side feature
 
-`app/terrestrial.py` is independent of the space pipeline (no import from `app.gates` or
-`app.pfd`) and is standard-library only. It reads the real BR IFIC terrestrial databases with
-`mdb-export`, the same reader `scripts/fetch_data.py` uses.
+`app/terrestrial.py` is the side path of the same program: `app.pipeline --terrestrial` runs it in
+the same pass as the space funnel, into the same `out/`, and its output carries the same `source`
+(file, SHA256, tables, keys) / `audit` (input SHA256, rules version, run time) / `missing` contract
+as a case card. It shares `app.ingest`'s provenance (`sha256`, `input_digest`) and
+`app.config.RULES_VERSION`, imports nothing from `app.gates` or `app.pfd`, and its own calculation
+path is ITU-R P.1546-6 field strength, not the PFD gates. It reads the real BR IFIC terrestrial
+databases with `mdb-export`, the same reader `scripts/fetch_data.py` uses.
 
 ```bash
-python -m app.terrestrial --prev data/itu-terr-ific/brific3075.mdb \
-  --curr data/itu-terr-ific/brific3076.mdb \
-  --register data/frequencies_of_interest.csv --out out/
+uv run python -m app.pipeline --ific data/itu-ific-3074 \
+  --register data/frequencies_of_interest.csv \
+  --m4 data/taajuusjakotaulukko.json \
+  --terrestrial data/itu-terr-ific/brific3076.mdb \
+  --terrestrial-prev data/itu-terr-ific/brific3075.mdb --out out/
 ```
 
 Tables used, one row per `fxm_terra` notice:
@@ -279,8 +285,9 @@ Tables used, one row per `fxm_terra` notice:
   `hgt_agl` and `tx_rx`. The antenna row is the TX row with the smallest `ant_key`.
 
 `pwr_dbw` is dBW; an EIRP value is converted to ERP by −2.15 dB. A row without frequency, location
-or power is counted in `skipped_invalid` under its reason (`frequency` / `location` / `power`) and
-not computed; a missing antenna height leaves the field strength empty rather than guessed.
+or power is counted under the top-level `missing` block, under its reason (`frequency` / `location` /
+`power`), and not computed; a missing antenna height leaves the field strength empty rather than
+guessed.
 
 | Step | Behaviour |
 |---|---|
@@ -292,9 +299,11 @@ not computed; a missing antenna height leaves the field strength empty rather th
 | Anomalies | a group with nothing in the previous number and three or more now |
 | Threshold | `protection_threshold_dbuVm` is `null`; the criterion line names the three tiers (ITU RR Art. 21 Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4 / Traficomin taajuusjakotaulukko) and marks the ECC and national values as not confirmed |
 
-Every finding carries its own source reference: the IFIC number, `terrakey`, `adm`, `intent` and
-the tables it came from, alongside `band`, `distance_to_finland_km`, `p_erp_kw`, `ant_h_m` and the
-four field-strength values. The report header carries the file name and SHA256 of both MDBs.
+Every finding carries its own source reference: the IFIC number, `terrakey`, `adm_ref_id`, `adm`,
+`intent` and the tables it came from, alongside `band`, `distance_to_finland_km`, `p_erp_kw`,
+`ant_h_m` and the four field-strength values. The document carries `source` / `prev_source` (file,
+SHA256, tables, keys), `audit` (input SHA256, rules version, run time) and `missing`; the readable
+report header shows the file name and SHA256 of both MDBs.
 
 The distance to Finland is the nearest of the four test points (Helsinki, Turku, Lappeenranta,
 Maarianhamina), not a polygon border. Both register directions count as overlap, because a channel
@@ -306,7 +315,7 @@ notices in reach of the register. 40 rows are skipped for a missing field (31 po
 
 Outputs: `terrestrial_findings.json`, `terrestrial_trends.csv`, `TERRESTRIAL.md`.
 
-Tests (`tests/test_terrestrial.py`, 20): `test_diff_intents_reads_the_intent_field`,
+Tests (`tests/test_terrestrial.py`, 21): `test_diff_intents_reads_the_intent_field`,
 `test_filter_keeps_land_mobile_in_reach`, `test_trends_group_by_adm_band_class_width`,
 `test_findings_leaves_threshold_open_and_cites_the_source`,
 `test_params_say_what_the_field_strength_is_computed_for`,

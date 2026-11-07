@@ -1,8 +1,13 @@
 """Terrestriaalinen sivutehtävä: BR IFIC -MDB Suomen rekisteriä vasten.
 
-Deterministinen ja stdlib-vain: ei verkkoa, ei ydinputken importtia.
-Moduuli lukee omat syötteensä (BR IFIC -MDB `mdb-export`illa, kuten
-`scripts/fetch_data.py`) ja kirjoittaa omat tulosteensa (päätös D7).
+Sama ohjelma ja sama tulostekontrakti, eri laskentapolku. Jaettu ydin on
+`app.ingest`-moduulin provenienssi (`sha256`, `input_digest`) ja
+`app.config.RULES_VERSION`; tuloste kantaa samat kentät kuin avaruuspuolen kortti
+(`source`, `audit`, `missing`), mutta laskenta on ITU-R P.1546-6 eikä PFD-portit.
+Ajo tapahtuu samalla komennolla (`app.pipeline --terrestrial`); ilman lippua
+avaruusajo on ennallaan. Moduuli lukee omat syötteensä (BR IFIC -MDB
+`mdb-export`illa, kuten `scripts/fetch_data.py`) ja kirjoittaa omat kolme
+tulostetiedostonsa (päätös D7).
 
 Ilmoituksen tila tulee `fxm_terra.intent`-kentästä (ADD/MODIFY/SUPPRESS/RECORDED):
 IFIC ei ole kumulatiivinen kanta, joten kahden numeron avainvertailu ei kerro
@@ -22,19 +27,25 @@ kaikilla kolmella akselilla ja kiinnittyy taulukon reunaan sen ulkopuolella.
 
 import argparse
 import csv
-import hashlib
 import io
 import json
 import math
 import subprocess
 from collections import Counter
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
+
+from app.config import RULES_VERSION
+from app.ingest import input_digest, sha256
 
 RULES = Path(__file__).resolve().parent.parent / "rules" / "p1546_land.csv"
 
 # BR IFIC 3076 -skeeman taulut, joista notice rakennetaan.
 TABLES = ("fxm_terra", "fxm_geo", "fxm_ant")
+# Tulosteen `source.keys`: mistä taulujen avaimista luku tuli (SCOPE 7, sama kontrakti
+# kuin avaruuskortin `ntc_id` / `grp_id` / `beam_name`).
+KEYS = ("terrakey", "adm_ref_id")
 # intent -> muutoksen nimi. RECORDED on kanta, ei muutos.
 INTENT_CHANGE = {"ADD": "new", "MODIFY": "modified", "SUPPRESS": "withdrawn"}
 
@@ -164,10 +175,6 @@ def extrapolated(freq_mhz, dist_km, h_ant_m):
     )
 
 
-def sha256_of(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
 def _export(mdb, table):
     """Yksi taulu `mdb-export`illa (sama lukija kuin scripts/fetch_data.py)."""
     result = subprocess.run(
@@ -203,6 +210,7 @@ def _notice(row, geo, antennas):
         pwr_dbw -= 2.15
     return {
         "terrakey": terrakey,
+        "adm_ref_id": row.get("adm_ref_id") or "",
         "adm": row.get("adm") or "?",
         "stn_cls": row.get("stn_cls") or "",
         "intent": row.get("intent") or "",
@@ -222,6 +230,9 @@ def load_issue_mdb(path):
     syyn mukaan (`skipped_invalid`); puuttuvaa arvoa ei arvata. `intent_counts`
     lasketaan kaikista fxm_terra-riveistä: IFIC:n tila ei riipu siitä, pystyikö
     työkalu laskemaan rivin.
+
+    Provenienssi (`file`, `sha256`, `path`) jaetaan `app.ingest`-moduulin kanssa:
+    sama hash-funktio kuin avaruuspuolen ingestillä.
     """
     mdb = Path(path)
     if not mdb.is_file():
@@ -242,7 +253,9 @@ def load_issue_mdb(path):
     stem = mdb.stem
     return {
         "issue": stem[len("brific") :] if stem.startswith("brific") else stem,
-        "source": f"{mdb.name} sha256:{sha256_of(mdb)}",
+        "file": mdb.name,
+        "sha256": sha256(mdb),
+        "path": mdb,
         "notices": notices,
         "intent_counts": dict(Counter(row["intent"] or "" for row in tables["fxm_terra"])),
         "skipped_invalid": dict(skipped),
@@ -340,6 +353,16 @@ def anomalies(rows, limit=5):
     return found[:limit]
 
 
+def _source_block(issue):
+    """Yhden luvun provenienssi samassa muodossa kuin avaruuskortin `source`."""
+    return {
+        "file": issue["file"],
+        "sha256": issue["sha256"],
+        "tables": list(TABLES),
+        "keys": list(KEYS),
+    }
+
+
 def findings(prev, curr, register_path):
     register = register_frequencies(register_path)
     kept, dropped = select(curr["notices"], register)
@@ -361,6 +384,7 @@ def findings(prev, curr, register_path):
                 # Lähdeviite jokaiseen löydökseen: IFIC-numero, terrakey, adm, intent, taulut.
                 "ific": curr["issue"],
                 "terrakey": notice["terrakey"],
+                "adm_ref_id": notice["adm_ref_id"],
                 "adm": notice["adm"],
                 "stn_cls": notice["stn_cls"],
                 "intent": notice["intent"],
@@ -377,9 +401,15 @@ def findings(prev, curr, register_path):
     skipped = Counter(prev.get("skipped_invalid") or {}) + Counter(
         curr.get("skipped_invalid") or {}
     )
+    audit = {
+        # Sama provenienssi kuin avaruuskortilla: yksi tiiviste kaikista ajon syötteistä.
+        "input_sha256": input_digest([curr["path"], prev["path"], Path(register_path), RULES]),
+        "rules_version": RULES_VERSION,
+        "run_at": datetime.now(UTC).astimezone().isoformat(timespec="seconds"),
+    }
     return {
-        "source": curr["source"],
-        "prev_source": prev["source"],
+        "source": _source_block(curr),
+        "prev_source": _source_block(prev),
         "issues": {"prev": prev["issue"], "curr": curr["issue"]},
         "model": "P.1546-6 land, 50/50, no terrain",
         "params": {
@@ -391,15 +421,18 @@ def findings(prev, curr, register_path):
         },
         "protection_threshold_dbuVm": THRESHOLD_DBUV_M,
         "criterion": CRITERION,
+        "audit": audit,
         "diff": diff_intents(curr),
         "notices": notices,
         "trends": rows,
         "anomalies": anomalies(rows),
+        # Sama kontrakti kuin avaruuskortin `missing`: mitä jäi lukematta. Kortilla
+        # puuttuvat kenttänimet, täällä syyt ja rivimäärät, koska ilmoituksia on monta.
+        "missing": dict(skipped),
         "filter": {
             "max_distance_km": MAX_DIST_KM,
             "classes": sorted(LAND_MOBILE_CLASSES),
             "dropped": dropped,
-            "skipped_invalid": dict(skipped),
         },
     }
 
@@ -408,8 +441,10 @@ def render_md(doc):
     lines = [
         "# TERRESTRIAL: BR IFIC -land-mobile-ilmoitukset",
         "",
-        f"- lähde: `{doc['source']}` (issu {doc['issues']['curr']})",
-        f"- vertailupohja: `{doc['prev_source']}` (issu {doc['issues']['prev']})",
+        f"- lähde: `{doc['source']['file']}` sha256 `{doc['source']['sha256'][:16]}…` "
+        f"(issu {doc['issues']['curr']})",
+        f"- vertailupohja: `{doc['prev_source']['file']}` (issu {doc['issues']['prev']})",
+        f"- ajo: {doc['audit']['run_at']}, säännöt {doc['audit']['rules_version']}",
         f"- taulut: {', '.join(TABLES)}",
         f"- mallinnus: {doc['model']}",
         f"- suojelukynnys: `{doc['protection_threshold_dbuVm']}`",

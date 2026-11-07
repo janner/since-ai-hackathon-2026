@@ -158,16 +158,18 @@ notice in the slice has no row there; its count is in the funnel panel.
 
 ## 6. The terrestrial side feature
 
-The side feature reads the real BR IFIC terrestrial databases, one MDB per number:
+The side feature runs in the same command as the space funnel, one MDB per number:
 
 ```bash
-uv run python -m app.terrestrial --prev data/itu-terr-ific/brific3075.mdb \
-  --curr data/itu-terr-ific/brific3076.mdb \
-  --register data/frequencies_of_interest.csv --out out/
+uv run python -m app.pipeline --ific data/itu-ific-3074 \
+  --register data/frequencies_of_interest.csv \
+  --m4 data/taajuusjakotaulukko.json \
+  --terrestrial data/itu-terr-ific/brific3076.mdb \
+  --terrestrial-prev data/itu-terr-ific/brific3075.mdb --out out/
 ```
 
 ```
-2905 new, 163 modified, 413 withdrawn, 576 recorded; 28 notices in reach; -> out/
+terrestrial 3075→3076: 2905 new, 163 modified, 413 withdrawn, 576 recorded, 28 notices in reach
 ```
 
 `out/TERRESTRIAL.md` is the readable report: the intent table, the field strength at the four
@@ -214,10 +216,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 128 passed with data/
+make check        # ruff check, ruff format --check, pytest: 131 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 111 passed, 17 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 112 passed, 19 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. Three-minute demo script

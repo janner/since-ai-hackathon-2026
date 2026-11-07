@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from app import ingest
 from app import terrestrial as t
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,6 +24,7 @@ def _notice(**overrides):
     """One land-mobile notice, in the shape load_issue_mdb() returns."""
     notice = {
         "terrakey": "1",
+        "adm_ref_id": "EST-1",
         "adm": "EST",
         "stn_cls": "FB",
         "intent": "ADD",
@@ -40,7 +42,9 @@ def _notice(**overrides):
 def _issue(notices, issue="X", counts=None):
     return {
         "issue": issue,
-        "source": f"{issue} sha256:0",
+        "file": f"brific{issue}.mdb",
+        "sha256": "0" * 64,
+        "path": Path("/dev/null"),  # not a file: input_digest skips it
         "notices": notices,
         "intent_counts": counts or Counter(n["intent"] for n in notices),
         "skipped_invalid": {},
@@ -96,13 +100,28 @@ def test_findings_leaves_threshold_open_and_cites_the_source(tmp_path):
     doc = t.findings(issue, issue, _register(tmp_path))
     assert doc["protection_threshold_dbuVm"] is None
     assert "to be confirmed" in doc["criterion"]
-    assert doc["source"] == issue["source"]
+    assert doc["source"]["file"] == issue["file"]
+    assert doc["source"]["keys"] == ["terrakey", "adm_ref_id"]
     assert doc["diff"]["new"] == 1
     finding = doc["notices"][0]
     assert finding["ific"] == "X"
     assert finding["terrakey"] == "1"
+    assert finding["adm_ref_id"] == "EST-1"
     assert finding["intent"] == "ADD"
     assert finding["tables"] == ["fxm_terra", "fxm_geo", "fxm_ant"]
+
+
+def test_findings_carry_the_same_provenance_contract_as_a_space_card(tmp_path):
+    """Both outputs carry source.file/sha256, audit.* and missing; only the class differs."""
+    issue = _issue([_notice()])
+    doc = t.findings(issue, issue, _register(tmp_path))
+    assert set(doc["source"]) == {"file", "sha256", "tables", "keys"}
+    assert set(doc["prev_source"]) == {"file", "sha256", "tables", "keys"}
+    assert len(doc["source"]["sha256"]) == 64
+    assert set(doc["audit"]) == {"input_sha256", "rules_version", "run_at"}
+    assert len(doc["audit"]["input_sha256"]) == 64
+    assert doc["audit"]["rules_version"] and doc["audit"]["run_at"]
+    assert "missing" in doc
 
 
 def test_params_say_what_the_field_strength_is_computed_for(tmp_path):
@@ -228,7 +247,8 @@ def test_real_3076_intent_distribution_and_source(issue3076):
     }
     assert t.diff_intents(issue3076)["new"] == 2905
     assert issue3076["issue"] == "3076"
-    assert issue3076["source"].startswith("brific3076.mdb sha256:")
+    assert issue3076["file"] == "brific3076.mdb"
+    assert issue3076["sha256"] == ingest.sha256(MDB_CURR)
 
 
 @pytest.mark.data

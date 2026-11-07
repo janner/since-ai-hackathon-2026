@@ -10,7 +10,17 @@ from app import pipeline
 from app.cards import RESULT_COLUMNS
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_FILES = ("cases.json", "cases.md", "queue.md", "funnel.json", "run.log")
+
+# The terrestrial side feature needs its own real MDBs on top of the space package.
+TERR_CURR = ROOT / "data" / "itu-terr-ific" / "brific3076.mdb"
+TERR_PREV = ROOT / "data" / "itu-terr-ific" / "brific3075.mdb"
+SPACE_DATA = ROOT / "data" / "itu-ific-3074"
+needs_data = pytest.mark.skipif(
+    not (TERR_CURR.is_file() and TERR_PREV.is_file() and SPACE_DATA.is_dir()),
+    reason="challenge data missing: run scripts/fetch_data.py",
+)
 
 
 @pytest.fixture(scope="module")
@@ -201,3 +211,54 @@ def test_real_run_writes_the_documented_numbers(challenge, tmp_path):
     assert funnel["counts"]["exceeds"] == 9
     assert funnel["queue"] == {"shown": 15}
     assert challenge.slice.result.counts["g3"] == len(cards)
+
+
+@pytest.mark.data
+@needs_data
+def test_one_command_writes_both_space_and_terrestrial_outputs(tmp_path):
+    """--terrestrial: the same run writes both output sets into one --out."""
+    out = tmp_path / "both"
+    assert (
+        pipeline.main(
+            [
+                "--ific",
+                str(ROOT / "data" / "itu-ific-3074"),
+                "--register",
+                str(ROOT / "data" / "frequencies_of_interest.csv"),
+                "--m4",
+                str(ROOT / "data" / "taajuusjakotaulukko.json"),
+                "--terrestrial",
+                str(TERR_CURR),
+                "--terrestrial-prev",
+                str(TERR_PREV),
+                "--out",
+                str(out),
+            ]
+        )
+        == 0
+    )
+    assert (out / "cases.json").is_file()
+    assert (out / "terrestrial_findings.json").is_file()
+    assert (out / "TERRESTRIAL.md").is_file()
+    doc = json.loads((out / "terrestrial_findings.json").read_text(encoding="utf-8"))
+    assert len(doc["source"]["sha256"]) == 64
+    assert len(doc["audit"]["input_sha256"]) == 64
+
+
+@pytest.mark.data
+@needs_data
+def test_without_the_terrestrial_flag_the_space_run_is_unchanged(tmp_path):
+    out = tmp_path / "space"
+    assert (
+        pipeline.run(
+            ROOT / "data" / "itu-ific-3074",
+            ROOT / "data" / "frequencies_of_interest.csv",
+            ROOT / "data" / "taajuusjakotaulukko.json",
+            out,
+        )
+        == 0
+    )
+    assert not (out / "terrestrial_findings.json").exists()
+    counts = json.loads((out / "funnel.json").read_text(encoding="utf-8"))["counts"]
+    assert (counts["notices"], counts["g1"], counts["g2"]) == (196, 41, 19)
+    assert counts["exceeds"] == 9

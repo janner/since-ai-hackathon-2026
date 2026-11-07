@@ -33,10 +33,11 @@ letter. Every number comes from code, and a numeric guard rejects a sentence tha
 the card does not have. Letters land in `out/letters/<case_id>.md`, one per `exceeds` case; the
 deterministic template is the floor when no model answers.
 
-A side feature applies the same style to terrestrial land-mobile notices: it reads two real BR IFIC
-terrestrial databases (3075 and 3076), takes the change from each notice's `intent` field, filters
-what is within 1 000 km of Finland and overlaps the register, and computes ITU-R P.1546-6 field
-strength at four Finnish test points.
+A side feature applies the same style to terrestrial land-mobile notices under the same command: it
+runs in the same `app.pipeline` pass (`--terrestrial`), writes into the same `out/`, and carries the
+same `source` / `audit` / `missing` fields. It reads two real BR IFIC terrestrial databases (3075 and
+3076), takes the change from each notice's `intent` field, filters what is within 1 000 km of Finland
+and overlaps the register, and computes ITU-R P.1546-6 field strength at four Finnish test points.
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
@@ -45,7 +46,7 @@ selected card 124545403.
 
 ## Verified numbers
 
-Measured 7 Nov 2026 on IFIC 3074: `make check` 128 tests passed, the slice run takes about 1.3 s,
+Measured 7 Nov 2026 on IFIC 3074: `make check` 131 tests passed, the slice run takes about 1.3 s,
 the seven-band run about 5.5 s. The deterministic pipeline is offline; the optional LLM prose step
 is the only part that opens a connection, and only when `LLM_BASE_URL` is set.
 
@@ -95,27 +96,25 @@ zip, the script stops with a clear error instead of writing a broken file. The s
 guards the two terrestrial zips.
 
 ```bash
-# the demo: the 3.47-3.78 GHz slice, six files into out/
+# one command: the 3.47-3.78 GHz space slice and the terrestrial side feature,
+# both into the same out/. Drop the two --terrestrial flags for the space run alone.
 uv run python -m app.pipeline --ific data/itu-ific-3074 \
   --register data/frequencies_of_interest.csv \
-  --m4 data/taajuusjakotaulukko.json --out out/
+  --m4 data/taajuusjakotaulukko.json \
+  --terrestrial data/itu-terr-ific/brific3076.mdb \
+  --terrestrial-prev data/itu-terr-ific/brific3075.mdb \
+  --out out/
 
-# the whole register: all seven space bands
+# the whole register: all seven space bands (add the same --terrestrial flags if wanted)
 uv run python -m app.pipeline --ific data/itu-ific-3074 \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json --out out/ --all
-
-# the terrestrial side feature (two BR IFIC MDBs, 3076 against 3075)
-uv run python -m app.terrestrial --prev data/itu-terr-ific/brific3075.mdb \
-  --curr data/itu-terr-ific/brific3076.mdb \
-  --register data/frequencies_of_interest.csv --out out/
 
 # the web UI over whatever the last run wrote
 uv run uvicorn app.main:app --reload      # http://localhost:8000
 ```
 
-`sh scripts/demo.sh` is the slice run plus the two files worth showing. `docs/demo.md` has the
-three-minute script and the terrestrial command.
+`sh scripts/demo.sh` is that one command. `docs/demo.md` has the three-minute script.
 
 The deterministic pipeline is offline. The LLM is an optional extra step: without `LLM_BASE_URL`
 every card falls back to the deterministic template in `templates/`, and the run opens no
@@ -153,8 +152,8 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 128 passed |
-| Clean clone, no `data/` | 111 passed, 17 skipped |
+| With `data/` | 131 passed |
+| Clean clone, no `data/` | 112 passed, 19 skipped |
 
 `tests/fixtures/` holds the small committed inputs: a nine-notice synthetic IFIC package, an
 eight-station register and a five-row M4 table. The tests that need the real package or the real
@@ -197,13 +196,14 @@ row; the funnel endpoint carries their count.
    blank or whitespace answer falls back to the template, but a refusal or an answer in the wrong
    language is not detected: the guard checks numbers, not intent. The run behind the numbers above
    had no `LLM_BASE_URL`, so every card carries `prose.source = template`.
-8. The terrestrial path reads the real BR IFIC MDBs (3075 and 3076) with `mdb-export`. The IFIC is
+8. The terrestrial path runs in the same command as the space funnel (`--terrestrial` on
+   `app.pipeline`), writes into the same `out/`, and carries the same `source` / `audit` / `missing`
+   fields. It reads the real BR IFIC MDBs (3075 and 3076) with `mdb-export`. The IFIC is
    not a cumulative database, so `new`/`modified`/`withdrawn` come from the `intent` field
    (ADD / MODIFY / SUPPRESS) and 3075 is only the trend baseline. A row without power or location
    (40 of the 4 057 `fxm_terra` rows in 3076: 31 without `pwr_dbw`, 9 whose `geo_type` is `ZONE`)
-   is counted in `skipped_invalid` with its reason and not computed. Mobile stations (`ML`) carry no
-   antenna height, so their field strength stays empty rather than guessed. The `--ific-terrestrial`
-   parameter in the plan is not implemented: the module takes `--prev` and `--curr` MDB paths.
+   is counted under `missing` with its reason and not computed. Mobile stations (`ML`) carry no
+   antenna height, so their field strength stays empty rather than guessed.
 9. The P.1546 table in `rules/p1546_land.csv` is coarse: three frequencies (100, 600, 2000 MHz),
    eight antenna heights, 70 distances from 1 to 1 000 km, rounded to 0.01 dB. A query outside any
    of those three ranges clamps to the nearest node; the notice is then flagged `extrapolated: true`

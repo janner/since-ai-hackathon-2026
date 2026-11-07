@@ -1,12 +1,17 @@
 # Architecture
 
-One package, one funnel, one set of output files. The deterministic path runs offline; the only optional
-step is card prose, and a numeric guard stands between the model and the output.
+One command, two calculation paths, one output contract. `python -m app.pipeline` runs the space
+funnel; adding `--terrestrial <3076.mdb> --terrestrial-prev <3075.mdb>` runs the terrestrial side
+feature in the same pass, into the same `out/`, with the same `source` / `audit` / `missing` fields.
+The deterministic path runs offline; the only optional step is card prose, and a numeric guard stands
+between the model and the output.
 
 ## The pipeline
 
 ```mermaid
 flowchart LR
+  CMD["python -m app.pipeline<br/>one command: space, and --terrestrial for the side feature"]
+
   subgraph inputs [Inputs]
     I1["IFIC 3074 .mdb tables"]
     I2["frequencies of interest<br/>(.xlsx / .csv)"]
@@ -14,7 +19,8 @@ flowchart LR
     I4["rules/rr21_table21_4.csv"]
   end
 
-  I1 --> ING["app/ingest.py<br/>normalise units, SHA256"]
+  CMD --> ING["app/ingest.py<br/>normalise units, SHA256"]
+  I1 --> ING
   I2 --> ING
   I3 --> ING
   ING --> BANDS["app/bands.py<br/>protected bands from the register"]
@@ -34,11 +40,12 @@ flowchart LR
   OUT --> API["app/main.py<br/>read-only API"]
   API --> UI["app/static/index.html<br/>funnel, queue, selected card"]
 
-  subgraph terr_side [Terrestrial side path]
-    T1["two BR IFIC MDBs<br/>fxm_terra, fxm_geo, fxm_ant<br/>(3075, 3076)"] --> TERR["app/terrestrial.py<br/>intent diff, 1 000 km filter, P.1546-6"]
+  subgraph terr_side [Terrestrial path, same command, same out/]
+    T1["two BR IFIC MDBs<br/>fxm_terra, fxm_geo, fxm_ant<br/>(3075, 3076)"] --> TERR["app/terrestrial.py<br/>intent diff, 1 000 km filter, P.1546-6<br/>same source / audit / missing contract"]
     I2 --> TERR
     TERR --> TOUT["out/<br/>terrestrial_findings.json,<br/>terrestrial_trends.csv, TERRESTRIAL.md"]
   end
+  CMD --> T1
 ```
 
 The web UI reads `out/` and nothing else. It runs no LLM call, opens no connection and does no
@@ -54,11 +61,11 @@ calculation: without `out/` the page still loads and the API answers 503 with th
 | `app/pfd.py` | Geometry and the limit: slant range and elevation from GEO longitude or a non-GSO sweep, free-space loss, and the Article 21 Table 21-4 limit read from `rules/rr21_table21_4.csv`. No limit is hardcoded in code. |
 | `app/gates.py` | The funnel G1 to G4: band overlap (with an optional adjacent-channel guard), visibility from Finland, the PFD computation and the class (`exceeds` / `near` / `clear`, an adjacent case capped at `near`), plus the reason code for every drop and the queue ordered by class, then regulatory stage, then margin. |
 | `app/cards.py` | Builds the case card (source rows, calculation, M4 lookup, missing fields, one question), renders the Markdown, the queue, the CSV and the run log, and writes the output files — including one letter per `exceeds` case under `letters/`. |
-| `app/pipeline.py` | The CLI: one IFIC package in, the output files out. The deterministic path never touches the network; the optional prose step calls the endpoint in `LLM_BASE_URL` through `app/llm.py`. |
+| `app/pipeline.py` | The CLI: one IFIC package in, the output files out. Add `--terrestrial <3076.mdb> --terrestrial-prev <3075.mdb>` and the same run also writes the terrestrial side feature into the same `out/`; without the flags the space run is unchanged. The deterministic path never touches the network; the optional prose step calls the endpoint in `LLM_BASE_URL` through `app/llm.py`. |
 | `app/prose.py` | Card prose. The LLM drafts it, the guard checks it, the deterministic template in `templates/` is the floor. Also holds the correspondence-letter template and function. |
 | `app/guard.py` | Numeric guard: scans the prose for numbers and rejects a sentence that carries a number the card does not have. |
 | `app/llm.py` | The single OpenAI-compatible chat call. The endpoint and key come from `.env` (`LLM_BASE_URL`, `LLM_API_KEY`), never from code. The model runs wherever that URL points: the OpenShift AI sandbox in the Red Hat setup, another endpoint, or nowhere at all when the variable is unset. |
-| `app/terrestrial.py` | The side path: reads two real BR IFIC terrestrial MDBs (3075 and 3076) with `mdb-export`, takes each notice's change from the `intent` field, keeps land-mobile notices within 1 000 km of Finland that overlap the register, and computes ITU-R P.1546-6 field strength at four Finnish test points. stdlib only, no network, writes its own three files. |
+| `app/terrestrial.py` | The side path, run by the same command: reads two real BR IFIC terrestrial MDBs (3075 and 3076) with `mdb-export`, takes each notice's change from the `intent` field, keeps land-mobile notices within 1 000 km of Finland that overlap the register, and computes ITU-R P.1546-6 field strength at four Finnish test points. It shares `app.ingest`'s provenance (`sha256`, `input_digest`) and `app.config.RULES_VERSION`, imports nothing from `app.gates` or `app.pfd`, and writes its own three files in the same `out/` with the same `source` / `audit` / `missing` contract as a card. |
 | `app/main.py` | Read-only FastAPI app: six endpoints (`/`, `/health`, `/api/funnel`, `/api/cases`, `/api/cases/{id}`, `/api/queue`) over the files in `out/`, plus the one page. `KAISTA_OUT` points it at another output directory. |
 
 Data flow goes one way. Nothing in the UI writes, and the deterministic path never reads the network.
