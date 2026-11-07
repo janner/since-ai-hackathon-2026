@@ -25,7 +25,7 @@ FUNNEL = {
         "clear": 4,
     },
     "drops": {"no_band_overlap": 155},
-    "queue": {"shown": 18, "overflow": False, "coverage_gap": 1},
+    "queue": {"shown": 15},
 }
 
 
@@ -91,7 +91,7 @@ def test_health(client):
 def test_funnel_numbers(client):
     body = client.get("/api/funnel").json()
     assert body["counts"] == FUNNEL["counts"]
-    assert body["queue"]["coverage_gap"] == 1
+    assert body["queue"] == {"shown": 15}
 
 
 def test_cases_returns_every_card(client):
@@ -111,9 +111,9 @@ def test_unknown_case_id_is_404(client):
     assert "3074-999999" in response.json()["detail"]
 
 
-def test_queue_is_ordered_by_class_and_capped(client, cases):
+def test_queue_is_ordered_by_class(client, cases):
     body = client.get("/api/queue").json()
-    assert len(body) <= 20
+    assert len(body) == len(cases)  # no cap: every card is queued
     ranks = [CLASSES.index(item["class"]) for item in body]
     assert ranks == sorted(ranks)
     exceeds = [item for item in body if item["class"] == "exceeds"]

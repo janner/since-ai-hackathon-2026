@@ -45,8 +45,6 @@ def test_mini_funnel_json_mini_out(mini_out):
     assert funnel["counts"]["notices"] == 9
     assert funnel["counts"]["g3"] == 2
     assert funnel["queue"]["shown"] == 4
-    assert funnel["queue"]["overflow"] is False
-    assert funnel["queue"]["coverage_gap"] == 16
     assert funnel["mode"] == "slice"
     assert len(funnel["input_sha256"]) == 64
 
@@ -170,5 +168,5 @@ def test_real_run_writes_the_documented_numbers(challenge, tmp_path):
     assert len(cards) == 18
     funnel = json.loads((out / "funnel.json").read_text(encoding="utf-8"))
     assert funnel["counts"]["exceeds"] == 9
-    assert funnel["queue"] == {"shown": 19, "overflow": False, "coverage_gap": 1}
+    assert funnel["queue"] == {"shown": 15}
     assert challenge.slice.result.counts["g3"] == len(cards)

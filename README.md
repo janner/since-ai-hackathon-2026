@@ -22,7 +22,8 @@ the calculation, the Finnish allocation from Regulation M4, the missing data, an
 the other administration. A notice that passes G1 and G2 but cannot be computed is not a card: it
 keeps its row in `queue.md` and `3074_results.csv` under class `cannot_decide`, and its count is in
 `funnel.json`. The demo slice therefore has 18 cards and one notice without (limitation 15). The
-queue shows the most urgent cards, capped at 20. A separate accuracy file covers all 196 notices,
+queue lists every case a human should look at: exceedances first, then the near-limit cases, then
+the ones that cannot be decided. It is not capped. A separate accuracy file covers all 196 notices,
 the dropped ones included. A human decides.
 
 The language model only writes the card summary. Every number comes from code, and a numeric guard
@@ -54,7 +55,7 @@ is the only part that opens a connection, and only when `LLM_BASE_URL` is set.
 | G3 computed | 18 | 64 |
 | cannot_decide | 1 (`no_power`) | 11 |
 | exceeds / near / clear | 9 / 5 / 4 | 26 / 15 / 23 |
-| Queue | 19 shown, coverage gap 1 | 20 shown, overflow 6 / 15 / 11 / 23 |
+| Queue | 15 (9 exceeds, 5 near, 1 cannot decide) | 52 (26 exceeds, 15 near, 11 cannot decide) |
 
 Two test vectors reproduce to the digit:
 
@@ -206,8 +207,9 @@ row; the funnel endpoint carries their count.
     in the sandbox, called by the prose step. See `deploy/openshift/README.md`. The demo video, the
     push and the rest of the submission form are the owner's steps; `SUBMISSION.md` lists them under
     the final check.
-12. The queue cap of 20 comes from the spoken challenge brief. Everything is in the files; the
-    overflow counts are reported and not filled with invented cases.
+12. The queue has no cap. The written challenge brief names no target number, and the job is to
+    find the problems and report them, not to shorten the list. Everything stays in the files; the
+    clear cases keep their row in `cases.json` and `3074_results.csv` and are left out of the queue.
 13. The 26 protected bands are an artefact of the register, not a simplification: the demo slice
     has two bands separated by a 13.1 MHz hole, and the hole is shown rather than covered.
 14. `main` is ahead of `origin/main` and not pushed. The push is Janne's call.
@@ -222,7 +224,7 @@ row; the funnel endpoint carries their count.
 
 ```
 app/            one module per feature, each with tests/test_<feature>.py
-  config.py     seven space bands, demo slice, queue cap, rules version, number formatting
+  config.py     seven space bands, demo slice, rules version, number formatting
   ingest.py     IFIC tables, register, M4, unit parsing, input SHA256
   bands.py      protected bands derived from the register
   pfd.py        geometry, free-space loss, Table 21-4 limits

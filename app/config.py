@@ -21,7 +21,6 @@ SPACE_BANDS_MHZ: tuple[tuple[float, float], ...] = (
 # The demo slice: the only group where the register also carries the calculation fields.
 DEMO_SLICE_MHZ: tuple[float, float] = (3470.0, 3780.0)
 
-QUEUE_CAP = 20
 RULES_VERSION = "1.1.0"
 
 # Classification of the worst-case margin.

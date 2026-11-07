@@ -134,13 +134,12 @@ A notice with nothing computable lands in `undecided` with one reason: `no_orbit
 margin rounded to two decimals: `exceeds` above 0 dB, `near` between −3 and 0 dB, `clear` at or
 below −3 dB.
 
-`gate4()` orders the queue `exceeds`, `near`, `cannot_decide`, `clear`, sorts by margin inside a
-class, caps the list at `QUEUE_CAP` (20), and reports the overflow per class plus the
-`coverage_gap` when the queue has empty seats.
+`gate4()` orders the queue `exceeds`, `near`, `cannot_decide` and sorts by margin inside a class.
+`clear` cases stay in `cases.json` and the CSV but out of the queue. There is no cap.
 
 Tests: `test_class_boundaries`, `test_mini_funnel_counts_and_reasons`,
-`test_mini_non_gso_case_uses_the_pass_sweep`, `test_queue_order_and_coverage_gap`,
-`test_gate4_overflows_in_class_order`, `test_demo_slice_funnel`, `test_all_bands_funnel`,
+`test_mini_non_gso_case_uses_the_pass_sweep`, `test_queue_order`,
+`test_gate4_queues_every_concern_and_no_clear`, `test_demo_slice_funnel`, `test_all_bands_funnel`,
 `test_vector_2_from_the_real_data`, `test_case_126590032_cannot_be_decided`.
 
 ## F6: case cards and the M4 allocation
@@ -300,7 +299,7 @@ files, and every number on the page comes from them.
 | `GET /api/funnel` | `out/funnel.json` |
 | `GET /api/cases` | `out/cases.json` |
 | `GET /api/cases/{case_id}` | one card, 404 when the id is unknown |
-| `GET /api/queue` | `cases.json` in queue order, capped at 20 |
+| `GET /api/queue` | `cases.json` in queue order |
 
 `KAISTA_OUT` (default `out`) points the API at another output directory. A missing file or broken
 JSON answers 503 with the message from `app.pipeline`, not 500: a half-finished run is an expected
@@ -313,7 +312,7 @@ so a `cannot_decide` notice has no row there; its count appears in the funnel pa
 
 Tests (`tests/test_api.py`, 9): `test_index_serves_the_finnish_page`, `test_health`,
 `test_funnel_numbers`, `test_cases_returns_every_card`, `test_case_by_id`,
-`test_unknown_case_id_is_404`, `test_queue_is_ordered_by_class_and_capped`,
+`test_unknown_case_id_is_404`, `test_queue_is_ordered_by_class`,
 `test_missing_out_is_503_and_the_page_still_loads` and `test_broken_json_is_503_not_500`. The
 fixtures write their own synthetic `out/` into `tmp_path`, so the API tests need no challenge data.
 

@@ -115,8 +115,6 @@ function renderFunnel(data) {
       ["Rajanylitys", c.exceeds],
       ["L\u00e4hell\u00e4 rajaa", c.near],
       ["Selv\u00e4t", c.clear],
-      ["Jonossa", data.queue.shown + (data.queue.overflow ? " + ylivuoto" : "")],
-      ["Aukko peitossa", data.queue.coverage_gap],
     ]),
     el("h3", "Pudotukset"),
     list(Object.entries(data.drops)),

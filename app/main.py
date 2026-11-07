@@ -14,7 +14,6 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
-from app.config import QUEUE_CAP
 from app.gates import CLASS_ORDER
 
 app = FastAPI(title="Kaista")
@@ -72,14 +71,14 @@ def case(case_id: str) -> Any:
 
 @app.get("/api/queue")
 def queue() -> Any:
-    """cases.json in queue order: class order, biggest margin first, cap 20.
+    """cases.json in queue order: class order, biggest margin first.
 
     shortcut: cannot_decide notices have no card in cases.json, so they are absent
     from this list; the funnel endpoint carries their count. Upgrade if the UI must
     show them as queue rows (then read out/queue.md instead).
     """
     order = {klass: i for i, klass in enumerate(CLASS_ORDER)}
-    items = sorted(
+    return sorted(
         load("cases.json"),
         key=lambda case: (
             order.get(case.get("class"), len(order)),
@@ -87,4 +86,3 @@ def queue() -> Any:
             case["case_id"],
         ),
     )
-    return items[:QUEUE_CAP]

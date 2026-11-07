@@ -15,7 +15,7 @@ Kaista
 
 **Tagline** (max 140, one sentence; voters read it first)
 
-From 95,865 frequency rows to 20 cases a human can decide.
+From 95,865 frequency rows to every case that needs a human decision.
 
 **About the project** (max 5,000 chars; problem, solution, how it was built, what we met on the way, what comes next)
 
@@ -23,7 +23,7 @@ Every two weeks the ITU publishes a BR IFIC: a package of new satellite filings.
 
 Kaista is a triage tool for that first pass. It reads one IFIC package, derives the protected bands from Traficom's table of frequencies of interest, keeps the space-to-Earth notices that overlap those bands and can be seen from Finland, and computes an upper-bound power flux density against the ITU Radio Regulations Article 21, Table 21-4 limit. Whatever survives and can be computed becomes a case card: the source rows, the calculation, the Finnish allocation from Regulation M4, the fields that are missing, and one question for the other administration. A human decides what to do with each card.
 
-The funnel is the whole point, so the tool shows it. On the demo slice (3,470 to 3,780 MHz) 196 notices become 41 on band overlap, 19 visible from Finland, and 18 computed cards. Nine cards exceed the limit, five come near it and four are clear. One notice passes the first two gates and cannot be computed, so it keeps its row in the queue and the CSV as cannot_decide instead of becoming a card. Over all seven space bands the run goes 196 to 101 to 75 to 64 computed cards, with 26 exceeding, 15 near and 23 clear, and a queue of 20. Nothing is dropped silently: every notice that leaves carries a stage and a reason in 3074_results.csv, and the counts are in funnel.json.
+The funnel is the whole point, so the tool shows it. On the demo slice (3,470 to 3,780 MHz) 196 notices become 41 on band overlap, 19 visible from Finland, and 18 computed cards. Nine cards exceed the limit, five come near it and four are clear. One notice passes the first two gates and cannot be computed, so it keeps its row in the queue and the CSV as cannot_decide instead of becoming a card. Over all seven space bands the run goes 196 to 101 to 75 to 64 computed cards, with 26 exceeding, 15 near and 23 clear, and a queue of 52. The queue is not capped: the written brief names no target number, so every exceedance, near-limit case and undecidable notice gets a row. Nothing is dropped silently: every notice that leaves carries a stage and a reason in 3074_results.csv, and the counts are in funnel.json.
 
 Everything before the card text is deterministic. The pipeline reads CSV and JSON, uses standard-library math, and never opens a network connection. The PFD is an upper bound, not a claim of interference: max PSD plus max beam gain minus free-space loss, against Table 21-4. The one optional step is prose. If LLM_BASE_URL is set, a language model writes the card summary; if it is not, a template does. The model never supplies a number. A numeric guard reads every sentence and rejects it if it carries a number that is not already in the card, and the template takes over. The letter to the other administration has its own template and its own function. In the Red Hat award setup the drafting model runs in an OpenShift AI sandbox and the pipeline runs on the laptop, so with `LLM_BASE_URL` unset nothing leaves the machine.
 

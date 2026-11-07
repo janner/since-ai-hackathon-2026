@@ -190,7 +190,7 @@ def render_cases_md(cards: list[dict]) -> str:
 def render_queue_md(result: GateResult) -> str:
     counts = result.counts
     head = (
-        f"# Queue ({len(result.queue)} of {counts['g3'] + counts['cannot_decide']})\n\n"
+        f"# Queue ({len(result.queue)})\n\n"
         f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
         f"{counts['g3']} + {counts['cannot_decide']}\n\n"
         "| # | case | class | margin dB | reason |\n|---|---|---|---|---|\n"
@@ -211,11 +211,7 @@ def funnel_json(result: GateResult) -> dict:
         "mode": result.mode,
         "counts": result.counts,
         "drops": result.drops,
-        "queue": {
-            "shown": len(result.queue),
-            "overflow": result.overflow or False,
-            "coverage_gap": result.coverage_gap,
-        },
+        "queue": {"shown": len(result.queue)},
     }
 
 

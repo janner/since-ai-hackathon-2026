@@ -28,7 +28,7 @@ uv run python -m app.pipeline --ific data/itu-ific-3074 \
 
 ```
 196 notices → G1 41 → G2 19 → G3 18 + 1 cannot decide
-exceeds 9, near 5, clear 4, 19 in the queue (1 groups, 2 bands, 1.25 s)
+exceeds 9, near 5, clear 4, 15 in the queue (1 groups, 2 bands, 1.25 s)
 wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log
 ```
 
@@ -41,7 +41,7 @@ connection with no LLM configured.
 `out/queue.md` is the decision list, most urgent first:
 
 ```
-# Queue (19 of 19)
+# Queue (15)
 
 Funnel: 196 → 41 → 19 → 18 + 1
 
@@ -55,7 +55,7 @@ Funnel: 196 → 41 → 19 → 18 + 1
 | 6 | 124520183 | exceeds | 2,95 | exceeds |
 ```
 
-(13 more rows follow; the file lists all 19.)
+(9 more rows follow; the file lists all 15.)
 
 `out/cases.md` holds one card per computed notice. The one from the plan's test vector:
 
@@ -119,12 +119,12 @@ uv run python -m app.pipeline --ific data/itu-ific-3074 \
 
 ```
 196 notices → G1 101 → G2 75 → G3 64 + 11 cannot decide
-exceeds 26, near 15, clear 23, 20 in the queue (7 groups, 26 bands, 5.51 s)
+exceeds 26, near 15, clear 23, 52 in the queue (7 groups, 26 bands, 5.51 s)
 ```
 
 This is the accuracy run: all seven space bands, 84 register stations on the bands, 26 protected
-bands in 7 groups, and a queue that overflows its cap of 20 (`overflow: exceeds 6, near 15,
-cannot_decide 11, clear 23` in `funnel.json`). The counts are one notice above the plan
+bands in 7 groups, and a queue of 52 rows (26 exceeds, 15 near, 11 cannot decide) that is not
+capped. The counts are one notice above the plan
 (101/75/11 against 100/74/10) for the reason in `docs/decisions.md` (I1).
 
 ## 5. The web UI

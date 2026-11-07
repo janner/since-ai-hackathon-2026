@@ -15,7 +15,7 @@ this documentation pass.
 ### D1. Product: a deterministic IFIC triage, not a chatbot and not a map
 
 Choice: read one IFIC package, derive the protected bands, compute the upper-bound PFD, produce a
-card per notice and a queue of 20. A human decides.
+card per notice and a queue of the cases that need a human decision. A human decides.
 
 Alternatives: a retrieval chatbot over the filings, a map layer, a full coordination calculation, a
 plain band filter.
@@ -34,7 +34,7 @@ Choice: the demo locks the 3.47 to 3.78 GHz slice; `--all` runs the seven space 
 accuracy file.
 
 Reason: the slice is the only group where the register also carries the fields the calculation
-needs. The full set is 84 rows and 26 bands, and its queue overflows 20, which does not fit a
+needs. The full set is 84 rows and 26 bands and its queue is 52 rows, which does not fit a
 three-minute demo. Both numbers are in the README.
 
 Reopen if: Traficom supplies calculation parameters for the other bands.
@@ -60,15 +60,16 @@ citable and a function of elevation.
 Reopen if: Traficom names a protection criterion, gives receiver parameters, or shows that the upper
 bound produces too many false flags.
 
-### D5. Queue of 20, not padded, everything in the files
+### D5. Queue without a cap, not padded, everything in the files
 
-Choice: order `exceeds`, `near`, `cannot_decide`, `clear`; cap 20; report `overflow` and the
-`coverage gap`; `cases.json` and `3074_results.csv` keep every notice.
+Choice: order `exceeds`, `near`, `cannot_decide`; leave `clear` cases out of the queue; keep every
+notice in `cases.json` and `3074_results.csv`.
 
-Reason: 20 comes from the spoken brief rather than a written one. The cap keeps the queue readable
-while the files keep the accuracy record. A short queue is not padded with invented cases.
+Reason: the written challenge brief names no target number, and the task is to find the problems and
+report them rather than shorten the list. The queue holds every case that needs a human decision,
+and the files keep the accuracy record. A short queue is not padded with invented cases.
 
-Reopen if: the Q&A session names another target. The cap is configuration (`QUEUE_CAP`).
+Reopen if: Traficom names a target queue size.
 
 ### D6. AI writes prose, code decides
 
@@ -140,7 +141,7 @@ Reopen if: the table is replaced with a finer grid or a maintained package.
 
 ### D12. Name: Kaista
 
-Choice: "Kaista" (band), tagline "From 95,865 frequency rows to 20 cases a human can decide."
+Choice: "Kaista" (band), tagline "From 95,865 frequency rows to every case that needs a human decision."
 
 Reason: short, Finnish, describes the band and the product, and stands apart from a generic "IFIC
 triage".

@@ -71,7 +71,7 @@ def test_mini_non_gso_case_uses_the_pass_sweep(mini):
     assert case.limit.service.startswith("FSS")
 
 
-def test_queue_order_and_coverage_gap(mini):
+def test_queue_order(mini):
     queue = mini.result.queue
     assert [item.klass for item in queue] == [
         "exceeds",
@@ -81,16 +81,18 @@ def test_queue_order_and_coverage_gap(mini):
     ]
     assert [item.ntc_id for item in queue[:2]] == ["900000002", "900000001"]  # margin descending
     assert [item.reason for item in queue[2:]] == ["no_orbit", "no_power"]
-    assert mini.result.coverage_gap == 16  # 20 seats, 4 items
-    assert mini.result.overflow == {}
 
 
-def test_gate4_overflows_in_class_order(mini):
-    queue, overflow, gap = gates.gate4(mini.result.cases, mini.result.undecided, cap=1)
-    assert len(queue) == 1
-    assert queue[0].ntc_id == "900000002"
-    assert overflow == {"exceeds": 1, "cannot_decide": 2}
-    assert gap == 0
+def test_gate4_queues_every_concern_and_no_clear(mini):
+    base = mini.result.cases[0]
+    cases = [
+        replace(base, ntc_id="900000001", klass="exceeds", margin_db=5.0),
+        replace(base, ntc_id="900000002", klass="near", margin_db=-1.0),
+        replace(base, ntc_id="900000009", klass="clear", margin_db=-9.0),
+    ]
+    queue = gates.gate4(cases, {"900000003": "no_power"})
+    assert [item.klass for item in queue] == ["exceeds", "near", "cannot_decide"]
+    assert [item.ntc_id for item in queue] == ["900000001", "900000002", "900000003"]
 
 
 @pytest.mark.data
@@ -110,9 +112,7 @@ def test_demo_slice_funnel(challenge):
     assert result.reason_counts("G2") == {"geo_below_horizon": 21, "ngso_never_visible": 1}
     assert result.undecided == {"126590032": "no_power"}
     assert (result.geo_visible, result.ngso_visible) == (16, 3)
-    assert len(result.queue) == 19
-    assert result.coverage_gap == 1
-    assert result.overflow == {}
+    assert len(result.queue) == 15  # 9 exceeds + 5 near + 1 cannot_decide; the 4 clear stay out
     assert len(result.cases) == 18
     assert len(result.stations) == 7
 
@@ -125,7 +125,7 @@ def test_all_bands_funnel(challenge):
     register's 25,2 GHz row "0,1G" as 0,1 MHz instead of the 0,1 GHz in its own
     "Channel bandwidth" column. Parsed as the register intends, one more notice overlaps:
     126545075, which cannot be decided because it has no orbit row. Everything else matches
-    the plan: 64 computed cases, 26 / 15 / 23 and the queue of 20 with its overflow.
+    the plan: 64 computed cases, 26 / 15 / 23 and the queue of 52.
     """
     result = challenge.all.result
     assert result.counts == {
@@ -157,9 +157,7 @@ def test_all_bands_funnel(challenge):
         "324520174",
         "324520203",
     ]
-    assert len(result.queue) == 20
-    assert result.overflow == {"exceeds": 6, "near": 15, "cannot_decide": 11, "clear": 23}
-    assert result.coverage_gap == 0
+    assert len(result.queue) == 52  # 26 exceeds + 15 near + 11 cannot_decide; the 23 clear stay out
 
 
 @pytest.mark.data

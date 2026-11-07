@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from app import pfd
 from app.bands import Band
-from app.config import EXCEEDS_DB, NEAR_DB, QUEUE_CAP
+from app.config import EXCEEDS_DB, NEAR_DB
 from app.ingest import Freq, IficData, Station
 
 CLASS_ORDER = ("exceeds", "near", "cannot_decide", "clear")
@@ -66,8 +66,6 @@ class GateResult:
     undecided: dict[str, str]  # ntc_id -> reason (cannot_decide)
     dropped: dict[str, tuple[str, str]]  # ntc_id -> (stage, reason)
     queue: list[QueueItem] = field(default_factory=list)
-    overflow: dict[str, int] = field(default_factory=dict)
-    coverage_gap: int = 0
     counts: dict[str, int] = field(default_factory=dict)
     drops: dict[str, int] = field(default_factory=dict)
     stations_on_band: int = 0
@@ -105,7 +103,7 @@ def run(
     cases, undecided = gate3(ific, visible, stations, limits)
     cases.sort(key=lambda case: -case.margin_db)
     dropped = {**g1_dropped, **g2_dropped}
-    queue, overflow, coverage_gap = gate4(cases, undecided)
+    queue = gate4(cases, undecided)
 
     counts = {
         "notices": len(ific.notices),
@@ -122,8 +120,6 @@ def run(
         undecided=undecided,
         dropped=dropped,
         queue=queue,
-        overflow=overflow,
-        coverage_gap=coverage_gap,
         counts=counts,
         stations_on_band=len(stations),
         stations=stations,
@@ -315,25 +311,19 @@ def _beam_gain(ific: IficData, freq: Freq) -> float | None:
     return max(candidates) if candidates else None
 
 
-def gate4(
-    cases: list[Case], undecided: dict[str, str], cap: int = QUEUE_CAP
-) -> tuple[list[QueueItem], dict[str, int], int]:
-    """Order exceeds -> near -> cannot_decide -> clear and truncate to the cap."""
-    items = [QueueItem(c.ntc_id, c.klass, c.klass, c.margin_db, c) for c in cases]
+def gate4(cases: list[Case], undecided: dict[str, str]) -> list[QueueItem]:
+    """Queue every concern, in class order then margin descending; clear stays out.
+
+    No cap: the challenge brief names no target number, so nothing is cut.
+    """
+    items = [
+        QueueItem(c.ntc_id, c.klass, c.klass, c.margin_db, c) for c in cases if c.klass != "clear"
+    ]
     items += [
         QueueItem(ntc_id, "cannot_decide", reason, None) for ntc_id, reason in undecided.items()
     ]
-    ordered: list[QueueItem] = []
+    queue: list[QueueItem] = []
     for klass in CLASS_ORDER:
         same = [item for item in items if item.klass == klass]
-        ordered += sorted(same, key=lambda item: (-(item.margin_db or 0.0), item.ntc_id))
-    queue = ordered[:cap]
-    overflow: dict[str, int] = {}
-    seats = cap
-    for klass in CLASS_ORDER:
-        total = sum(1 for item in items if item.klass == klass)
-        taken = min(seats, total)
-        seats -= taken
-        if total - taken:
-            overflow[klass] = total - taken
-    return queue, overflow, max(0, cap - len(ordered))
+        queue += sorted(same, key=lambda item: (-(item.margin_db or 0.0), item.ntc_id))
+    return queue
