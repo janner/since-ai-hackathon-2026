@@ -51,10 +51,10 @@ screening convention, not a CEPT threshold. Recorded in `docs/decisions.md` D4.
 move, rotate and can change their pointing, except GSO.
 
 **What changed.** The calculation did not change; the worst case was already the premise. The card
-and the letter did: since 7 Nov 2026 they state the assumption on a `Coverage` line, drop the beam
-fields from `Missing` and ask the administration to confirm the worst-case PFD instead of asking
-about the service area (`app/cards.py`, `templates/correspondence_fi_en.md`). GIMS data is not
-needed.
+and the letter did: since 7 Nov 2026 the card states the assumption on a `Coverage` line and drops
+the beam fields from `Missing`, while the letter states it in its first paragraph; both ask the
+administration to confirm the worst-case PFD instead of asking about the service area
+(`app/cards.py`, `templates/correspondence_fi_en.md`). GIMS data is not needed.
 
 ### Q4. Terrestrial field strength: border line or the register's stations
 

@@ -279,8 +279,7 @@ at all: open `out/teams_message.html`.
     clear cases keep their row in `cases.json` and `3074_results.csv` and are left out of the queue.
 13. The 26 protected bands are an artefact of the register, not a simplification: the demo slice
     has two bands separated by a 13.1 MHz hole, and the hole is shown rather than covered.
-14. `main` is pushed: `origin/main` sits at the same commit. Any later commit needs its own push,
-    which is Janne's call.
+14. `main` has been pushed before, but every new commit needs its own push, which is Janne's call.
 15. A notice that survives G1 and G2 but cannot be computed gets no case card. In the demo slice
     126590032 passes both gates and carries no emission power, so it lands in `queue.md` and
     `3074_results.csv` under class `cannot_decide`, while `cases.json` holds 18 cards, not the 19
