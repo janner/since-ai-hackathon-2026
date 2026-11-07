@@ -5,7 +5,7 @@ The case-drafting model runs in the cluster. Everything else runs on the laptop.
 | Piece | Where | What |
 |---|---|---|
 | `vllm-cpu-x86-runtime` (ServingRuntime) | OpenShift AI sandbox `janner-1-dev` | vLLM CPU serving runtime, image pinned by digest |
-| `granite` (InferenceService, RawDeployment) | same project | Granite 3.3 2B Instruct from the Red Hat modelcar catalog, 4096 token context |
+| `granite` (InferenceService, Standard) | same project | Granite 3.3 2B Instruct from the Red Hat modelcar catalog, 4096 token context |
 | Route `granite` | same project | Edge TLS, redirects HTTP to HTTPS |
 | `app/pipeline.py` and the rest | laptop | Ingestion, gates, PFD, cards, funnel, UI |
 | `app/llm.py` (one chat call per card) | laptop to route | The only network call in a run, and only in the optional prose step |

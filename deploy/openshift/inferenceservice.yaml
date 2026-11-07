@@ -5,7 +5,8 @@ kind: InferenceService
 metadata:
   name: granite
   annotations:
-    serving.kserve.io/deploymentMode: RawDeployment
+    # The ODH admission webhook pins the isvc to Standard, so any other value here never reaches the live object.
+    serving.kserve.io/deploymentMode: Standard
     openshift.io/display-name: granite-3.3-2b-instruct
     # One case card takes ~40-60 s on CPU; the router default of 30 s returns 504.
     # Set here, not on the route: the controller resets route annotations from the isvc.
