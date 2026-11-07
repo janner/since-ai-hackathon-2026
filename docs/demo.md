@@ -133,21 +133,22 @@ MIFR notifications, whose margins do not put them second.
 - **PFD:** -184,78 dB(W/m²/Hz) vs limit -188,02 dB(W/m²/Hz) → margin 3,24 dB
 - **Limit:** ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287
 - **M4 in Finland:** MOBILE AND FIXED
-- **Missing:** s_beam.bore_long, s_beam.bore_lat, s_beam.maj_axis, s_beam.min_axis
+- **Coverage:** beam name CDN; worst case assumed: peak beam gain toward the Finnish station
+- **Missing:** nothing
 - **Threshold:** the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction
-- **Question:** Can China confirm the service area of the COMPASS-80E CDN beam and whether it illuminates Finland in the 3 642-3 678 MHz range?
+- **Question:** Can China confirm the worst-case PFD the COMPASS-80E CDN beam produces on Finnish territory in the 3 642-3 678 MHz range?
 ```
 
 Four things to point at on that card. The PFD, the limit and the margin come from the calculation
 block (max PSD −50,0 dBW/Hz, beam gain 28,5 dBi, distance 41 143 km, free-space loss 163,28 dB).
-The limit is a citation, not a constant: `rules/rr21_table21_4.csv` holds the row. The `Missing`
-line is why the case exists at all: IFIC 3074 does not declare the beam geometry. The `out/` copy
-quoted here predates Traficom's Q3 answer; the current card assumes the worst case (peak gain aimed
-at the Finnish station), says so on a `Coverage` line, lists nothing under `Missing` and asks the
-administration to confirm the worst-case PFD. `Question` is the
-draft the administration would receive. `Stage` names the provision the filing stands under, and
-`Threshold` (here the anchor's station is directive at 40 dBi) restates Traficom's point that a
-directive antenna can be protected at a lower level without changing any number.
+The limit is a citation, not a constant: `rules/rr21_table21_4.csv` holds the row. The `Coverage`
+line is where Traficom's Q3 answer lands: IFIC 3074 does not declare the beam geometry, so the tool
+does not try to decide whether the beam reaches Finland. It assumes the worst case, the notice's own
+peak gain aimed at the Finnish station, and `Missing` is therefore empty: no field is missing for
+the computation. `Question` is the draft the administration would receive, and it asks to confirm that
+worst-case PFD. `Stage` names the provision the filing stands under, and `Threshold` (here the
+anchor's station is directive at 40 dBi) restates Traficom's point that a directive antenna can be
+protected at a lower level without changing any number.
 
 `out/3074_results.csv` has one row per notice in the input, including the 177 the funnel dropped
 (155 at G1, 22 at G2), each with its stage and reason. The same notice as a row:
