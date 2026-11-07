@@ -251,7 +251,9 @@ and decides what the card gets:
 | Endpoint answers, and the guard rejects a number | `prose.source = "template_guard"` |
 | Endpoint answers, guard passes | `prose.source = "llm"` |
 
-The prompt is fixed and says plainly that no number may be invented and no verdict may be given.
+The prompt is fixed, asks for English, and says plainly that no number may be invented and no
+verdict may be given. The floor templates are `templates/case_en.md` for the card and
+`templates/correspondence_fi_en.md` for the letter (the letter carries a Finnish closing line).
 A blank or whitespace answer is treated as a failure rather than prose, so it falls back to the
 template. A refusal or an answer in the wrong language is not detected: the guard checks numbers,
 not intent.
@@ -368,18 +370,23 @@ files, and every number on the page comes from them.
 JSON answers 503 with the message from `app.pipeline`, not 500: a half-finished run is an expected
 state. The page keeps working when the API fails and shows the error in a status line.
 
-The page is Finnish, three panels wide (Suppilo, Jono, Kortti), styled with plain CSS and no
+The page is English, three panels wide (Funnel, Queue, Card), styled with plain CSS and no
 external request. Every value from `out/` is written with `textContent`, so a case id or a
-satellite name cannot inject markup. The queue row and the card also show the regulatory stage
-(`Sääntelyvaihe`) from `cases.json`. The queue endpoint reads `cases.json`, which holds cards only,
-so a `cannot_decide` notice has no row there; its count appears in the funnel panel.
+satellite name cannot inject markup. The queue row and the card show the regulatory stage with
+the ITU short name (`No. 9.1` advance publication, API; `No. 9.6` coordination request, CRC;
+`No. 11.2` MIFR), and the card names the protected station and its coordinates: that is where the
+worst case is calculated. The queue endpoint reads `cases.json`, which holds cards only, so a
+`cannot_decide` notice has no row there; the funnel panel lists each one from
+`funnel.json::undecided_detail` with the missing field and the value it would need to reach the
+limit. The fetch line names the document series (`space`), so an IFIC number alone cannot be
+mistaken for the terrestrial series. The "Show calculation" block carries the formula, the limit
+source and the input keys, so a reader can recompute the number.
 
-Tests (`tests/test_api.py`, 9): `test_index_serves_the_finnish_page`, `test_health`,
-`test_funnel_numbers`, `test_cases_returns_every_card`, `test_case_by_id`,
-`test_unknown_case_id_is_404`, `test_queue_is_ordered_by_class`,
-`test_missing_out_is_503_and_the_page_still_loads` and `test_broken_json_is_503_not_500`. The tests
-that read content take it from one real pipeline run into a temporary `out/` (a private copy per
-test, so one may corrupt its files); the index, health and error paths need no challenge data.
+Tests (`tests/test_api.py`, 16): the page, the fetch status and its lock, the `runs/latest` pointer,
+the funnel numbers, every card, one card and its 404, the queue order, and the 503/504 error paths.
+The tests that read content take it from one real pipeline run into a temporary `out/` (a private
+copy per test, so one may corrupt its files); the index, health and error paths need no challenge
+data.
 
 ## F11: the optional Teams digest
 

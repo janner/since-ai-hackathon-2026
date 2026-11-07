@@ -61,6 +61,7 @@
   .card li { margin-bottom: 4px; }
   .prose p { margin: 0 0 8px; }
   .src { font-size: 12px; line-height: 1.6; color: var(--muted); }
+  .undecided li { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
   .btn { font: inherit; font-size: 14px; font-weight: 600; min-height: 40px; padding: 8px 16px; background: var(--accent); color: #fff; border: 0; cursor: pointer; }
   .btn:hover { background: var(--accent-hover); }
   .btn:disabled { background: var(--surface); color: var(--muted); cursor: default; }
@@ -97,7 +98,7 @@
   </section>
   <section id="queue-section" aria-labelledby="h-queue">
     <h2 id="h-queue">Queue</h2>
-    <p class="note">Notices that cannot be decided do not produce a card; they appear only in the funnel.</p>
+    <p class="note">Notices that cannot be decided do not produce a card; they are listed in the funnel with the missing value.</p>
     <ul id="queue"></ul>
   </section>
   <section aria-labelledby="h-card">
@@ -149,10 +150,18 @@ const CLASS_EN = {
   clear: "Clear", cannot_decide: "Cannot decide",
 };
 const STAGE_EN = {
-  "No. 9.1": { name: "Advance publication", meaning: "Can still be influenced." },
-  "No. 9.6": { name: "Coordination request", meaning: "Can still be influenced." },
-  "No. 11.2": { name: "Recorded in the MIFR", meaning: "No longer influenceable." },
-  "Resolution 49": { name: "Resolution 49 notice", meaning: "" },
+  "No. 9.1": { name: "Advance publication", short: "API", meaning: "Can still be influenced." },
+  "No. 9.6": { name: "Coordination request", short: "CRC", meaning: "Can still be influenced." },
+  "No. 11.2": { name: "Recorded in the MIFR", short: "MIFR", meaning: "No longer influenceable." },
+  "Resolution 49": { name: "Resolution 49 notice", short: "Res. 49", meaning: "" },
+};
+const UNDECIDED_EN = {
+  no_power: "no transmitted power",
+  no_gain: "no beam gain",
+  no_orbit: "no orbit data",
+  no_perigee: "no perigee",
+  no_limit_for_band: "no limit for the band",
+  no_station: "no Finnish station",
 };
 const DROP_LABEL = {
   no_band_overlap: "No band overlap",
@@ -167,6 +176,16 @@ function adminName(code) {
 function stageOf(item) {
   const prov = item.regulatory_stage && item.regulatory_stage.provision;
   return STAGE_EN[prov] || { name: prov || "unknown stage", meaning: "" };
+}
+
+// "No. 9.1 Advance publication (API). Can still be influenced."
+function filingStage(item) {
+  const prov = (item.regulatory_stage && item.regulatory_stage.provision) || "unknown stage";
+  const stage = STAGE_EN[prov] || {};
+  const name = [prov, stage.name].filter(Boolean).join(" ");
+  const short = stage.short && !name.toUpperCase().includes(stage.short.toUpperCase())
+    ? " (" + stage.short + ")" : "";
+  return [name + short, stage.meaning].filter(Boolean).join(". ");
 }
 
 function bandText(band) {
@@ -211,13 +230,20 @@ function proseParagraphs(text) {
 function calculationText(item) {
   const c = item.calculation || {};
   const coverage = item.coverage || {};
+  const s = item.source || {};
+  const keys = s.keys || {};
   return [
     "Transmit PSD " + num(c.psd_dbw_hz, "dBW/Hz") + " + beam gain " +
       num(c.beam_gain_db, "dBi") + " - free-space loss " + num(c.fspl_db, "dB"),
     "= PFD " + num(c.pfd_dbw_m2_hz, "dB(W/m\u00b2/Hz)"),
     "Limit " + num(c.limit_dbw_m2_hz, "dB(W/m\u00b2/Hz)") + ", margin " + signed(c.margin_db, "dB"),
     "Distance " + num(c.distance_km, "km") + ", elevation " + num(coverage.elevation_deg, "\u00b0"),
+    "Formula: PFD = PSD + beam gain - free-space loss; limit = Table 21-4 value at " +
+      "elevation - 10 log10(reference bandwidth).",
     "Limit source: " + (c.limit_source || "unknown"),
+    "Input: notice " + (keys.ntc_id || "unknown") + ", group " + (keys.grp_id || "unknown") +
+      ", beam " + (keys.beam_name || "unknown") + ", file " + (s.file || "unknown") +
+      ", tables " + ((s.tables || []).join(", ") || "unknown") + ".",
   ].join("\n");
 }
 
@@ -243,15 +269,16 @@ function renderFetch(status) {
     return;
   }
   const when = status.run_at || status.checked_at || "";
+  const doc = status.document ? status.document + " " : "";
   if (status.status === "new") {
     const n = status.counts && status.counts.notices;
-    line.textContent = "New IFIC " + status.ific + " fetched and processed " + fmtRun(when) +
+    line.textContent = "New " + doc + "IFIC " + status.ific + " fetched and processed " + fmtRun(when) +
       (n === undefined ? "" : " · " + n + " notices") + ".";
   } else if (status.status === "error") {
     line.textContent = "Check failed " + fmtRun(when) + ": " + (status.message || "") +
-      (status.last_ific ? " The last good run is IFIC " + status.last_ific + "." : "");
+      (status.last_ific ? " The last good run is " + doc + "IFIC " + status.last_ific + "." : "");
   } else {
-    line.textContent = "No new IFIC has been published yet (latest " + status.last_ific +
+    line.textContent = "No new " + doc + "IFIC has been published yet (latest " + status.last_ific +
       "). Checked " + fmtRun(when) +
       (status.next_check ? " · next check " + fmtRun(status.next_check) : "") + ".";
   }
@@ -316,6 +343,29 @@ async function get(url) {
   return body;
 }
 
+function undecidedRows(data) {
+  const detail = data.undecided_detail || {};
+  const ids = Object.keys(detail);
+  if (!ids.length) return [];
+  const list = el("ul", null, "undecided");
+  for (const id of ids) {
+    const d = detail[id] || {};
+    const parts = [id, UNDECIDED_EN[d.reason] || d.reason || "unknown reason"];
+    if (d.required_db !== undefined && d.required_db !== null) {
+      const field = d.field === "psd" ? "transmit PSD" : d.field === "gain" ? "beam gain" : d.field;
+      const unit = d.field === "gain" ? "dBi" : "dBW/Hz";
+      parts.push("the " + field + " would need at least " + num(d.required_db, unit) +
+        " to reach the limit");
+    }
+    list.append(el("li", parts.join(" \u00b7 ")));
+  }
+  return [
+    el("h3", "Cannot decide (" + ids.length + ")"),
+    list,
+    el("p", "No card: a missing value keeps the PFD undecided.", "note"),
+  ];
+}
+
 function renderFunnel(data) {
   const c = data.counts;
   document.getElementById("funnel-line").textContent =
@@ -334,6 +384,7 @@ function renderFunnel(data) {
     ]),
     el("h3", "Drops"),
     rows(Object.entries(data.drops).map(([key, value]) => [DROP_LABEL[key] || key, value])),
+    ...undecidedRows(data),
     el("h3", "Run"),
     rows([
       ["Mode", data.mode],
@@ -442,6 +493,15 @@ function renderCard(item) {
     coverage.orbit,
     coverage.beam ? "beam " + coverage.beam : "",
   ].filter(Boolean).join(" \u00b7 "), "card-sub"));
+  card.append(el("p", "Filing stage: " + filingStage(item), "note"));
+  const victim = item.victim || {};
+  if (victim.station) {
+    const where = victim.lat !== undefined && victim.lon !== undefined
+      ? ", " + victim.lat + " N, " + victim.lon + " E" : "";
+    card.append(el("p", "Worst case at station " + victim.station +
+      (victim.class ? " (" + victim.class + ")" : "") + where +
+      ", elevation " + num(coverage.elevation_deg, "\u00b0") + ".", "note"));
+  }
 
   card.append(el("h3", "What this means"));
   const prose = item.prose || {};
