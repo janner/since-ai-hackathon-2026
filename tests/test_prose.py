@@ -36,8 +36,8 @@ def test_without_an_endpoint_the_template_is_used():
     assert draft["source"] == "template"
     assert "3074-103500417" in draft["text"]
     assert "-184,78" in draft["text"]
-    assert "(no satellite service)" in draft["text"]
-    assert "no satellite service on" not in draft["text"]
+    assert "(no satellite downlink allocation)" in draft["text"]
+    assert "no satellite downlink allocation on" not in draft["text"]
 
 
 def test_a_partial_m4_gap_names_the_gap():
@@ -51,7 +51,7 @@ def test_a_partial_m4_gap_names_the_gap():
         },
     }
     text = prose.draft_summary(card)["text"]
-    assert "no satellite service on 3\u00a0600-3\u00a0800 MHz" in text
+    assert "no satellite downlink allocation on 3\u00a0600-3\u00a0800 MHz" in text
 
 
 def test_letter_template_asks_the_question():
