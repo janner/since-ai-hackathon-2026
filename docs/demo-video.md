@@ -44,6 +44,10 @@ Block word counts: problem 42, solution 48, live demo 123, impact 59.
 - **Optional Red Hat line**, swap in at 0:28 if the OpenShift award is worth the time (takes
   the video to about 2:03, so trim one live-demo line with it): "The card summary is drafted
   by a language model in an OpenShift AI sandbox, but the model never supplies a number."
+- **Optional register line**, swap in at 1:40 if the specialist's S6 question is worth the time
+  (about 10 seconds, one sentence): "Five years from now the register still answers what was
+  complained about, whose operation it was, and what was done." It replaces the 3074 accuracy
+  line, so the video stays under two minutes; the register section is below the card on the page.
 - **Numbers are honest as they stand.** Both runs are on record: 3075 is the automatic path
   (`runs/3075/`), 3074 is the accuracy material. The video says which run it shows.
 - OBS for screen and voice, captions in CapCut or as YouTube subtitles. Localhost is the
