@@ -51,21 +51,22 @@ oc start-build kaista-pipeline --from-archive=/tmp/ctx.tgz --follow
 
 ```bash
 oc apply -f deploy/openshift/pipeline/dspa.yaml
-oc get dspa kaista-pipelines     # Ready True when the API server and the workflow controller are up
 oc apply -f deploy/openshift/pipeline/workspace-pvc.yaml
+oc get dspa kaista-pipelines   # Ready True once the API server and the workflow controller are up
 ```
 
 ## Seed the object store
 
-The ingest task reads the bucket anonymously, so the credentials never reach a task. The
-inputs are public regulatory data.
+The ingest task reads the bucket anonymously, so the credentials never reach a task, and
+the inputs are public regulatory data. `scripts/fetch_data.py` fills `data/` first.
 
 ```bash
 oc run kaista-seed --restart=Never --image=python:3.12-slim --command -- sleep 3600
 tar cf - -C data/itu-ific-3074 ific3074.zip | oc exec -i kaista-seed -- tar xf - -C /tmp/data
-oc exec -i kaista-seed -- tar xf - -C /tmp/data < <(tar cf - -C data \
-  frequencies_of_interest.csv taajuusjakotaulukko.json)
-# then upload + set the bucket policy (see the runbook in the handoff)
+tar cf - -C data frequencies_of_interest.csv taajuusjakotaulukko.json \
+  | oc exec -i kaista-seed -- tar xf - -C /tmp/data
+# upload the three objects into the `ific` bucket and set its anonymous-read policy
+# (bucket + policy, see the seeder used for the measured run)
 ```
 
 ## Run it
@@ -75,32 +76,36 @@ oc port-forward svc/ds-pipeline-kaista-pipelines 8443:8443 &
 python pipeline.py --submit --host https://127.0.0.1:8443
 ```
 
-## Measured evidence
-
-Filled from the run on 7.11.2026 (sandbox `janner-1-dev`).
+## Measured evidence (7.11.2026, sandbox `janner-1-dev`)
 
 ### The pipeline server
 
 ```
 $ oc get dspa kaista-pipelines
-DatabaseAvailable=True ... APIServerReady=True ... WorkflowControllerReady=True ... Ready=True
+DatabaseAvailable=True   ObjectStoreAvailable=True   APIServerReady=True
+PersistenceAgentReady=True   ScheduledWorkflowReady=True   WorkflowControllerReady=True
 ```
 
 ```
 $ oc get pods
-mariadb-kaista-pipelines-...          1/1  Running
-minio-kaista-pipelines-...            1/1  Running
-ds-pipeline-kaista-pipelines-...      2/2  Running
-ds-pipeline-workflow-controller-...   1/1  Running
-ds-pipeline-persistenceagent-...      1/1  Running
+ds-pipeline-kaista-pipelines-596c4fcd7f-cth6n                     2/2   Running
+ds-pipeline-workflow-controller-kaista-pipelines-ff8666b479kgsh   1/1   Running
+ds-pipeline-persistenceagent-kaista-pipelines-68d7dbffc6-w7k5m    1/1   Running
+ds-pipeline-scheduledworkflow-kaista-pipelines-7666b4b6bd-gkzhj   1/1   Running
+ds-pipeline-metadata-grpc-kaista-pipelines-b6bb99cb9cb6-lsgz8     1/1   Running
+mariadb-kaista-pipelines-7cf645bb6f-xvcqh                          1/1   Running
+minio-kaista-pipelines-5d88d947dc-kdnr7                            1/1   Running
 ```
 
 ### The run
 
 ```
 $ oc get workflow
-kaista-ific-triage-zszqk   Succeeded   <duration>
+NAME                       STATUS      AGE
+kaista-ific-triage-zszqk   Succeeded   49m
 ```
+
+Run id `febefa66-4181-43c4-92b5-78235f1f1c23`, submitted through the DSPA API server.
 
 ### ingest
 
@@ -115,27 +120,53 @@ ingest: database /workspace/in/ific3074.mdb (286654464 B), mdb-export present
 ### triage
 
 ```
-<pending>
+triage: database /workspace/in/ific3074.mdb
+triage: model endpoint http://granite-predictor.janner-1-dev.svc.cluster.local/v1
+196 notices → G1 41 → G2 19 → G3 18 + 1 cannot decide
+exceeds 9, near 5, clear 4, 15 in the queue (1 groups, 2 bands, 7.42 s)
+wrote /workspace/out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log, letters/
 ```
+
+The funnel reproduces the laptop run exactly (196 → 41 → 19 → 18 + 1); the deterministic
+part took 7.42 s in the cluster.
 
 ### metrics
 
 ```
-<pending>
+metrics: 196 notices → G1 41 → G2 19 → G3 18 + 1 cannot decide
+metrics: exceeds 9, near 5, clear 4, 15 in the queue
+metrics: prose sources {'template': 16, 'llm': 2}
+metrics: guard rejected 0/2 drafts, 0%
+metrics: wrote /workspace/out/metrics.json
 ```
+
+**This is where the run fell short of the laptop.** Only 2 of 18 cards kept model prose;
+16 fell back to the deterministic template, so the guard saw 2 drafts and rejected none.
+The cause is throughput, not correctness: the sandbox Granite request was lowered to
+1 CPU for this run (see limitation 1), `app/llm.py` gives up after 120 s, and 11 of the
+18 calls had reached the model by the time the task ended. The funnel, the guard and the
+metrics path are exercised end to end; the prose step needs the model at its documented
+size, or a higher client timeout, to be more than a sample.
 
 ## Limitations
 
 1. **The sandbox has a 3 CPU request quota.** The DS Pipelines components plus the
-   InferenceService do not fit at the documented Granite request of 2 CPU. The cluster copy
-   of the `granite` InferenceService was lowered to 1 CPU request for the run; the
-   repository keeps the documented value. Details below.
+   InferenceService do not fit at the documented Granite request of 2 CPU (that pair needs
+   ~2.96 of the 3 CPUs, which leaves no room for the pipeline's own components). The cluster
+   copy of the `granite` InferenceService was lowered to 1 CPU request for this run; the
+   repository keeps the documented value in `deploy/openshift/inferenceservice.yaml`. Raise
+   it back and the prose step recovers its documented speed.
 2. **The managed MinIO health check fails on this sandbox.** The operator reported
-   `ObjectStoreAvailable=False ... context deadline exceeded` while a signed request from a
-   pod against the same service returned in 11 ms with the operator's own credentials, and
-   the API server created the `mlpipeline` bucket. The DSPA sets
-   `objectStore.disableHealthCheck: true` to get past it.
+   `ObjectStoreAvailable=False ... context deadline exceeded` while a SigV4-signed request
+   from a pod against the same service, with the operator's own credentials, returned in
+   11 ms, and the API server then created the `mlpipeline` bucket. The DSPA sets
+   `objectStore.disableHealthCheck: true` to get past the check. The object store itself is
+   healthy.
 3. **The task pods run as a random OpenShift UID.** The image must `chmod a+rX` the code,
-   and the tasks write only to the workspace PVC.
-4. **CPU-only prose.** One card takes 40–120 s on the sandbox's CPU vLLM, so the letters
-   are generated in a run and never live in the demo.
+   and the tasks write only to the workspace PVC or `/tmp`.
+4. **The KFP launcher waits on the model.** One card takes 40–120 s on a CPU vLLM, so the
+   letters are generated in a run and never in the live demo. The `triage` task carries a
+   5400 s deadline for the same reason.
+5. **KFP caches tasks by default.** With caching on, a second run of the same pipeline
+   skipped `ingest` and inherited the first package's workspace. Every task sets
+   `set_caching_options(False)`.
