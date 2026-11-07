@@ -165,12 +165,12 @@ def test_all_bands_funnel(challenge):
         "notices": 196,
         "g1": 176,
         "g2": 138,
-        "g3": 73,
-        "cannot_decide": 65,
-        "exceeds": 30,
-        "near": 19,
-        "not_space": 2,
-        "clear": 22,
+        "g3": 104,
+        "cannot_decide": 34,
+        "exceeds": 55,
+        "near": 30,
+        "not_space": 3,
+        "clear": 16,
     }
     assert result.drops == {
         "no_band_overlap": 12,
@@ -180,8 +180,8 @@ def test_all_bands_funnel(challenge):
     }
     assert len(result.queue) == 196
     assert dict(Counter(item.tier for item in result.queue)) == {
-        "attention": 116,
-        "checked": 22,
+        "attention": 122,
+        "checked": 16,
         "no_effect": 58,
     }
 

@@ -2,10 +2,12 @@
 
 Every number here is either a physical constant, a formula, or a row read from
 rules/rr21_table21_4.csv. No limit is hardcoded in code.
+A service-scoped row is applied to every downlink in its band: conservative, never under-protects.
 """
 
 from __future__ import annotations
 
+import bisect
 import csv
 import math
 from dataclasses import dataclass
@@ -30,6 +32,7 @@ class LimitRow:
     service: str
     page: str
     source: str
+    breaks: tuple[tuple[float, ...], ...] = ()  # piecewise-linear (deg, dB in ref_hz) points
 
     def cite(self) -> str:
         return (
@@ -40,7 +43,7 @@ class LimitRow:
 
 def load_limits(path: Path) -> list[LimitRow]:
     with path.open(newline="", encoding="utf-8") as handle:
-        return [
+        rows = [
             LimitRow(
                 freq_lo_mhz=float(row["freq_lo_mhz"]),
                 freq_hi_mhz=float(row["freq_hi_mhz"]),
@@ -52,24 +55,63 @@ def load_limits(path: Path) -> list[LimitRow]:
                 service=row["service"].strip(),
                 page=row["page"].strip(),
                 source=row["source"].strip(),
+                breaks=tuple(
+                    tuple(float(v) for v in point.split(":"))
+                    for point in (row.get("breaks") or "").split(";")
+                    if point.strip()
+                ),
             )
             for row in csv.DictReader(handle)
         ]
+    for row in rows:
+        degs = [d for d, _ in row.breaks]
+        if row.breaks and (row.offset or degs != sorted(set(degs)) or degs[0] > 0 or degs[-1] < 90):
+            raise ValueError(f"bad breaks row: {row}")  # breaks carry no X/Y offset, span 0-90
+    return rows
 
 
 def limit_row(limits: list[LimitRow], lo_mhz: float, hi_mhz: float, orbit: str) -> LimitRow | None:
-    """The row that contains the whole notified band, or None for `no_limit_for_band`."""
-    for row in limits:
-        if not (lo_mhz >= row.freq_lo_mhz and hi_mhz <= row.freq_hi_mhz):
-            continue
-        has_heo = any(r.orbit == "HEO" and r.freq_lo_mhz == row.freq_lo_mhz for r in limits)
-        if row.orbit in (orbit, "any") or (orbit == "HEO" and row.orbit == "NGSO" and not has_heo):
-            return row
-    return None
+    """The strictest row of this orbit class over the notified band, or None for
+    `no_limit_for_band` when any part of the band has no row. HEO takes an NGSO row only
+    where the table gives HEO no row of its own."""
+
+    def applies(row: LimitRow) -> bool:
+        if row.orbit in (orbit, "any"):
+            return True
+        if orbit != "HEO" or row.orbit != "NGSO":
+            return False
+        return not any(
+            r.orbit == "HEO" and _overlaps(r, row.freq_lo_mhz, row.freq_hi_mhz) for r in limits
+        )
+
+    rows = sorted(
+        (r for r in limits if applies(r) and _overlaps(r, lo_mhz, hi_mhz)),
+        key=lambda r: r.freq_lo_mhz,
+    )
+    covered = lo_mhz
+    for row in rows:
+        if row.freq_lo_mhz > covered:
+            return None  # a gap between rows: part of the band has no limit
+        covered = max(covered, row.freq_hi_mhz)
+    if not rows or covered < hi_mhz:
+        return None
+    return min(rows, key=lambda r: (limit_hz(r, 0.0), limit_hz(r, 90.0)))
+
+
+def _overlaps(row: LimitRow, lo_mhz: float, hi_mhz: float) -> bool:
+    """Strict overlap (a touching edge is not overlap), or containment for a point band."""
+    contains = row.freq_lo_mhz <= lo_mhz and hi_mhz <= row.freq_hi_mhz
+    return contains or (row.freq_lo_mhz < hi_mhz and row.freq_hi_mhz > lo_mhz)
 
 
 def limit_hz(row: LimitRow, elev_deg: float, offset_db: float = 0.0) -> float:
     """PFD limit in dB(W/m2/Hz) at an elevation angle. Continuous at 25 deg."""
+    if row.breaks:
+        degs = [d for d, _ in row.breaks]
+        i = min(max(bisect.bisect_right(degs, elev_deg), 1), len(degs) - 1)
+        (d0, v0), (d1, v1) = row.breaks[i - 1], row.breaks[i]
+        value = v0 + (v1 - v0) * (min(max(elev_deg, d0), d1) - d0) / (d1 - d0)
+        return value - 10 * math.log10(row.ref_hz)
     if elev_deg <= 5:
         value = row.a_db - offset_db
     elif elev_deg <= 25:
