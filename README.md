@@ -24,23 +24,25 @@ notices and 95 865 frequency rows, and the check is done by hand.
 ## What this does
 
 A deterministic triage pipeline that shows its work. `scripts/monitor.py` fetches the IFIC package
-from ITU on the two-week cadence; the run derives the protected bands from Traficom's table of
-frequencies of interest, keeps the space-to-Earth notices
-that overlap those bands and can be seen from Finland, and computes an upper-bound power flux
-density (PFD) against the ITU Radio Regulations Article 21, Table 21-4 limit.
+from ITU on the two-week cadence. The run screens the space-to-Earth notices of the run's bands,
+keeps the ones a satellite can bring over Finnish territory, and computes an upper-bound power flux
+density (PFD) at the edge of that territory against the ITU Radio Regulations Article 21, Table 21-4
+limit. Every band is also checked against Finland's own allocation (Regulation M4): a band with no
+space-to-Earth satellite service is a finding on its own, even when the PFD is below the limit. The
+delivered register is a reference, not the boundary of the analysis.
 
 Every notice that survives the gates and gets a number becomes a case card with the source rows,
-the calculation, the Finnish allocation from Regulation M4, the regulatory stage of the filing, the
-missing data, and one question for the other administration. A notice that passes G1 and G2 but
-cannot be computed is not a card: it keeps its row in `queue.md` and `3074_results.csv` under class
-`cannot_decide`, and its count is in `funnel.json`. The accuracy slice (IFIC 3074) therefore has 18
-cards and one notice without (limitation 15); the auto-fetch demo (IFIC 3075) has 7 cards and two
-undecidables. The queue lists every case a human should look at: exceedances
-first, then the near-limit cases, then the ones that cannot be decided, and inside a class the
-stage another administration can still influence (advance publication, coordination request) comes
-before a filing already recorded in the MIFR. It is not capped. A separate accuracy file covers all
-196 notices, the dropped ones included (it ships as `results/3074_results.csv` inside the submission
-zip, not in the repository). A human decides.
+the calculation, the Finnish allocation, the regulatory stage of the filing, the missing data, and one
+question for the other administration. A notice that passes G1 and G2 but cannot be computed is not
+a card: it keeps its row in `queue.md` and `3074_results.csv` under class `cannot_decide`, and its
+count is in `funnel.json`. The accuracy slice (IFIC 3074) therefore has 20 cards and one notice
+without (limitation 14); the auto-fetch demo (IFIC 3075) has 7 cards and two undecidables. The queue
+lists every case a human should look at: exceedances first, then the near-limit cases, then the
+bands Finland has not allocated to satellite downlinks, then the ones that cannot be decided, and
+inside a class the stage another administration can still influence (advance publication,
+coordination request) comes before a filing already recorded in the MIFR. It is not capped. A
+separate accuracy file covers all 196 notices, the dropped ones included (it ships as
+`results/3074_results.csv` inside the submission zip, not in the repository). A human decides.
 
 The language model writes the card summary and, for each case above the limit, the correspondence
 letter. Every number comes from code, and a numeric guard rejects a sentence that carries a number
@@ -57,7 +59,8 @@ and overlaps the register, and computes ITU-R P.1546-6 field strength at points 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
 The screenshot above is the auto-fetch run: the funnel and the status line for IFIC 3075, the queue
-of the seven cards it computed, and a selected case card.
+of the seven cards it computed, and the APSTAR-92E card with its territory point, the Finnish
+allocation and the register's reference row.
 
 ## Verified numbers
 
@@ -284,38 +287,34 @@ at all: open `out/teams_message.html`.
 12. The queue has no cap. The written challenge brief names no target number, and the job is to
     find the problems and report them, not to shorten the list. Everything stays in the files; the
     clear cases keep their row in `cases.json` and `3074_results.csv` and are left out of the queue.
-13. The 26 protected bands are an artefact of the register, not a simplification: the demo slice
-    has two bands separated by a 13.1 MHz hole, and the hole is shown rather than covered.
-14. `main` has been pushed before, but every new commit needs its own push, which is Janne's call.
-15. A notice that survives G1 and G2 but cannot be computed gets no case card. In the demo slice
+13. `main` has been pushed before, but every new commit needs its own push, which is Janne's call.
+14. A notice that survives G1 and G2 but cannot be computed gets no case card. In the demo slice
     126590032 passes both gates and carries no emission power, so it lands in `queue.md` and
-    `3074_results.csv` under class `cannot_decide`, while `cases.json` holds 18 cards, not the 19
-    the plan's F7/F10 expects. The row, the reason and the count stay in the files, so nothing drops
-    out of the audit trail, but the notice has no card in the web UI. Recorded as I15 in
-    `docs/decisions.md`.
-16. The adjacent-channel guard is off by default (`GUARD_MHZ = 0.0` in `app/config.py`), so G1 still
-    needs a real band overlap and every number above stays comparable with the plan. Raise that one
-    constant when Traficom confirms a channel-spacing threshold: a notice that then enters only
-    through the guard is marked `adjacent: true` on its card and is capped at class `near`, because
-    the Table 21-4 limit is a property of the notified band and does not apply outside it.
-17. A card's `threshold_note` (a directive station with gain at or above 20 dBi, `victim.directivity`
-    not `ND`) names a lower possible trigger level and changes no number and no class. It does not
-    compare the station's azimuth with the direction of the satellite: the register carries an
-    azimuth but no beam width, so a direction-to-source claim would be a guess (I18 in
+    `3074_results.csv` under class `cannot_decide`, while `cases.json` holds the 20 computed cards.
+    The row, the reason and the count stay in the files, so nothing drops out of the audit trail,
+    but the notice has no card in the web UI. Recorded as I15 in `docs/decisions.md`.
+15. The adjacent-channel guard is off by default (`GUARD_MHZ = 0.0` in `app/config.py`), so G1 needs
+    a real band overlap. Raise that one constant when Traficom confirms a channel-spacing threshold:
+    a notice that then enters only through the guard is marked `adjacent: true` on its card and is
+    capped at class `near`, because the Table 21-4 limit is a property of the notified band and does
+    not apply outside it.
+16. A card's `threshold_note` (the reference row is directive with a gain at or above 20 dBi,
+    `directivity` not `ND`) names a lower possible trigger level and changes no number and no class.
+    It does not compare the station's azimuth with the direction of the satellite: the register
+    carries an azimuth but no beam width, so a direction-to-source claim would be a guess (I18 in
     `docs/decisions.md`).
-18. The ingest reads 15 IFIC tables and ten of them reach no gate on IFIC 3074 (`c_pfd`, the
+17. The ingest reads 15 IFIC tables and ten of them reach no gate on IFIC 3074 (`c_pfd`, the
     `s_beam.pwr_max_4k` / `pwr_avg_4k` power columns, `coord_agree_ntw`, `res49_sel`, `hist_notice`,
     `e_stn`, `grp_res35`, `epfd_param`, `ntc_lnk`, `notice.act_code`). Each is a measured negative
     result, written up table by table in `docs/features.md` under "Data we read and did not use".
     `s_beam.gain` is the one column that is used: it gives every PFD the notice's own peak gain
     rather than a worst-case guess.
-19. The register has 874 rows (871 stations load; three rows carry no frequency) and only 84 of
-    them sit on the seven space bands, so the result does not depend on the full register. The
+18. The register has 874 rows (871 stations load; three rows carry no frequency). It is a reference:
+    the run reads it for the card's `Reference` line and does not bound the analysis by it. The
     sample's own cover note says a real dataset would be "tens of millions of rows", and the code
-    reads the whole file into memory,
-    so that size needs a band filter before the load; the tool does not claim to handle it as it
-    stands (see "Next steps" in `docs/features.md`).
-20. What is not built, and what each piece would take, is listed in `docs/features.md` under "Next
+    reads the whole file into memory, so that size needs a band filter before the load; the tool does
+    not claim to handle it as it stands (see "Next steps" in `docs/features.md`).
+19. What is not built, and what each piece would take, is listed in `docs/features.md` under "Next
     steps": the filings chain (`ntc_lnk`), the filing action (`notice.act_code`), the AP30 plan path,
     RR Art. 22 / EPFD, space-side trends, Resolution 35 deadline ordering, the M15 cross-check
     and the CEPT/ECC DocDB tier.
@@ -326,7 +325,9 @@ at all: open `out/teams_message.html`.
 app/            one module per feature, each with tests/test_<feature>.py
   config.py     space bands, demo slice, rules version, adjacent guard, stages, formatting
   ingest.py     IFIC tables read from the BR IFIC MDB (mdb-export), register, M4, unit parsing
-  bands.py      protected bands derived from the register
+  bands.py      the register's own bands (utility, not in the run path)
+  territory.py  the Finnish territory edge the PFD is evaluated at
+  allocation.py the Finnish allocation (M4) and the space-to-Earth question
   pfd.py        geometry, free-space loss, Table 21-4 limits
   gates.py      G1 to G4, reason codes, classes, queue
   cards.py      card schema, M4 lookup, Markdown, CSV, run log

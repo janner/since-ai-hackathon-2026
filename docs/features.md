@@ -61,22 +61,16 @@ The data tests `test_real_mdb_row_counts`, `test_real_register_and_mdb_hash` and
 `test_real_register_keeps_rows_without_a_licence_class` lock the 196 notices, 95 865 frequency rows,
 the MDB SHA256, and the 294 register rows that carry no `Class of licence`.
 
-## F2: protected bands derived from the register
+## F2: the register's own bands (utility, not in the run path)
 
-No channel frequency is hardcoded. A protected band is a register row whose channel overlaps one of
-the seven space allocations in `app/config.py`.
-
-`app/bands.py`: `derive_bands()` keeps the stations that overlap an allocation and merges the
-channels that overlap or touch (`MERGE_GAP_MHZ = 0.0`, so nothing is joined across a real hole).
-`select_bands()` narrows the list to the demo slice. `stations_on()` returns the register rows in
-register order. `groups()` counts how many of the seven allocations actually protect something.
-
-Result on the real register: 84 rows, 26 bands in 7 groups. In the demo slice: 7 stations, 2 bands
-(1 group, because a 13,1 MHz hole splits the slice).
-
-Since D17 the run does not derive its bands this way: `app/pipeline.py` takes the run's scope from
-`app/config.py` and the register is a reference. `app/bands.py` stays as the module that answers
-"what would the register protect", with its tests; the pipeline no longer calls it.
+`app/bands.py` answers one question: what would the delivered register protect on its own? No channel
+frequency is hardcoded: a band is a register row whose channel overlaps one of the seven space
+allocations (`derive_bands()` merges touching channels, `select_bands()` narrows to the demo slice,
+`stations_on()` returns the rows in register order, `groups()` counts the allocations that protect
+something). The run does not call it: the run's bands come from `app/config.py`, and the register is
+a reference (D17). The module stays for that question and for its tests. On the real register it
+finds 84 rows, 26 bands in 7 groups; in the demo slice, 7 stations and 2 bands, because a 13,1 MHz
+hole splits the slice.
 
 Tests (`tests/test_bands.py`, 9): `test_overlaps_rejects_touching_bands`,
 `test_derive_bands_merges_touching_channels_but_not_the_hole`,
@@ -517,7 +511,7 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 |---|---|---|
 | Filings chain on the card | Read `ntc_lnk` and add "this filing follows <ntc_id> (<reason>)"; the table has to be added to `scripts/fetch_data.py` first | Small |
 | Filing action on the card | Read `notice.act_code` into a `filing_action` field and a queue column | Small |
-| Register pre-filter | Filter the register by the protected bands before loading it into memory; one change in `load_register()` | Small change, blocked on the real register |
+| Register pre-filter | Filter the register by the run's bands before loading it into memory; one change in `load_register()` | Small change, blocked on the real register |
 | Res 35 deadline ordering | Fold the `grp_res35` deadlines into the queue order; 26 groups fall due on 19 Dec 2026 | Small to medium |
 | Scheduled cadence | The monitor is built (`scripts/monitor.py`) and the issue number is no longer given by hand, but nothing is installed: the cadence needs one line in whatever scheduler the operator already runs | Small |
 | M15 cross-check | The brief lists it; the tool does not use it | Medium |

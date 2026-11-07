@@ -23,10 +23,13 @@ flowchart LR
   I1 --> ING
   I2 --> ING
   I3 --> ING
-  ING --> BANDS["app/bands.py<br/>protected bands from the register"]
-  BANDS --> G1["G1 band overlap"]
+  ING --> G1["G1 band overlap (run's scope)"]
   G1 --> G2["G2 visible from Finland"]
-  G2 --> G3["G3 PFD vs Table 21-4"]
+  G2 --> G3["G3 PFD vs Table 21-4<br/>+ not_space finding"]
+  ING --> TERRITORY["app/territory.py<br/>the Finnish territory edge (552 points)"]
+  TERRITORY --> G3
+  ING --> ALLOC["app/allocation.py<br/>Finnish M4: is the band a satellite downlink?"]
+  ALLOC --> G3
   I4 --> PFD["app/pfd.py<br/>slant range, FSPL, limit"]
   PFD --> G3
   G3 -->|"case with a number"| CARD["app/cards.py<br/>card, Markdown, CSV, run log"]

@@ -15,7 +15,8 @@ tuontia.
 2. **Tarkista uusi aineisto.** Palvelu hakee uuden BR IFIC -paketin ITU:lta itse; sinä et tuo
    tiedostoa. Yläpalkin "Check now" -nappi kertoo, onko uutta pakettia, ja ajaa sen. Rekisteri ja
    M4 eivät vaihdu joka paketissa, joten ne ovat palvelimella.
-3. **Katso "Queue" (jono).** "Exceeds limit" ensin, sitten "Near limit". "Advance publication" ja
+3. **Katso "Queue" (jono).** "Exceeds limit" ensin, sitten "Near limit", sitten "No satellite use
+   in Finland" (kaista, jota ei ole Suomessa varattu satelliittilinkille). "Advance publication" ja
    "Coordination request" tulevat ennen "Recorded in the MIFR", koska niihin voi vielä vaikuttaa.
 4. **Avaa tapaus.** Lue "What this means" ja "What information is missing". Laskelma on piilossa
    "Show calculation" -painikkeen alla; avaa se, jos haluat tarkistaa luvun itse.

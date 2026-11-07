@@ -81,8 +81,8 @@ commit, with `out/` filled by a pipeline run, and attach the file.
   OpenAI-compatible chat client; the product uses it only for optional card prose, and only when
   `LLM_BASE_URL` is set. Without it the run is fully offline and every card falls back to the
   deterministic template. The drafting LLM for the Red Hat award (Granite 3.3 2B Instruct, served by
-  KServe and vLLM in OpenShift AI) is deployed in the sandbox and wrote 5 of the 18 card drafts in
-  the measured run.
+  KServe and vLLM in OpenShift AI) is deployed in the sandbox and wrote card drafts in the measured
+  run.
 
 **Challenge terms**: accepted by submitting. The challenge transfers no ownership (Traficom is not
 confidential), so no personal ticks are needed.
@@ -115,7 +115,7 @@ no gate on IFIC 3074: the notifier's own PFD limit (`c_pfd`) and the beam power 
 (`s_beam.pwr_max_4k`, `pwr_avg_4k`) carry no value on any of the seven space bands, the coordination
 tables (`coord_agree_ntw`, `res49_sel`, `hist_notice`) are empty in this issue, the earth-station
 table (`e_stn`) lists 12 stations in five countries and none in Finland, the Resolution 35 deadlines
-(`grp_res35`) touch one of the 18 demo cases, and the Article 22 EPFD data (`epfd_param`), the
+(`grp_res35`) touch one of the 20 demo cases, and the Article 22 EPFD data (`epfd_param`), the
 filings chain (`ntc_lnk`) and the filing action (`notice.act_code`) have no computation path.
 `s_beam.gain` is the exception: it is used, and it is why the beam gain in every PFD is the notice's
 own peak gain rather than a worst-case guess.
@@ -131,17 +131,16 @@ holds a `DataSciencePipelinesApplication` (`kaista-pipelines`) with managed MinI
 image built in-cluster from this repository, and a three-stage KFP v2 pipeline sharing one workspace
 PVC: `ingest -> triage -> metrics`. Caching is off on all three, so each IFIC package is a comparable
 run. The measured run on 7 Nov 2026, workflow `kaista-ific-triage-zszqk` (`Succeeded`, 49 min, run id
-`febefa66-4181-43c4-92b5-78235f1f1c23`), reproduced the laptop funnel exactly (196 notices to G1 41,
-G2 19, G3 18 + 1 `cannot_decide`, exceeds 9 / near 5 / clear 4, queue 15) and wrote the funnel
-numbers and the guard's rejection share as the run's own metrics. The prose step kept 2 of 18 cards
-in the cluster: a CPU-throughput limit there, not a correctness one.
+`febefa66-4181-43c4-92b5-78235f1f1c23`), reproduced the laptop funnel of the same commit exactly, notice for notice and class for class,
+and wrote the funnel numbers and the guard's rejection share as the run's own metrics. The prose
+step kept two cards in the cluster: a CPU-throughput limit there, not a correctness one.
 `deploy/openshift/pipeline/README.md` has the run and the four limitations.
 
 - [x] The drafting LLM (Granite 3.3 2B Instruct modelcar) served by KServe + vLLM CPU runtime in
   OpenShift AI. `oc get isvc granite` reads READY True, the pod is 3/3 Running, and the route
   answers over HTTPS.
 - [x] The app calls it through the OpenAI-compatible endpoint, and the numeric guard ran on its output:
-  in the 18-card slice run the guard rejected 12 of the 17 drafts it saw (the `prose.source` line
+  in that slice run the guard rejected 12 of the 17 drafts it saw (the `prose.source` line
   below). That run predates the guard's list-marker fix (`docs/decisions.md` I11). The guard's own
   unit tests (`tests/test_guard.py`) run against a fixed card fixture, not model text, so they pin
   the guard logic, not the served model's output.
@@ -167,13 +166,12 @@ Measured evidence, 7 Nov 2026, sandbox `janner-1-dev`. The raw output is in
 - `curl $U/v1/models`: HTTP 200 in 0.52 s. One short chat completion: HTTP 200 in 9.03 s. One full
   card prompt (1002 prompt tokens, 155 completion tokens): HTTP 200 in 41.84 s. Before the route
   timeout was raised, the same prompt returned HTTP 504 at 30.31 s.
-- The 18-card slice run: 196 notices to 41 to 19 to 18 cards plus 1 `cannot_decide`, identical to
-  the local run. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
+- The cluster slice run: the same gates and the same counts as the local run at that commit. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
   the 17 drafts it saw. One call per card, 36.6 s to 120.3 s, median 86.9 s, whole run 25.6 min. The
   deterministic part of the same run took 1.19 s.
 - `make check` green: 137 tests passed in that run; 168 at the final commit. The tests never need
   the network.
-- One card of 18 fell back to the template. The slowest call measured 120.3 s, right at the 120 s
+- One card fell back to the template. The slowest call measured 120.3 s, right at the 120 s
   client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer. After the
   list-marker fix a re-run on the loaded node did not get through that timeout at all:
   `deploy/openshift/README.md` has the three attempts.

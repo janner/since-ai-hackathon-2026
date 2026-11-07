@@ -15,16 +15,17 @@ claim. The last section holds the optional Teams digest, decided on 7 Nov 2026.
 
 ### D1. Product: a deterministic IFIC triage, not a chatbot and not a map
 
-Choice: read one IFIC package, derive the protected bands, compute the upper-bound PFD, produce a
-card per notice and a queue of the cases that need a human decision. A human decides.
+Choice: read one IFIC package, screen its space-to-Earth notices against the run's bands and the
+Finnish allocation, compute the upper-bound PFD at the Finnish territory edge, produce a card per
+notice and a queue of the cases that need a human decision. A human decides.
 
 Alternatives: a retrieval chatbot over the filings, a map layer, a full coordination calculation, a
 plain band filter.
 
 Reason: the challenge asks for analysis, an artefact and a human decision. A band filter alone
-passes 124 of 196 notices, which is not a filter. A chatbot produces no number to audit. A map earns
-nothing in either rubric. A full coordination calculation needs beam geometry that IFIC 3074 does
-not carry.
+passes every notice that merely touches the run's bands, which is not a filter. A chatbot produces
+no number to audit. A map earns nothing in either rubric. A full coordination calculation needs beam
+geometry that IFIC 3074 does not carry.
 
 Reopen if: Traficom says they already screen the filings themselves (then the value is comparing
 results), or that the input is documents rather than structured tables.
@@ -35,7 +36,7 @@ Choice: the demo locks the 3.47 to 3.78 GHz slice; `--all` runs the seven space 
 accuracy file.
 
 Reason: the slice is the only group where the register also carries the fields the calculation
-needs. The full set is 84 rows and 26 bands and its queue is 52 rows, which does not fit a
+needs. The full scope is the seven space bands and its queue is 65 rows, which does not fit a
 three-minute demo. Both numbers are in the README.
 
 Reopen if: Traficom supplies calculation parameters for the other bands.
@@ -70,8 +71,8 @@ bound produces too many false flags.
 
 ### D5. Queue without a cap, not padded, everything in the files
 
-Choice: order `exceeds`, `near`, `cannot_decide`; leave `clear` cases out of the queue; keep every
-notice in `cases.json` and `3074_results.csv`.
+Choice: order `exceeds`, `near`, `not_space`, `cannot_decide`; leave `clear` cases out of the queue;
+keep every notice in `cases.json` and `3074_results.csv`.
 
 Reason: the written challenge brief names no target number, and the task is to find the problems and
 report them rather than shorten the list. The queue holds every case that needs a human decision,
@@ -183,8 +184,8 @@ Reopen if: the core and the side feature are finished before Saturday evening.
 
 Reopened: that condition was met. The core was finished and green on Friday 6 Nov 2026 at 23.42, so
 the OpenShift AI part was built. Granite 3.3 2B Instruct is served by KServe and the vLLM CPU
-runtime in the sandbox project `janner-1-dev`, and the prose step ran against it: 18 cards, 5 drafts
-kept, 12 rejected by the guard, funnel unchanged. That measurement predates the list-marker fix in
+runtime in the sandbox project `janner-1-dev`, and the prose step ran against it: the guard kept five
+drafts and rejected twelve. That measurement predates the list-marker fix in
 I11, and a re-measurement after the fix did not get through the app's 120 s client timeout while the
 sandbox node also ran the data-science pipeline. LUMI stays out, because an archive run needs data
 we do not have. The measured evidence is in `deploy/openshift/README.md`, and the plan behind the
@@ -420,9 +421,9 @@ injection property rests on the code shape rather than a test.
 `app/pipeline.py` builds a card only for a case that reached G3 with a number. A notice that passes
 G1 and G2 but lands in `undecided` keeps its row in `queue.md` and `3074_results.csv` (class
 `cannot_decide`) and is counted in `funnel.json`, but has no entry in `cases.json`. In the demo
-slice that is notice 126590032 (`no_power`): 18 cards from the 19 notices that reach G3, against the
-19 the plan's F7/F10 expects. The row, the reason and the count stay in the files, so the audit
-trail is whole, but the notice has no card in the web UI. Stated as README limitation 15; a card for
+slice that is notice 126590032 (`no_power`): 20 cards from the 21 notices that reach G3. The row,
+the reason and the count stay in the files, so the audit
+trail is whole, but the notice has no card in the web UI. Stated as README limitation 14; a card for
 it would be an owner decision, not a silent gap.
 
 Test: `tests/test_gates.py::test_case_126590032_cannot_be_decided` locks the notice and its reason.
@@ -476,7 +477,7 @@ register carries a per-station gain and a directivity code, so the card adds one
 victim is directive (`victim.directivity` not `ND`) and its gain is at or above 20 dBi. It changes
 no number and no class, and it does not compare the registration's azimuth with the direction of the
 satellite: the register has an azimuth but no beam width, so a direction-to-source claim would be a
-guess rather than a measurement (README limitation 17).
+guess rather than a measurement (README limitation 16).
 
 Test: `tests/test_cards.py::test_directive_antenna_gets_a_threshold_note`.
 
@@ -693,8 +694,8 @@ reason to sample, and a ranked top N would have hidden the `cannot_decide` notic
 ones a specialist most needs to see. Reading everything makes the recall of the gates 1 by
 construction and leaves uncertainty only in the class that declares it.
 
-What it changed: the queue keeps every exceeds, near and cannot_decide row, and the CSV keeps the
-rest, so no number in this repository is an estimate of what the filter might have missed.
+What it changed: the queue keeps every exceeds, near, not_space and cannot_decide row, and the CSV
+keeps the rest, so no number in this repository is an estimate of what the filter might have missed.
 
 Reopen if: an IFIC grows past the point where a full read fits the run budget, or Traficom names a
 target size for the queue.
