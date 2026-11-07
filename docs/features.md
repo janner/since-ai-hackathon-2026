@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `df382cf`, verified on 7 Nov 2026 with `make check` (128 passed) and a clean clone
-(85 passed, 43 skipped).
+commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (134 passed) and a clean clone
+(91 passed, 43 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
@@ -373,6 +373,29 @@ Tests (`tests/test_api.py`, 9): `test_index_serves_the_finnish_page`, `test_heal
 `test_missing_out_is_503_and_the_page_still_loads` and `test_broken_json_is_503_not_500`. The tests
 that read content take it from one real pipeline run into a temporary `out/` (a private copy per
 test, so one may corrupt its files); the index, health and error paths need no challenge data.
+
+## F11: the optional Teams digest
+
+`scripts/notify.py` turns the files of the last run into one Teams message per IFIC. It reads
+`out/funnel.json` and `out/cases.json`, imports nothing from `app/` (its stage rank table is a copy
+of `app/config.REGULATORY_STAGES`, marked `shortcut` in the code), and computes nothing: the counts
+are the ones in `funnel.json` and the three lines are the first three rows of `queue.md`, ordered by
+class, then stage, then margin, then case id. `--dry-run` writes `out/teams_message.md` and
+`out/teams_message.json` (the Adaptive Card envelope) and, with `--html`, `out/teams_message.html`;
+`--send` POSTs the card to `TEAMS_WEBHOOK_URL` and returns 1 with one line on stderr when the
+variable is unset. A run whose queue is empty gets the single line `Käsitelty, ei uusia huomioitavia
+tapauksia.`
+
+This is a wish, not a requirement: no bot, no chat surface, no cron, and no live Teams send (there
+was no test channel). The README section "Teams notification (optional)" carries the commands and
+the limits.
+
+Tests (`tests/test_notify.py`, 6): `test_message_carries_numbers_and_link` (the funnel numbers, the
+queue size, the link, the Finnish decimal comma), `test_top_three_is_queue_order_not_margin`,
+`test_zero_cases_gets_the_short_message` (the empty message in both the text and the card),
+`test_dry_run_writes_markdown_json_and_html`, `test_send_without_webhook_fails_cleanly` (exit 1, no
+traceback) and `test_send_posts_the_card_to_the_webhook` (a stubbed `urlopen`: the URL, the content
+type, the card type). No test opens a connection.
 
 ## Data we read and did not use
 

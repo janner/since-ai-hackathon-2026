@@ -46,7 +46,7 @@ selected card 124545403.
 
 ## Verified numbers
 
-Measured 7 Nov 2026 on IFIC 3074: `make check` 128 tests passed (85 passed, 43 skipped without
+Measured 7 Nov 2026 on IFIC 3074: `make check` 134 tests passed (91 passed, 43 skipped without
 `data/`), the slice run takes about 3.5 s, the seven-band run about 7.7 s — most of it `mdb-export`
 reading the 15 tables out of the BR IFIC Access database. The deterministic pipeline is offline; the
 optional LLM prose step is the only part that opens a connection, and only when `LLM_BASE_URL` is
@@ -154,8 +154,8 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 128 passed |
-| Clean clone, no `data/` | 85 passed, 43 skipped |
+| With `data/` | 134 passed |
+| Clean clone, no `data/` | 91 passed, 43 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
@@ -172,6 +172,33 @@ call, no network, no calculation. `KAISTA_OUT` points it at another output direc
 
 The queue endpoint builds its list from `cases.json`, so notices that could not be computed have no
 row; the funnel endpoint carries their count.
+
+## Teams notification (optional)
+
+A wish, not a requirement. `scripts/notify.py` reads `out/funnel.json` and `out/cases.json` from the
+last run and builds one message per IFIC: the funnel numbers, the three most urgent cases in queue
+order, and the link to the UI. One message per run. No bot, no chat, no Graph, no cron, no LLM, and
+standard library only: it computes nothing the files do not already carry.
+
+```bash
+uv run python scripts/notify.py --dry-run --html   # print, and write out/teams_message.{md,json,html}
+TEAMS_WEBHOOK_URL=<url> uv run python scripts/notify.py --send
+```
+
+`--dry-run` writes `out/teams_message.md` (the text a human reads in the channel) and
+`out/teams_message.json` (the Adaptive Card envelope an incoming webhook accepts); `--html` adds
+`out/teams_message.html`, a standalone preview of the same message as a channel card. `--send` POSTs
+the card to `TEAMS_WEBHOOK_URL`; when the variable is unset it prints one line on stderr and exits 1.
+`KAISTA_OUT` and `KAISTA_URL` (or `--out` and `--url`) point at another output directory and UI
+address.
+
+Three limits, stated plainly. No live send has been made: there was no Teams test channel, so the
+POST body is covered by a stub in
+`tests/test_notify.py::test_send_posts_the_card_to_the_webhook` and the real delivery is untested.
+The card's link is `KAISTA_URL`, `http://localhost:8000` by default, so it opens only for someone
+already running the UI; a link a real channel could use needs the app on a hosted URL. And there is
+no bot and no chat surface, only the one message per run. `--dry-run --html` needs no Teams account
+at all: open `out/teams_message.html`.
 
 ## Known limitations
 
@@ -278,7 +305,7 @@ app/            one module per feature, each with tests/test_<feature>.py
   main.py       read-only API and the page
 rules/          rr21_table21_4.csv, p1546_land.csv
 templates/      the two Finnish templates (card summary, correspondence)
-scripts/        fetch_data.py, demo.sh
+scripts/        fetch_data.py, demo.sh, notify.py
 docs/           features.md, architecture.md, decisions.md, demo.md
 tests/          unit, component and data tests; the data tests read data/ and skip when it is missing
 data/  out/     local only, ignored by git

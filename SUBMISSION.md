@@ -27,7 +27,7 @@ The funnel is the whole point, so the tool shows it. On the demo slice (3,470 to
 
 Everything before the card text is deterministic. The pipeline reads the BR IFIC Access database with `mdb-export`, plus a CSV and a JSON file, uses standard-library math, and never opens a network connection. The PFD is an upper bound, not a claim of interference: max PSD plus max beam gain minus free-space loss, against Table 21-4. The one optional step is prose. If LLM_BASE_URL is set, a language model writes the card summary; if it is not, a template does. The model never supplies a number. A numeric guard reads every sentence and rejects it if it carries a number that is not already in the card, and the template takes over. The letter to the other administration has its own template and its own function. In the Red Hat award setup the drafting model runs in an OpenShift AI sandbox and the pipeline runs on the laptop, so with `LLM_BASE_URL` unset nothing leaves the machine.
 
-The tool is built as one module per feature, each with its own test file, 128 tests in all (85 of
+The tool is built as one module per feature, each with its own test file, 134 tests in all (91 of
 them run in a clean clone; the rest need the challenge data). A slice run takes about 3.5 seconds and
 the seven-band run about 7.7 seconds on the hackathon machine, most of it `mdb-export` reading the
 BR IFIC database. The repository also carries a side feature for terrestrial land-mobile notices. It is not a second program: one command runs it, `python -m app.pipeline --terrestrial`, in the same pass and into the same output directory as the space funnel, and each file it writes carries the same `source` (file, SHA256, tables, keys) and `audit` (input SHA256, rules version, run time) blocks as a space case card; only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates. It reads two real BR IFIC terrestrial databases (3075 and 3076), takes each notice's change from its intent field, keeps what is within 1,000 km of Finland and overlaps the register, and computes the field strength at four Finnish test points.
@@ -93,7 +93,17 @@ confidential), so no personal ticks are needed.
   run is the primary demo, and the sandbox expires after 30 days.
 - Pitch deck (one PDF or PowerPoint): not produced.
 - Supporting documents (max two): `docs/features.md` and `docs/decisions.md` are the two candidates.
+  Part 4 of `docs/decisions.md` records the prior art this design answers: the Canadian spectrum
+  regulator's own paper on LLM failure modes in spectrum work (arXiv:2403.17819), the abstention
+  metric behind `cannot_decide`, the e-discovery screening result that explains why the gates read
+  every notice instead of a sample, and the reason reproducibility is the acceptance test the ITU
+  itself applies: EPFD examination rests on Rec. ITU-R S.1503, and the Bureau required at least two
+  independent implementations before relying on the software.
 - Partner technologies: Red Hat OpenShift AI, see below.
+- Teams digest: no field of its own. The optional `scripts/notify.py` builds one message per IFIC for
+  an incoming Teams webhook (dry-run output `out/teams_message.md`, preview `out/teams_message.html`).
+  The webhook path is implemented and unit-tested; no live send was made, because there was no test
+  channel.
 
 The write-up of what the tool reads and does not use, and what would come next, is in
 `docs/features.md` ("Data we read and did not use", "Next steps"). Ten of the 15 IFIC tables reach
@@ -167,13 +177,15 @@ Sandbox facts (verified 6 and 7 Nov 2026, namespace `janner-1-dev`):
 
 Automated, done in the repository
 
-- [x] `make check` green: ruff check, ruff format --check, 128 tests passed
-- [x] README run steps work in a clean clone (85 passed, 43 skipped without `data/`)
+- [x] `make check` green: ruff check, ruff format --check, 134 tests passed
+- [x] README run steps work in a clean clone (91 passed, 43 skipped without `data/`)
 - [x] Pre-existing work and outside assets stated in README and About (template commit `6fe98b9`)
 - [x] No secrets or challenge data committed; `data/` and `out/` are gitignored
 - [x] `make submission-zip` builds `dist/kaista-submission.zip`, tracked files at HEAD only, no data
 - [x] `docs/architecture.md` present and linked from the README documentation table
-- [x] Submission-form field text lengths checked: name 6, tagline 69, About under 5,000 characters
+- [ ] Submission-form field text lengths, re-measured 7 Nov 2026: name 6 and tagline 69 are inside
+      their limits; the About text is 5,176 characters, 176 over the form's 5,000 limit. Trim it
+      before pasting.
 
 Human steps, before submitting
 

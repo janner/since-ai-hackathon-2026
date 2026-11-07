@@ -218,13 +218,48 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 128 passed with data/
+make check        # ruff check, ruff format --check, pytest: 134 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 85 passed, 43 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 91 passed, 43 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
-## 9. Three-minute demo script
+## 9. The optional Teams digest (15 seconds)
+
+A side wish, not part of the product, and it needs no Teams account to show. `scripts/notify.py`
+turns the files of the run into one message per IFIC:
+
+```bash
+uv run python scripts/notify.py --dry-run --html
+# writes out/teams_message.md, out/teams_message.json, out/teams_message.html
+```
+
+The message of the slice run in section 2:
+
+```
+# BR IFIC 3074 — 15 huomioitavaa
+
+Suppilo: 196 → 41 → 19 → 18 + 1
+Luokat: 9 ylittää · 5 lähellä
+
+## Kiireellisimmät
+1. 124545403 — exceeds, No. 9.1, 60,44 dB
+2. 124520183 — exceeds, No. 9.6, 2,95 dB
+3. 124520184 — exceeds, No. 9.6, 1,03 dB
+
+Kaista: http://localhost:8000
+```
+
+Open `out/teams_message.html` for the same text as a channel card. The three lines are `queue.md`
+rows 1 to 3 and the counts are the ones in `funnel.json`: the script reads those two files and
+computes nothing. One message per run, no bot, no chat, no schedule.
+
+`--send` POSTs the same card to `TEAMS_WEBHOOK_URL`. That path has never run against a real Teams
+channel, because there was no test channel, so show the dry-run output and say so. The link in the
+card is `KAISTA_URL` (`http://localhost:8000` by default), so it opens only for someone already
+running the UI; a link a real channel could use needs the app on a hosted URL.
+
+## 10. Three-minute demo script
 
 | Time | On screen | What to say |
 |---|---|---|
@@ -232,7 +267,8 @@ to quote for "does it work on my machine" is that one, since it needs no challen
 | 0:20 | run the slice command, funnel line appears | 196 to 41 to 19 to 18 plus one that cannot be decided |
 | 0:50 | `out/cases.md`, card 3074-103500417 | the number, the citation for the limit, the missing beam geometry, the question we would send |
 | 1:40 | `queue.md`, row 15, case 126590032 | the case the tool refuses to decide, with the reason `no_power`, and why that is a feature |
-| 2:20 | terrestrial MDB run, `TERRESTRIAL.md` | the same style for terrestrial notices: the intent diff, field strength, trends, threshold open |
+| 2:20 | `out/teams_message.html` in a browser (optional, 15 s) | one message per IFIC, built from the same files; the webhook path exists, the live send was never made |
+| 2:35 | terrestrial MDB run, `TERRESTRIAL.md` | the same style for terrestrial notices: the intent diff, field strength, trends, threshold open |
 | 2:50 | the UI, or `run.log` | every number is reproducible from the hash and the rules version; the human decides |
 
 If the UI is not running, the demo works from `cases.md` and `queue.md` alone. The deterministic run

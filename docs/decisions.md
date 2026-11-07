@@ -8,7 +8,7 @@ Part 1 holds the product decisions from the plan (task 0). They were made in the
 without asking the user, as the plan's own instruction required, and are repeated here because a
 reader of the repository cannot follow the code without them. Part 2 holds the decisions that
 appeared while the code was written, each one greppable in the source. Part 3 holds the decisions of
-this documentation pass.
+this documentation pass. The last section holds the optional Teams digest, decided on 7 Nov 2026.
 
 ## Part 1: product and scope
 
@@ -541,3 +541,26 @@ for a case that reached G3. The README limitation and `docs/features.md` F6 were
 Every command and number in these files was executed on 6 Nov 2026 against commit `26187c3`, with
 the outputs recorded in the handoff. A number that appears in the documentation comes from a run,
 not from the plan.
+
+## The optional Teams digest
+
+### N1. One webhook message per IFIC, not a bot (7 Nov 2026)
+
+Choice: `scripts/notify.py` builds one deterministic message per run from `out/funnel.json` and
+`out/cases.json`, and either writes it (`--dry-run`) or POSTs it to a Teams incoming webhook
+(`--send`, `TEAMS_WEBHOOK_URL`). No bot, no chat, no Graph, no app registration, no cron.
+
+Alternatives: a Teams bot that answers questions in a channel, a scheduled digest, an email, or
+nothing at all.
+
+Reason: the product is a deterministic triage whose output is a file, and the digest is a delivery
+convenience on top of it rather than a second surface. A bot needs an app registration, a tenant
+decision, a hosted endpoint and an auth story, and it would answer in prose, which is the one place
+where a number could be invented; a webhook needs one URL and holds no state. The message is built
+from the files of the run, so it cannot disagree with the UI. The digest is a wish, not a
+requirement: the rubric scores the triage, not the delivery, and the demo does not depend on it. The
+live send stays untested because there was no test channel, and the documentation says so instead of
+claiming an integration (README "Teams notification (optional)", `docs/features.md` F11).
+
+Reopen if: a Teams test channel exists, or Traficom asks for the digest inside Teams. Verify the
+live send first; a bot is worth discussing only after that.
