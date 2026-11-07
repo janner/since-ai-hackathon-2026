@@ -8,6 +8,10 @@ metadata:
 spec:
   dspVersion: v2
   objectStorage:
+    # The operator's own health check against this MinIO times out on the sandbox
+    # (context deadline exceeded) while a signed request from a pod with the same
+    # credentials returns in ~11 ms and the API server creates the bucket fine.
+    disableHealthCheck: true
     minio:
       deploy: true
       image: quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance
