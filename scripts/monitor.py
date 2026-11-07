@@ -39,6 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 IFIC_URL = "https://www.itu.int/sns/ific10/ific{}.zip"
 UA = {"User-Agent": "Mozilla/5.0 (since-ai-2026 monitor)"}
 CADENCE = timedelta(days=14)  # ITU publishes the space BR IFIC every two weeks
+DOCUMENT = "space"  # the feed is sns/ific10, the space BR IFIC series
 
 
 def control_dir() -> Path:
@@ -172,6 +173,7 @@ def ingest(ific: int, body: bytes) -> dict:
     if code != 0 or not (target / "funnel.json").is_file():
         status = {
             "status": "error",
+            "document": DOCUMENT,
             "last_ific": ific - 1,
             "checked_at": now(),
             "message": f"uusi paketti ific{ific} haettiin, mutta putki epäonnistui "
@@ -183,6 +185,7 @@ def ingest(ific: int, body: bytes) -> dict:
     counts = json.loads((target / "funnel.json").read_text(encoding="utf-8")).get("counts", {})
     status = {
         "status": "new",
+        "document": DOCUMENT,
         "ific": ific,
         "counts": counts,
         "run_at": now(),
@@ -198,6 +201,7 @@ def check() -> dict:
     if last is None:
         status = {
             "status": "error",
+            "document": DOCUMENT,
             "checked_at": checked_at,
             "message": "viimeisintä IFIC-tunnistetta ei löydy "
             "(runs/latest, out/run.log tai data/last_ific.txt)",
@@ -209,6 +213,7 @@ def check() -> dict:
     except (URLError, OSError, TimeoutError, HTTPException) as error:
         status = {
             "status": "error",
+            "document": DOCUMENT,
             "last_ific": last,
             "checked_at": checked_at,
             "message": f"ITU ei vastannut: {error}",
@@ -218,6 +223,7 @@ def check() -> dict:
     if body is None:
         status = {
             "status": "no_new",
+            "document": DOCUMENT,
             "last_ific": last,
             "checked_at": checked_at,
             "next_check": (datetime.now(UTC).astimezone() + CADENCE).isoformat(timespec="seconds"),
@@ -232,6 +238,7 @@ def check() -> dict:
         # write the error the way a network failure does, so the UI never shows a stale success.
         status = {
             "status": "error",
+            "document": DOCUMENT,
             "last_ific": last,
             "checked_at": checked_at,
             "message": f"uusi paketti ific{last + 1} oli rikki tai putki kaatui: {error}",

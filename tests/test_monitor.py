@@ -72,6 +72,7 @@ def test_no_new_on_404(out, monkeypatch):
     status = monitor.check()
     assert status["status"] == "no_new"
     assert status["last_ific"] == 3074
+    assert status["document"] == "space"
     assert status["next_check"] and status["checked_at"]
     assert monitor.main(["--check"]) == 0
     assert untouched(out)
@@ -98,6 +99,7 @@ def test_new_package_runs_the_pipeline_and_points_latest(out, monkeypatch):
     monkeypatch.setattr(monitor, "run_pipeline", fake_pipeline({"notices": 42, "exceeds": 7}))
     status = monitor.check()
     assert status["status"] == "new"
+    assert status["document"] == "space"
     assert status["ific"] == 3075
     assert status["counts"] == {"notices": 42, "exceeds": 7}
     assert status["run_at"]
