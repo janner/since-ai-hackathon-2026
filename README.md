@@ -244,6 +244,21 @@ row; the funnel endpoint carries their count.
     compare the station's azimuth with the direction of the satellite: the register carries an
     azimuth but no beam width, so a direction-to-source claim would be a guess (I18 in
     `docs/decisions.md`).
+18. The ingest reads 15 IFIC tables and ten of them reach no gate on IFIC 3074 (`c_pfd`, the
+    `s_beam.pwr_max_4k` / `pwr_avg_4k` power columns, `coord_agree_ntw`, `res49_sel`, `hist_notice`,
+    `e_stn`, `grp_res35`, `epfd_param`, `ntc_lnk`, `notice.act_code`). Each is a measured negative
+    result, written up table by table in `docs/features.md` under "Data we read and did not use".
+    `s_beam.gain` is the one column that is used: it gives every PFD the notice's own peak gain
+    rather than a worst-case guess.
+19. The register in this challenge has 871 stations and only 84 of them sit on the seven space
+    bands, so the result does not depend on the full register. The sample's own cover note says a
+    real dataset would be "tens of millions of rows", and the code reads the whole file into memory,
+    so that size needs a band filter before the load; the tool does not claim to handle it as it
+    stands (see "Next steps" in `docs/features.md`).
+20. What is not built, and what each piece would take, is listed in `docs/features.md` under "Next
+    steps": the filings chain (`ntc_lnk`), the filing action (`notice.act_code`), the AP30 plan path,
+    RR Art. 22 / EPFD, new-IFIC detection, space-side trends, Resolution 35 deadline ordering, the
+    M15 cross-check and the CEPT/ECC DocDB tier.
 
 ## Layout
 

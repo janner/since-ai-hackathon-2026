@@ -374,11 +374,11 @@ Tests (`tests/test_api.py`, 9): `test_index_serves_the_finnish_page`, `test_heal
 that read content take it from one real pipeline run into a temporary `out/` (a private copy per
 test, so one may corrupt its files); the index, health and error paths need no challenge data.
 
-## Evidence loaded but not used
+## Data we read and did not use
 
-`app/ingest.py` reads 15 IFIC tables and three of them (`c_pfd`, `srv_area`, `srv_cls`) reach no
-gate: no module consumes them. Each was examined against the seven space bands and the Finnish
-side, and each is recorded here as a deliberate negative result rather than a gap nobody noticed.
+`app/ingest.py` reads 15 IFIC tables. Each was checked against the seven space bands and the
+Finnish side, and the ones that reach no gate are recorded here as measured negative results rather
+than left as gaps nobody noticed. Every count below was read from IFIC 3074 on 7 Nov 2026.
 
 `c_pfd` (119 rows; `ntc_id, seq_no, freq_min, freq_max, pfd, bdwdth, ra_stn_type`) is the
 notifier's own PFD limit. Measured on IFIC 3074, the four frequency ranges it covers are
@@ -402,6 +402,90 @@ M4's `Services_in_Finland` is not drawn from either: it names the services in th
 allocation table (`FIXED`, `MOBILE AND FIXED`). No key and no shared vocabulary connects the two,
 so a join would be a guess rather than a mapping. Not implemented; the M4 lookup stays context
 (decision I10).
+
+`s_beam.pwr_max_4k` and `s_beam.pwr_avg_4k` carry a beam's peak and average power. The database has
+321 beams in all, but none of the 128 beams on the 3 400–4 200 MHz band holds a value, so the same
+limit as `c_pfd` applies: there is no reference power on our band and a cross-check is not possible.
+
+`coord_agree_ntw` has 0 rows. There are no coordination agreements in this issue. When there are,
+they say whether an agreement already exists for a network, which a specialist would want.
+
+`res49_sel` has 0 rows: the Resolution 49 selections are missing from this issue.
+
+`hist_notice` has 0 rows: there is no notice history in this issue.
+
+`e_stn` with `es_ctry` lists 12 earth stations: RUS 6, KAZ 2, GRC 2, USA 1, KOR 1. None is in
+Finland. A network with a station in Finland would be decisive relevance information; in this issue
+the answer is negative, and that is worth stating.
+
+`grp_res35` (254 rows; field `d_ms_next_deadline`) carries Resolution 35 deadlines: 19 Dec 2026 for
+26 groups, 19 Jan 2031 for 126, 19 Jul 2031 for 6 and 18 Dec 2019 for 96 (past). Only 1 of the 18
+demo cases falls in a group with a deadline, so the queue is unaffected in the demo. A deadline
+would make the order margin plus deadline; over the whole run 26 groups fall due on 19 Dec 2026.
+
+`epfd_param` (35 rows) is the RR Art. 22 data for protecting Finnish satellites. No computation path
+is implemented, so the rows are read and dropped.
+
+`ntc_lnk` (43 rows, 12 of which concern one of our 18 case notices) links a filing to the notice it
+follows. It is not read. A filings series on the card is a next step, below.
+
+`notice.act_code` is read in `app/ingest.py` and used nowhere. The distribution in 3074 is A 117
+(new), M 77 (modified), S 2 (suppressed). Carrying it to the card is a next step, below.
+
+`s_beam.gain` is the one column here that is used. `app/gates.py::_beam_gain()` takes the peak gain
+of the beams that cover the notified band, so the beam gain in every PFD is the notice's own peak
+gain and not a worst-case assumption. The column is filled on 2 299 of 2 304 rows and `pattern_id`
+on 721 beams; a beam without a gain value puts its notice in `missing` as `no_gain` instead of
+computing from a guess.
+
+### AP30 plan data is not in the biweekly IFIC
+
+The ITU distributes the AP30 plan data apart from the biweekly BR IFIC: `SPS_ALL_IFIC3083.zip` is
+72 MB and unpacks to a 387 MB Access database that `mdb-export` reads. Measured on that database:
+1 770 notices, 4 of them Finnish (`adm = FIN`), 100550080, 100550081, 100550722 and 100550723.
+100550080 is FIN10300 and 100550081 is FIN10400, both at 22.8°E (±0.1°), plan types `00DN`
+(downlink, AP30B) and `00UP` (uplink): downlink 12 116.76–12 489 MHz and 12 385.28–12 489 MHz
+(27 MHz), uplink 17 716.76–18 089 MHz and 17 985.28–18 089 MHz, beam `E001`, circular polarisation,
+4 `beam_tr` rows. `30B_3083.zip` (22 MB) was not opened.
+
+Traficom pointed to ITU SpaceExplorer (filter: notifying administration Finland, GEO only), which
+needs a TIES account we do not have; the same data was already on disk. IFIC 3074 has no notifier
+within ±1.0° of 22.8°E on 10.7–18.2 GHz, so the Finnish plan positions change nothing in this run.
+SpaceExplorer would also show Finland's Art. 11 notices and MIFR entries, not only plan allocations;
+we protect terrestrial stations, so those are not needed here, and protecting Finnish satellites
+would be RR Art. 22 (EPFD), a separate calculation.
+
+## Next steps
+
+Not built, in rough order of value. The estimate is effort, not a schedule.
+
+| Step | What it would take | Estimate |
+|---|---|---|
+| Filings chain on the card | Read `ntc_lnk` and add "this filing follows <ntc_id> (<reason>)"; the table has to be added to `scripts/fetch_data.py` first | Small |
+| Filing action on the card | Read `notice.act_code` into a `filing_action` field and a queue column | Small |
+| Register pre-filter | Filter the register by the protected bands before loading it into memory; one change in `load_register()` | Small change, blocked on the real register |
+| Res 35 deadline ordering | Fold the `grp_res35` deadlines into the queue order; 26 groups fall due on 19 Dec 2026 | Small to medium |
+| New IFIC detection | The brief opens the workflow with the word "detecting"; today the issue number is given by hand | Medium |
+| M15 cross-check | The brief lists it; the tool does not use it | Medium |
+| CEPT/ECC DocDB | The third tier of the protection framework; not used | Medium |
+| Space-side trends | Needs a second IFIC issue; the terrestrial side already has trends | Medium, blocked on data |
+| AP30 / AP30A / AP30B | Open `SPS_ALL_IFIC3083.zip` (72 MB) and `30B_3083.zip` (22 MB) with `mdb-export` and build a plan path | Large |
+| RR Art. 22 / EPFD | A calculation and a criterion for protecting Finnish satellites; `epfd_param` is already read | Large |
+
+Register scale, measured 7 Nov 2026 with the register duplicated and `--all`:
+
+| Register rows | Time | Peak memory |
+|---|---|---|
+| 874 | 5.7 s | 262 MB |
+| 8 740 | 6.6 s | 262 MB |
+| 87 400 | 17.3 s | 307 MB |
+| 874 000 | 272 s | 1 840 MB |
+
+The register in this challenge has 871 stations and only 84 of them sit on the seven space bands, so
+the full register does not change the result when it is filtered by band first. A real dataset is
+"tens of millions of rows" by the sample's own cover note; at that size the current code would need
+about 20 GB of memory, because `ingest.rows()` reads the whole file into a list and the gates loop
+over every station. The figure for ten million rows is an extrapolation, not a measurement.
 
 ## Tooling: fetching and converting the data
 
