@@ -557,13 +557,17 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 
 | Step | What it would take | Estimate |
 |---|---|---|
-| Scheduled cadence | The monitor is built (`scripts/monitor.py`) and the issue number is no longer given by hand, but nothing is installed: the cadence needs one line in whatever scheduler the operator already runs | Small |
 | Stage-first queue order | Sort the whole queue by regulatory stage before class; the customer said stage is the only priority that matters after filtering. The card keeps the margin as information | Small |
 | Space-side trends | The customer's first next step. Needs a second space IFIC issue; the terrestrial side already has trends | Medium, blocked on data |
 | M15 cross-check | The brief lists it; the tool does not use it | Medium |
 | CEPT/ECC DocDB | The third tier of the protection framework; not used | Medium |
 | AP30 / AP30A / AP30B | The customer ranked this below space-side trends. Open `SPS_ALL_IFIC3083.zip` (72 MB) and `30B_3083.zip` (22 MB) with `mdb-export` and build a plan path | Large |
 | RR Art. 22 / EPFD | A calculation and a criterion for protecting Finnish satellites; `epfd_param` is already read | Large |
+
+Scheduled cadence is installed: Hermes cron (profile `coder`) runs `uv run python scripts/monitor.py
+--check` in the repo every 14 days (first run 21 Nov 2026). Error path: network failure →
+`status: error` in `out/fetch_status.json`, exit 1, `runs/latest` does not move, and the cron run is
+recorded as failed (`hermes cron runs`).
 
 Register scale, measured 7 Nov 2026 with `load_register()` alone on a synthetic register (1 M rows,
 65 MB on disk, every 1000th row on the demo slice):
