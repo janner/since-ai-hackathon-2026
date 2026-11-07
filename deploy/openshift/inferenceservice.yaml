@@ -1,0 +1,36 @@
+# Granite 3.3 2B Instruct from the Red Hat modelcar catalog, served by vLLM on CPU.
+# The sandbox has no GPU and a 3-CPU request quota, hence the small model and the 4k context.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: granite
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+    openshift.io/display-name: granite-3.3-2b-instruct
+    # One case card takes ~40-60 s on CPU; the router default of 30 s returns 504.
+    # Set here, not on the route: the controller resets route annotations from the isvc.
+    haproxy.router.openshift.io/timeout: 300s
+  labels:
+    networking.kserve.io/visibility: exposed
+    opendatahub.io/dashboard: "true"
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      runtime: vllm-cpu-x86-runtime
+      modelFormat:
+        name: vLLM
+      storageUri: oci://quay.io/redhat-ai-services/modelcar-catalog:granite-3.3-2b-instruct
+      args:
+        - --max-model-len=4096
+      env:
+        - name: VLLM_CPU_KVCACHE_SPACE
+          value: "4"
+      resources:
+        requests:
+          cpu: "2"
+          memory: 12Gi
+        limits:
+          cpu: "8"
+          memory: 20Gi
