@@ -17,7 +17,12 @@ CARD = {
         "margin_db": 3.24,
     },
     "m4": {"services_in_finland": "MOBILE AND FIXED"},
-    "next_action": {"question": "Can China confirm the service area?"},
+    "next_action": {
+        "question": (
+            "Can China confirm the worst-case PFD the COMPASS-80E CDN beam produces on "
+            "Finnish territory in the 3 662-3 698 MHz range?"
+        )
+    },
 }
 
 
@@ -36,7 +41,15 @@ def test_without_an_endpoint_the_template_is_used():
 def test_letter_template_asks_the_question():
     draft = prose.draft_letter(CARD)
     assert draft["source"] == "template"
-    assert "Can China confirm the service area?" in draft["text"]
+    assert CARD["next_action"]["question"] in draft["text"]
+
+
+def test_a_beam_card_asks_the_worst_case_not_the_service_area():
+    # Traficom Q&A Q3: beams are not relevant, the worst case is always assumed.
+    question = CARD["next_action"]["question"]
+    letter = prose.draft_letter(CARD)["text"]
+    assert "service area" not in question and "worst" in question
+    assert "service area" not in letter and "worst" in letter
 
 
 def test_a_failing_llm_falls_back_to_the_template():

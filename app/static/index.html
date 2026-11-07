@@ -154,11 +154,6 @@ const STAGE_EN = {
   "No. 11.2": { name: "Recorded in the MIFR", meaning: "No longer influenceable." },
   "Resolution 49": { name: "Resolution 49 notice", meaning: "" },
 };
-const MISSING_LABEL = {
-  "s_beam.bore_long": "beam direction", "s_beam.bore_lat": "beam direction",
-  "s_beam.maj_axis": "beam width", "s_beam.min_axis": "beam width",
-};
-
 const DROP_LABEL = {
   no_band_overlap: "No band overlap",
   geo_below_horizon: "Below the horizon",
@@ -188,19 +183,11 @@ function fmtRun(iso) {
   });
 }
 
-function hasBeamMissing(item) {
-  return (item.missing || []).some((field) => String(field).startsWith("s_beam."));
-}
-
 function missingText(item) {
-  const missing = item.missing || [];
+  // Beam geometry is not missing information: the screening assumes the worst case (Traficom Q&A Q3).
+  const missing = (item.missing || []).filter((field) => !String(field).startsWith("s_beam."));
   if (!missing.length) return "No missing information.";
-  const labels = [...new Set(missing.map((field) => MISSING_LABEL[field] || field))];
-  let text = "The notice is missing " + labels.join(" and ") + " (" + missing.join(", ") + ").";
-  if (hasBeamMissing(item)) {
-    text += " The tool therefore cannot say whether the beam covers Finland. It asks instead.";
-  }
-  return text;
+  return "The notice is missing " + missing.join(", ") + ".";
 }
 
 // The floor when the pipeline wrote no prose: same sentences the card would carry anyway.
@@ -469,8 +456,8 @@ function renderCard(item) {
 
   card.append(el("h3", "What you need to decide"));
   const questions = el("ol");
-  questions.append(el("li", "Does the beam cover Finland?" +
-    (hasBeamMissing(item) ? " This information is missing from the notice." : "")));
+  questions.append(el("li", "Confirm the worst case is assumed: the beam's peak gain points at " +
+    "the Finnish station, as Traficom advised (beam direction is not needed)."));
   questions.append(el("li", "Does the band match the use listed in Finland's M4 table?"));
   questions.append(el("li", (item.next_action && item.next_action.question) || "No question."));
   card.append(questions);

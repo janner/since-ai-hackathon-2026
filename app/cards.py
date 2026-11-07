@@ -30,6 +30,8 @@ GEOMETRY_FIELDS = ("bore_long", "bore_lat", "maj_axis", "min_axis")
 REGISTER_GAIN = "frequencies_of_interest.Ant gain (dB)"
 REGISTER_POWER = "frequencies_of_interest.Radioation power"
 SYNTHETIC_POWER_W = 1e9  # above 1 GW the value is a synthetic artefact (plan 3.6)
+# Traficom Q&A Q3: beams are not assessed individually, the worst case is always assumed.
+WORST_CASE = "worst case assumed: peak beam gain toward the Finnish station"
 
 
 def m4_lookup(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> dict:
@@ -112,7 +114,7 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             "elevation_deg": case.elev_deg,
             "beam": case.beam,
             "beam_geometry": "missing" if _missing_geometry(geometry) else "declared",
-            "coverage_hint": f"beam name {case.beam}; service area not declared",
+            "coverage_hint": f"beam name {case.beam}; {WORST_CASE}",
         },
         "victim": {
             "station": case.victim.id,
@@ -154,9 +156,9 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             "counterparty": notice.adm,
             "template": "templates/correspondence_fi_en.md",
             "question": (
-                f"Can {ADM_NAMES.get(notice.adm, notice.adm)} confirm the service area of the "
-                f"{ific.sat_name(case.ntc_id)} {case.beam} beam and whether it illuminates "
-                f"Finland in the {fmt_mhz(case.band_lo_mhz)}-{fmt_mhz(case.band_hi_mhz)} MHz range?"
+                f"Can {ADM_NAMES.get(notice.adm, notice.adm)} confirm the worst-case PFD the "
+                f"{ific.sat_name(case.ntc_id)} {case.beam} beam produces on Finnish territory "
+                f"in the {fmt_mhz(case.band_lo_mhz)}-{fmt_mhz(case.band_hi_mhz)} MHz range?"
             ),
         },
         "audit": {
@@ -191,6 +193,11 @@ def _missing_geometry(geometry: dict) -> bool:
     return all(geometry.get(key) is None for key in GEOMETRY_FIELDS)
 
 
+def _blocking(missing: list[str]) -> list[str]:
+    """Missing fields that matter: beam geometry does not, the worst case covers it (Q3)."""
+    return [field for field in missing if not field.startswith("s_beam.")]
+
+
 def render_card_md(card: dict) -> str:
     calc, band, victim = card["calculation"], card["band"], card["victim"]
     stage = card["regulatory_stage"]
@@ -208,7 +215,8 @@ def render_card_md(card: dict) -> str:
         f"{fmt_num(calc['limit_dbw_m2_hz'])} dB(W/m²/Hz) → margin {fmt_num(calc['margin_db'])} dB",
         f"- **Limit:** {calc['limit_source']}",
         f"- **M4 in Finland:** {card['m4']['services_in_finland']}",
-        f"- **Missing:** {', '.join(card['missing']) or 'nothing'}",
+        f"- **Coverage:** {card['coverage']['coverage_hint']}",
+        f"- **Missing:** {', '.join(_blocking(card['missing'])) or 'nothing'}",
     ]
     if card["threshold_note"]:
         lines.append(f"- **Threshold:** {card['threshold_note']}")

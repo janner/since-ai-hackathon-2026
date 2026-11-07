@@ -181,9 +181,10 @@ def test_golden_case_103500417(challenge):
     ]
     assert card["next_action"]["template"] == "templates/correspondence_fi_en.md"
     assert card["next_action"]["question"] == (
-        "Can China confirm the service area of the COMPASS-80E CDN beam and whether it "
-        "illuminates Finland in the 3\u00a0642-3\u00a0678 MHz range?"
+        "Can China confirm the worst-case PFD the COMPASS-80E CDN beam produces on "
+        "Finnish territory in the 3\u00a0642-3\u00a0678 MHz range?"
     )
+    assert "service area" not in card["next_action"]["question"]
     assert len(card["audit"]["input_sha256"]) == 64
     assert card["audit"]["rules_version"] == "1.1.0"
 
