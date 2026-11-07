@@ -130,6 +130,18 @@
     <h2 id="h-card">Card</h2>
     <div id="card">Select a card from the queue.</div>
   </section>
+  <section id="stats-section" aria-labelledby="h-stats">
+    <h2 id="h-stats">Complaint register</h2>
+    <p class="note" id="stats-banner">loading...</p>
+    <div class="queue-controls">
+      <label for="stats-year">Year</label>
+      <select id="stats-year">
+        <option value="">All years</option>
+      </select>
+      <a class="btn btn-sm" id="stats-csv" href="/api/stats.csv">Download CSV</a>
+    </div>
+    <div id="stats"></div>
+  </section>
 </main>
 <footer>The tool does not decide. Every number comes from code, not from a language model.</footer>
 <script>
@@ -665,6 +677,111 @@ function markCurrent(caseId) {
   }
 }
 
+// The register's closed lists, in the words the view uses. The data keeps its own codes.
+const ISSUE_EN = {
+  pfd_exceedance: "PFD over the limit",
+  near_limit: "Near the limit",
+  band_without_satellite_allocation: "Band without satellite use in Finland",
+  missing_data: "Cannot decide (missing data)",
+  terrestrial_field_strength: "Terrestrial field strength",
+};
+const ACTION_EN = {
+  comment_sent: "Comment sent",
+  coordination_requested: "Coordination requested",
+  br_assistance_requested: "BR assistance requested",
+  no_action_decided: "No action decided",
+};
+
+// One fetch for the register, shared by the statistics view and the card's history line.
+let registerCache = null;
+async function registerSummary() {
+  if (!registerCache) registerCache = await get("/api/stats");
+  return registerCache;
+}
+
+function outcomeText(outcomes) {
+  return Object.entries(outcomes || {}).map(([key, value]) => key.replace(/_/g, " ") + ": " + value).join(" \\u00b7 ");
+}
+
+function statsBlock(title, items, label) {
+  const box = el("div");
+  box.append(el("h3", title, "card-title"));
+  if (!items || !items.length) {
+    box.append(el("p", "Nothing recorded.", "note"));
+    return box;
+  }
+  const list = el("div", null, "rows");
+  for (const row of items) {
+    const line = el("div", null, "row");
+    line.append(el("span", label(row), "k"));
+    line.append(el("span", [
+      num(row.count),
+      row.open ? row.open + " open" : "",
+      row.median_days === null || row.median_days === undefined ? "" : "median " + row.median_days + " d",
+    ].filter(Boolean).join(" \\u00b7 "), "v"));
+    list.append(line);
+    if (outcomeText(row.outcomes)) list.append(el("div", outcomeText(row.outcomes), "note"));
+  }
+  box.append(list);
+  return box;
+}
+
+function renderStats(summary) {
+  const t = summary.totals || {};
+  document.getElementById("stats-banner").textContent = [
+    num(t.complaints) + " complaints",
+    t.open + " still open",
+    t.median_days === null ? "" : "median " + t.median_days + " days from letter to reply",
+    num(t.synthetic) + " of them are seeded demo history (2021-2026); the real rows are IFIC 3075 and 3076",
+  ].filter(Boolean).join(" \\u00b7 ") + ".";
+
+  const box = document.getElementById("stats");
+  box.replaceChildren();
+  box.append(statsBlock("Who it was about", summary.admins, (row) => adminName(row.key)));
+  box.append(statsBlock("Which network", summary.networks, (row) => row.key));
+  box.append(statsBlock("Which band", summary.bands, (row) => row.key));
+  box.append(statsBlock("What the issue was", summary.issues, (row) => ISSUE_EN[row.key] || row.key));
+  box.append(statsBlock("What was done", summary.actions, (row) => ACTION_EN[row.key] || row.key));
+  const trend = (summary.trend || []).map((row) => row.year + ": " + row.total).join(" \\u00b7 ");
+  if (trend) box.append(el("p", "Per year " + trend, "note"));
+
+  const year = document.getElementById("stats-year");
+  if (year.options.length === 1) {
+    for (const row of summary.trend || []) {
+      const option = el("option", row.year);
+      option.value = row.year;
+      year.append(option);
+    }
+  }
+}
+
+async function loadStats() {
+  const year = document.getElementById("stats-year").value;
+  const query = year ? "?year=" + encodeURIComponent(year) : "";
+  document.getElementById("stats-csv").href = "/api/stats.csv" + query;
+  try {
+    renderStats(await get("/api/stats" + query));
+  } catch (error) {
+    document.getElementById("stats-banner").textContent = "Could not load the register: " + error.message;
+  }
+}
+
+// The card's own history: how often this administration and this network have come up before.
+function cardHistoryLine(item) {
+  const line = el("p", "", "note");
+  registerSummary().then((summary) => {
+    const adm = (item.parties && item.parties.admin) || "";
+    const network = (item.coverage && item.coverage.sat_name) || "";
+    const admRow = (summary.admins || []).find((row) => row.key === adm);
+    const netRow = (summary.networks || []).find((row) => row.key === network);
+    const parts = [];
+    if (admRow) parts.push(adminName(adm) + ": " + admRow.count + " complaints, " + admRow.open + " open");
+    if (netRow) parts.push(network + ": " + netRow.count + " complaints, " + netRow.open + " open");
+    if (parts.length) line.textContent = "In the register " + parts.join(" \\u00b7 ") + ".";
+  }).catch(() => {});
+  return line;
+}
+
 function renderCard(item) {
   const c = item.calculation || {};
   const coverage = item.coverage || {};
@@ -688,6 +805,7 @@ function renderCard(item) {
     coverage.beam ? "beam " + coverage.beam : "",
   ].filter(Boolean).join(" \u00b7 "), "card-sub"));
   card.append(el("p", "Filing stage: " + filingStage(item), "note"));
+  card.append(cardHistoryLine(item));
   const at = point.lat !== undefined && point.lat !== null
     ? point.lat + " N, " + point.lon + " E (" + (point.place || "") + ")"
     : (point.place || "Finnish territory");
@@ -765,6 +883,7 @@ async function showCase(caseId) {
 
 async function start() {
   loadFetch();
+  loadStats();
   try {
     renderFunnel(await get("/api/funnel"));
     renderQueue(await get("/api/queue"));
@@ -776,6 +895,7 @@ async function start() {
 }
 
 document.getElementById("fetch-check").addEventListener("click", checkNow);
+document.getElementById("stats-year").addEventListener("change", loadStats);
 document.getElementById("group-by").addEventListener("change", (event) => {
   queueGroup = event.target.value;
   renderQueue(queueItems);
