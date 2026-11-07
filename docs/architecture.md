@@ -13,7 +13,7 @@ flowchart LR
   CMD["python -m app.pipeline<br/>one command: space, and --terrestrial for the side feature"]
 
   subgraph inputs [Inputs]
-    I1["IFIC 3074 BR IFIC .mdb<br/>(15 tables, mdb-export)"]
+    I1["IFIC 3074 BR IFIC .mdb<br/>(17 tables, mdb-export)"]
     I2["frequencies of interest<br/>(.xlsx / .csv)"]
     I3["M4 allocation table<br/>(.json)"]
     I4["rules/rr21_table21_4.csv"]
@@ -35,7 +35,7 @@ flowchart LR
   G3 -->|"case with a number"| CARD["app/cards.py<br/>card, Markdown, CSV, run log"]
   G2 -->|"survived, no number: queue.md + CSV row"| CARD
   G3 -->|"no number: queue.md + CSV row"| CARD
-  CARD --> QUEUE["queue.md: class, then stage, then margin; no cap"]
+  CARD --> QUEUE["queue.md: class, then stage, then Res 35 deadline, then margin; no cap"]
   CARD --> PROSE["app/prose.py<br/>optional, uses app/llm.py"]
   TPL["templates/"] --> PROSE
   PROSE --> GUARD["app/guard.py<br/>every number must exist in the card"]
@@ -59,12 +59,12 @@ calculation: without `out/` the page still loads and the API answers 503 with th
 | Module | Responsibility |
 |---|---|
 | `app/config.py` | Static configuration: the seven space bands, the demo slice, the rules version, the adjacent-channel guard (`GUARD_MHZ`), the regulatory-stage table and the number formatting used in the documents. The run's bands are this file's scope; no channel frequency is hardcoded here, and the register is a reference, not the scope (D17). |
-| `app/ingest.py` | Reads the 16 IFIC tables straight from the BR IFIC Access database with `mdb-export`, plus the Finnish register and the M4 allocation table. Normalises units ("3 520.500 MHz", "300k", "1.5 GHz"), keeps missing values as `None`, carries `notice.prov` (the regulatory stage), `notice.act_code` and the `ntc_lnk` links, and `Station.directivity`, and hashes the input MDB with SHA256. Computes no gates. |
+| `app/ingest.py` | Reads the 17 IFIC tables straight from the BR IFIC Access database with `mdb-export`, plus the Finnish register and the M4 allocation table. Normalises units ("3 520.500 MHz", "300k", "1.5 GHz"), keeps missing values as `None`, carries `notice.prov` (the regulatory stage), `notice.act_code`, the `ntc_lnk` links and the Resolution 35 group deadlines (`grp_res35` -> `IficData.res35`), and `Station.directivity`, and hashes the input MDB with SHA256. Computes no gates. |
 | `app/bands.py` | Derives the register's own bands from the rows that overlap one of the seven space allocations and lists which stations sit on them. Kept for that question and its tests; the run's bands come from `app/config.py` (D17). |
 | `app/territory.py` | The Finnish territory edge: the vertices of `rules/finland_border.csv` (land borders with Sweden, Norway and Russia plus the territorial sea outer limit), read once and cached. The PFD is evaluated at these 552 points, because the worst case over an area sits on its edge. |
 | `app/allocation.py` | The Finnish allocation (M4) for a notified band: the overlapping sub-band rows, the services, and `space_to_earth`, which is true only for a satellite service with the space-to-Earth direction. A false value makes the case `not_space`. |
 | `app/pfd.py` | Geometry and the limit: slant range and elevation from GEO longitude or a non-GSO sweep, free-space loss, and the Article 21 Table 21-4 limit read from `rules/rr21_table21_4.csv`. No limit is hardcoded in code. |
-| `app/gates.py` | The funnel G1 to G4: band overlap against the run's scope (with an optional adjacent-channel guard), visibility from Finland, the PFD computation at the territory edge and the class (`exceeds` / `near` / `not_space` / `clear`, an adjacent case capped at `near`), plus the reason code for every drop and the queue ordered by class, then regulatory stage, then margin. |
+| `app/gates.py` | The funnel G1 to G4: band overlap against the run's scope (with an optional adjacent-channel guard), visibility from Finland, the PFD computation at the territory edge and the class (`exceeds` / `near` / `not_space` / `clear`, an adjacent case capped at `near`), plus the reason code for every drop and the queue ordered by class, then regulatory stage, then the notice's earliest upcoming Resolution 35 deadline, then margin. |
 | `app/cards.py` | Builds the case card (source rows, calculation, M4 lookup, missing fields, one question), renders the Markdown, the queue, the CSV and the run log, and writes the output files — including one letter per `exceeds` case under `letters/`. |
 | `app/pipeline.py` | The CLI: one BR IFIC `.mdb` in, the output files out. Add `--terrestrial <3076.mdb> --terrestrial-prev <3075.mdb>` and the same run also writes the terrestrial side feature into the same `out/`; without the flags the space run is unchanged. The deterministic path never touches the network; the optional prose step calls the endpoint in `LLM_BASE_URL` through `app/llm.py`. |
 | `app/prose.py` | Card prose. The LLM drafts it, the guard checks it, the deterministic template in `templates/` is the floor. Also holds the correspondence-letter template and function. |

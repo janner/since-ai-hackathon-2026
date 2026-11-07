@@ -108,19 +108,21 @@ check finds nothing new.
 
 Funnel: 196 → 41 → 21 → 20 + 1
 
-| # | case | class | stage | action | margin dB | reason |
-|---|---|---|---|---|---|---|
-| 1 | 124545403 | exceeds | No. 9.1 | M | 60,44 | exceeds |
-| 2 | 124520183 | exceeds | No. 9.6 | A | 3,66 | exceeds |
-| 3 | 124520184 | exceeds | No. 9.6 | A | 1,74 | exceeds |
-| 4 | 125500066 | exceeds | No. 11.2 | A | 21,32 | exceeds |
-| 5 | 125500277 | exceeds | No. 11.2 | A | 16,33 | exceeds |
-| 6 | 103500417 | exceeds | No. 11.2 | M | 3,25 | exceeds |
+| # | case | class | stage | action | deadline | margin dB | reason |
+|---|---|---|---|---|---|---|---|
+| 1 | 124545403 | exceeds | No. 9.1 | M | - | 60,44 | exceeds |
+| 2 | 124520183 | exceeds | No. 9.6 | A | - | 3,66 | exceeds |
+| 3 | 124520184 | exceeds | No. 9.6 | A | - | 1,74 | exceeds |
+| 4 | 125500277 | exceeds | No. 11.2 | A | 19.12.2026 | 16,33 | exceeds |
+| 5 | 125500066 | exceeds | No. 11.2 | A | - | 21,32 | exceeds |
+| 6 | 103500417 | exceeds | No. 11.2 | M | - | 3,25 | exceeds |
 ```
 
-(13 more rows follow; the file lists all 19.) Inside a class the stage comes first, then the margin:
-the `exceeds` rows in the advance publication and coordination request stages are listed before the
-MIFR notifications, whose margins do not put them second.
+(13 more rows follow; the file lists all 19. The live file carries two more columns, the Finnish
+band and the `settles at` value, left out here for width.) Inside a class the stage comes first,
+then the earliest upcoming Resolution 35 deadline, then the margin: the `exceeds` rows in the
+advance publication and coordination request stages are listed before the MIFR notifications, whose
+margins do not put them second, and 125500277 (group due 19.12.2026) moves ahead of a larger margin.
 
 `out/cases.md` holds one card per computed notice. The one from the plan's test vector:
 

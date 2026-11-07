@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (172 passed) and a clean clone
-(126 passed, 46 skipped).
+commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (179 passed) and a clean clone
+(131 passed, 48 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
@@ -24,7 +24,7 @@ locally.
 
 ## F1: ingest and normalisation
 
-Reads the 16 IFIC tables straight from the BR IFIC Access database with `mdb-export`, the Finnish
+Reads the 17 IFIC tables straight from the BR IFIC Access database with `mdb-export`, the Finnish
 register from the frequencies-of-interest file, and the M4 allocation table, and normalises every
 unit. Nothing here computes a gate: a value that is missing stays `None` and the caller decides what
 that means.
@@ -33,15 +33,16 @@ that means.
 
 | Piece | Behaviour |
 |---|---|
-| `TABLES`, `REQUIRED_TABLES` | 16 table names; only `notice` and `freq` are mandatory, the rest may be absent |
+| `TABLES`, `REQUIRED_TABLES` | 17 table names; only `notice` and `freq` are mandatory, the rest may be absent |
 | `_export()` | `mdb-export <mdb> <table>` through `subprocess` (no shell); a missing `mdb-export` or a failing table raises `DataError` |
 | `mhz()` | `'3 520.500 MHz'` to 3520.5, `'300k'` to 0.3, `'0,1G'` to 100.0, `''` to `None`; understands `GHz`, `kHz`, `Hz` and the single letters, plus the Finnish comma decimal |
 | `watts()` | `'145'` + `'W'` to 145.0, `'2'` + `'kW'` to 2000.0, `'mW'` scaled down |
+| `deadline()` | `'12/19/26 00:00:00'` (the shape `mdb-export` gives `grp_res35.d_ms_next_deadline`) to `date(2026, 12, 19)`; anything else `None`, never a guess |
 | `iter_rows()` | streams a CSV row by row with `csv.DictReader`; an empty file, a missing column or a header-only file raises `DataError` naming the file and the column |
 | `rows()` | `list(iter_rows())`, for the callers that want the whole file |
 | `load_register()` | `Station` records, streamed from `iter_rows()`; a row without RX and TX is skipped and counted, a row without coordinates likewise; the bandwidth is the smaller of `Channel bandwidth` and `Transmission bandwidth`, with either column as the fallback; an optional `bands` argument keeps only the stations whose channel touches one of the run's bands |
 | `load_m4()` | accepts `{"value": [...]}` or a bare array; anything else raises `DataError` |
-| `load_ific()` | reads the MDB with `mdb-export` and builds `IficData` (notices, freq rows, beams, emission power per group, GEO, non-GEO, orbits, links, counts); `file` is the MDB name and `input_sha256` its SHA256 |
+| `load_ific()` | reads the MDB with `mdb-export` and builds `IficData` (notices, freq rows, beams, emission power per group, GEO, non-GEO, orbits, links, Resolution 35 group deadlines in `res35`, counts); `file` is the MDB name and `input_sha256` its SHA256 |
 | `sha256()` | one file's SHA256; `input_digest()` (used by the terrestrial path) one SHA256 over several files |
 
 `Station.centre_mhz` is RX when it exists and TX otherwise, `lo_mhz` and `hi_mhz` are the centre
@@ -49,8 +50,10 @@ plus or minus half the channel bandwidth. `Notice.prov` carries the regulatory s
 and `Station.directivity` the register's `Directivity` code (`D`, `ND` or empty); neither is read by
 a gate, and only the card uses them.
 
-Tests (`tests/test_ingest.py`, 26 collected): `test_mhz_normalises_units` (parametrised over nine
-unit forms), `test_watts_converts_units`, `test_load_register_skips_rows_without_frequency`,
+Tests (`tests/test_ingest.py`, 27 collected): `test_mhz_normalises_units` (parametrised over nine
+unit forms), `test_watts_converts_units`, `test_deadline_reads_the_exported_date` (the
+`grp_res35` date shape, and the empty and unparseable forms stay `None`),
+`test_load_register_skips_rows_without_frequency`,
 `test_station_uses_tx_when_rx_is_missing`,
 `test_bandwidth_is_the_smaller_of_channel_and_transmission`,
 `test_load_register_keeps_only_the_bands_asked_for` (the band filter, with the skip counters still
@@ -64,7 +67,7 @@ links, and an `ntc_lnk` row without a target), and the seven error paths (`test_
 `test_unreadable_table_is_a_clear_error`, `test_m4_without_value_array_is_a_clear_error`).
 The data tests `test_real_mdb_row_counts`, `test_real_register_and_mdb_hash` and
 `test_real_register_keeps_rows_without_a_licence_class` lock the 196 notices, 95 865 frequency rows,
-the MDB SHA256, and the 294 register rows that carry no `Class of licence`.
+the 254 `grp_res35` rows, the MDB SHA256, and the 294 register rows that carry no `Class of licence`.
 
 ## F2: the register's own bands (utility, not in the run path)
 
@@ -163,31 +166,53 @@ names the one with the highest margin, and the number itself is taken at the ter
 
 `gate4()` orders the queue `exceeds`, `near`, `not_space`, `cannot_decide`, and inside a class by
 stage rank (advance publication and coordination request before the MIFR notification, then
-Resolution 49), then by margin. A stage another administration can still influence therefore comes
-before a filing already recorded. `clear` cases stay in `cases.json` and the CSV but out of the queue.
-There is no cap. The stage itself comes from `notice.prov` through `app/config.py::regulatory_stage()`.
+Resolution 49), then by the notice's earliest upcoming Resolution 35 deadline, then by margin. A
+stage another administration can still influence therefore comes before a filing already recorded,
+and a filing whose group falls due soonest comes first inside its stage. A notice whose groups carry
+no `grp_res35` deadline sorts behind one that has one; a passed deadline behind every upcoming one
+(most recent first). The deadline is chosen per notice by `notice_deadlines()`: the earliest
+upcoming date over the groups of the notice, else the latest one that has passed. `clear` cases stay
+in `cases.json` and the CSV but out of the queue. There is no cap. The stage itself comes from
+`notice.prov` through `app/config.py::regulatory_stage()`.
 
-Tests (`tests/test_gates.py`): `test_class_boundaries`, `test_queue_order`,
+Measured in IFIC 3074: `grp_res35` (`grp_id`, `d_ms_next_deadline`) has 254 rows — 26 groups due
+19 Dec 2026, 126 due 19 Jan 2031, 6 due 19 Jul 2031 and 96 already passed (18 Dec 2019). They
+belong to three notices, 125500277, 126500053 and 325500168; 125500277 is one of the 20 demo cases,
+so the demo queue moves by one row and every other number is unchanged.
+
+Tests (`tests/test_gates.py`, 17 collected): `test_class_boundaries`,
+`test_notice_deadlines_pick_the_earliest_upcoming` (a notice with several group deadlines, one
+upcoming, one passed, one absent), `test_queue_orders_by_stage_then_deadline_then_margin`,
 `test_queue_holds_every_concern_and_no_clear`, `test_queue_puts_coordination_before_notification`,
-`test_an_adjacent_case_is_capped_at_near`, `test_demo_slice_funnel`, `test_all_bands_funnel`,
-`test_vector_2_from_the_real_data`, `test_case_126590032_cannot_be_decided`.
+`test_queue_order`, `test_only_one_demo_case_carries_a_res35_deadline` (125500277, due 19 Dec 2026,
+sorts ahead of a larger margin in its stage), `test_an_adjacent_case_is_capped_at_near`,
+`test_demo_slice_funnel`, `test_all_bands_funnel`, `test_vector_2_from_the_real_data`,
+`test_case_126590032_cannot_be_decided`.
 
 ## F6: case cards and the M4 allocation
 
 `app/cards.py::build_card()` turns a `Case` into the card: `case_id`, `same_network`, `source`
 (file, IFIC number, SHA256, tables, keys), `parties`, `band`, `direction`, `coverage`, `point`,
-`victim`, `calculation`, `m4`, `class`, `adjacent`, `regulatory_stage`, `threshold_note`, `missing`,
-`next_action`, `audit`. The audit block carries `input_sha256`, `rules_version` and `run_at`; the
-`input_sha256` is the SHA256 of the BR IFIC MDB the run read.
+`victim`, `calculation`, `m4`, `class`, `adjacent`, `deadline`, `deadline_passed`,
+`regulatory_stage`, `filing_action`, `filing_follows`, `threshold_note`, `missing`, `next_action`,
+`audit`. The audit block carries `input_sha256`, `rules_version` and `run_at`; the `input_sha256` is
+the SHA256 of the BR IFIC MDB the run read.
 
 `regulatory_stage` restates `notice.prov` as `{provision, label, source}`, for example `No. 11.2` /
-"notification recorded in the MIFR" / `ITU RR 2024, Vol 1, No. 11.2`. It carries no deadline and no
-window length; `label` is the one sentence of what the stage means (advance publication and
-coordination request are stages another administration can still influence, the notification is a
-recording in the MIFR). `adjacent` is the guard flag from G1. `threshold_note` is set when the
-victim is directive (`victim.directivity` not `ND`) and its gain is at or above 20 dBi: it names a
-lower possible trigger level and changes no number and no class. It never compares the station's
-azimuth with the satellite direction (see I18 in `docs/decisions.md`).
+"notification recorded in the MIFR" / `ITU RR 2024, Vol 1, No. 11.2`. The stage itself carries no
+deadline and no window length; `label` is the one sentence of what the stage means (advance
+publication and coordination request are stages another administration can still influence, the
+notification is a recording in the MIFR). The Resolution 35 deadline has its own field:
+`deadline` is the notice's earliest upcoming group deadline from `grp_res35` (see F5) as a Finnish
+date, `deadline_passed` says whether it is already behind the run, and `render_card_md()` writes
+`- **Resolution 35 deadline:** <date>`, appending `(passed)` for a passed one. No group of the
+notice carrying a deadline leaves both fields empty (`null` / `false`) and no line. In the demo
+slice only 125500277 carries one: 19.12.2026.
+
+`adjacent` is the guard flag from G1. `threshold_note` is set when the victim is directive
+(`victim.directivity` not `ND`) and its gain is at or above 20 dBi: it names a lower possible
+trigger level and changes no number and no class. It never compares the station's azimuth with the
+satellite direction (see I18 in `docs/decisions.md`).
 
 The `victim` block carries `power_w`, and the card carries a top-level `synthetic_data_warning`
 that is set when the victim received power is above 1 GW: the register value is a synthetic
@@ -217,16 +242,20 @@ provision for every notice (dropped included); `dropped_at` and `reason` carry t
 cause. `render_run_log()` writes the IFIC number, the input file name and the hash alongside the
 counts.
 
-Tests (`tests/test_cards.py`, 10): `test_card_has_the_whole_schema`,
+Tests (`tests/test_cards.py`, 13): `test_card_has_the_whole_schema`,
 `test_m4_lookup_names_the_service_and_the_downlink`, `test_missing_register_field_is_reported`,
 `test_results_rows_cover_every_notice` (asserts one row per notice, the empty `class` for a gate
 drop and the `dropped_at` plus `reason`), `test_a_too_large_victim_power_is_flagged`,
-`test_a_normal_victim_power_has_no_warning`, `test_directive_antenna_gets_a_threshold_note`, and the
-data tests `test_golden_case_103500417`, which locks every field of the plan's test vector including
-the band label 3 442–3 478 MHz and the `source` block, `test_prov_distribution_and_the_card_stage`,
-which locks the `prov` distribution (50 / 76 / 65 / 5) and the card stage block, and
-`test_card_carries_the_filing_chain_and_the_queue_action`, which locks the `filing_follows` link and
-the `action` column of `queue.md`.
+`test_a_normal_victim_power_has_no_warning`, `test_directive_antenna_gets_a_threshold_note`,
+`test_deadline_line_marks_a_passed_deadline` and `test_queue_md_carries_a_deadline_column`
+(synthetic: the card line and the `deadline` column, a passed deadline marked, a missing one `-`),
+and the data tests `test_golden_case_103500417`, which locks every field of the plan's test vector
+including the band label 3 442–3 478 MHz and the `source` block,
+`test_prov_distribution_and_the_card_stage`, which locks the `prov` distribution (50 / 76 / 65 / 5)
+and the card stage block, `test_card_carries_the_filing_chain_and_the_queue_action`, which locks the
+`filing_follows` link and the `action` column of `queue.md`, and
+`test_the_demo_card_shows_its_res35_deadline`, which locks 125500277's 19.12.2026 line and the
+marked passed form.
 
 ## F7: the output files and the CLI
 
@@ -433,9 +462,11 @@ type, the card type). No test opens a connection.
 
 ## Data we read and did not use
 
-`app/ingest.py` reads 15 IFIC tables. Each was checked against the seven space bands and the
+`app/ingest.py` reads 17 IFIC tables. Each was checked against the seven space bands and the
 Finnish side, and the ones that reach no gate are recorded here as measured negative results rather
-than left as gaps nobody noticed. Every count below was read from IFIC 3074 on 7 Nov 2026.
+than left as gaps nobody noticed. Every count below was read from IFIC 3074 on 7 Nov 2026. The
+Resolution 35 table `grp_res35` used to be one of them; it now feeds the queue order and the card
+(see F5 and F6).
 
 `c_pfd` (119 rows; `ntc_id, seq_no, freq_min, freq_max, pfd, bdwdth, ra_stn_type`) is the
 notifier's own PFD limit. Measured on IFIC 3074, the four frequency ranges it covers are
@@ -475,11 +506,6 @@ they say whether an agreement already exists for a network, which a specialist w
 `e_stn` with `es_ctry` lists 12 earth stations: RUS 6, KAZ 2, GRC 2, USA 1, KOR 1. None is in
 Finland. A network with a station in Finland would be decisive relevance information; in this issue
 the answer is negative, and that is worth stating.
-
-`grp_res35` (254 rows; field `d_ms_next_deadline`) carries Resolution 35 deadlines: 19 Dec 2026 for
-26 groups, 19 Jan 2031 for 126, 19 Jul 2031 for 6 and 18 Dec 2019 for 96 (past). Only 1 of the 18
-demo cases falls in a group with a deadline, so the queue is unaffected in the demo. A deadline
-would make the order margin plus deadline; over the whole run 26 groups fall due on 19 Dec 2026.
 
 `epfd_param` (35 rows) is the RR Art. 22 data for protecting Finnish satellites. No computation path
 is implemented, so the rows are read and dropped.
@@ -525,7 +551,6 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 
 | Step | What it would take | Estimate |
 |---|---|---|
-| Res 35 deadline ordering | Fold the `grp_res35` deadlines into the queue order; 26 groups fall due on 19 Dec 2026 | Small to medium |
 | Scheduled cadence | The monitor is built (`scripts/monitor.py`) and the issue number is no longer given by hand, but nothing is installed: the cadence needs one line in whatever scheduler the operator already runs | Small |
 | M15 cross-check | The brief lists it; the tool does not use it | Medium |
 | CEPT/ECC DocDB | The third tier of the protection framework; not used | Medium |
@@ -567,7 +592,7 @@ Tests (`tests/test_fetch_data.py`, 2): `test_html_instead_of_zip_is_rejected`,
 There are no committed data fixtures. The tests that need a real input are marked `data` and read
 `data/itu-ific-3074/ific3074.mdb`, `data/frequencies_of_interest.csv`, `data/taajuusjakotaulukko.json`
 and the two terrestrial BR IFIC MDBs; `tests/conftest.py` skips every one of them when
-`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (94 passed, 43 skipped).
+`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (131 passed, 48 skipped).
 The pure tests carry their own inputs in the test: the unit forms in `tests/test_ingest.py`, the band
 merging in `tests/test_bands.py`, the guard rows in `tests/test_gates.py`, the PFD vectors and the
 limit table in `tests/test_pfd.py`.

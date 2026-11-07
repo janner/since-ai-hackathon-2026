@@ -7,6 +7,7 @@ Every dropped notice leaves with a reason code, including the ones dropped in th
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 
 from app import allocation, config, pfd
 from app.bands import Band
@@ -66,6 +67,8 @@ class Case:
     lat: float | None = None
     lon: float | None = None
     place: str = ""  # where the level was computed; "" for a non-GSO pass
+    deadline: date | None = None  # the notice's Resolution 35 deadline, from grp_res35
+    deadline_passed: bool = False  # that deadline is already behind the run
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,8 @@ class QueueItem:
     unknown_field: str = ""  # "psd" or "gain" when the case cannot be computed
     required_db: float | None = None  # value of that field at which margin reaches 0
     filing_action: str = ""  # notice.act_code: A new, M modified, S suppressed
+    deadline: date | None = None  # the notice's Resolution 35 deadline, from grp_res35
+    deadline_passed: bool = False  # that deadline is already behind the run
 
 
 @dataclass
@@ -117,6 +122,36 @@ class GateResult:
         return counts
 
 
+def notice_deadlines(ific: IficData, today: date) -> dict[str, tuple[date, bool]]:
+    """Per notice, the Resolution 35 deadline that matters: the earliest one still upcoming among
+    the groups of the notice, else the latest one that has passed. The deadline lives on a group
+    (`grp_res35.grp_id`), a notice has many; the earliest upcoming is the one to act on.
+    A notice whose groups carry no deadline at all is absent."""
+    by_notice: dict[str, list[date]] = {}
+    for freq in ific.freqs:
+        deadline = ific.res35.get(freq.grp_id)
+        if deadline is not None:
+            by_notice.setdefault(freq.ntc_id, []).append(deadline)
+    chosen: dict[str, tuple[date, bool]] = {}
+    for ntc_id, dates in by_notice.items():
+        upcoming = [value for value in dates if value >= today]
+        chosen[ntc_id] = (min(upcoming), False) if upcoming else (max(dates), True)
+    return chosen
+
+
+def queue_key(item: QueueItem) -> tuple:
+    """Order inside a class: stage rank, then the earliest upcoming Resolution 35 deadline, then
+    margin descending, then the notice id. A passed deadline comes after every upcoming one
+    (most recent first), a notice with no deadline last."""
+    if item.deadline is None:
+        deadline_rank, ordinal = 2, 0
+    elif item.deadline_passed:
+        deadline_rank, ordinal = 1, -item.deadline.toordinal()
+    else:
+        deadline_rank, ordinal = 0, item.deadline.toordinal()
+    return (item.stage_rank, deadline_rank, ordinal, -(item.margin_db or 0.0), item.ntc_id)
+
+
 def run(
     ific: IficData,
     stations: list[Station],
@@ -125,13 +160,18 @@ def run(
     limits: list[pfd.LimitRow],
     m4_rows: list[dict],
     mode: str = "slice",
+    today: date | None = None,
 ) -> GateResult:
+    today = today or date.today()
     found, g1_dropped, adjacent = gate1(ific, bands)
     visible, g2_dropped = gate2(ific, found, places)
-    cases, undecided, required = gate3(ific, visible, stations, places, limits, m4_rows, adjacent)
+    deadlines = notice_deadlines(ific, today)
+    cases, undecided, required = gate3(
+        ific, visible, stations, places, limits, m4_rows, adjacent, deadlines
+    )
     cases.sort(key=lambda case: -case.margin_db)
     dropped = {**g1_dropped, **g2_dropped}
-    queue = gate4(cases, undecided, ific.notices, required)
+    queue = gate4(cases, undecided, ific.notices, required, deadlines)
 
     counts = {
         "notices": len(ific.notices),
@@ -231,6 +271,7 @@ def gate3(
     limits: list[pfd.LimitRow],
     m4_rows: list[dict],
     adjacent: set[str] | None = None,
+    deadlines: dict[str, tuple[date, bool]] | None = None,
 ) -> tuple[list[Case], dict[str, str], dict[str, tuple[str, float]]]:
     """Worst-case PFD over Finnish territory against the Table 21-4 limit, per notice.
 
@@ -239,12 +280,21 @@ def gate3(
     the unknown set to 0 the required value is `-margin`, and no search over a grid is needed.
     """
     adjacent = adjacent or set()
+    deadlines = deadlines or {}
     cases: list[Case] = []
     undecided: dict[str, str] = {}
     required: dict[str, tuple[str, float]] = {}
     for ntc_id, freqs in visible.items():
         worst, missing = _worst_for_notice(
-            ific, ntc_id, freqs, stations, places, limits, m4_rows, ntc_id in adjacent
+            ific,
+            ntc_id,
+            freqs,
+            stations,
+            places,
+            limits,
+            m4_rows,
+            ntc_id in adjacent,
+            deadline=deadlines.get(ntc_id),
         )
         # shortcut: one second pass with the missing scalar at 0. Both missing is labelled by the
         # first one the loop met, which is enough for the one question a card asks.
@@ -280,6 +330,7 @@ def _worst_for_notice(
     m4_rows: list[dict],
     adjacent: bool = False,
     fill_unknown: bool = False,
+    deadline: tuple[date, bool] | None = None,
 ) -> tuple[Case | None, str | None]:
     geo = ific.geo.get(ntc_id)
     sat_lon = geo.long_nom if geo is not None else None
@@ -382,6 +433,8 @@ def _worst_for_notice(
                 lat=lat,
                 lon=lon,
                 place=label,
+                deadline=deadline[0] if deadline else None,
+                deadline_passed=deadline[1] if deadline else False,
             )
     return worst, missing
 
@@ -426,8 +479,10 @@ def gate4(
     undecided: dict[str, str],
     notices: dict[str, Notice],
     required: dict[str, tuple[str, float]] | None = None,
+    deadlines: dict[str, tuple[date, bool]] | None = None,
 ) -> list[QueueItem]:
-    """Queue every concern: class, then stage, then margin descending; clear stays out.
+    """Queue every concern: class, then stage, then the earliest upcoming Resolution 35 deadline,
+    then margin descending; clear stays out.
 
     Every case is a concern unless the margin is clear *and* Finland allocates the band to a
     satellite downlink: a satellite transmitting where Finland has no such use is a finding on
@@ -437,11 +492,13 @@ def gate4(
     unknown = config.regulatory_stage("")
 
     required = required or {}
+    deadlines = deadlines or {}
 
     def item(ntc_id, klass, reason, margin, case=None) -> QueueItem:
         stage = stages.get(ntc_id, unknown)
         field_name, value = required.get(ntc_id, ("", None))
         notice = notices.get(ntc_id)
+        deadline, passed = deadlines.get(ntc_id, (None, False))
         return QueueItem(
             ntc_id,
             klass,
@@ -454,6 +511,8 @@ def gate4(
             unknown_field=field_name,
             required_db=value,
             filing_action=notice.act_code if notice is not None else "",
+            deadline=deadline,
+            deadline_passed=passed,
         )
 
     items = [
@@ -465,5 +524,5 @@ def gate4(
     queue: list[QueueItem] = []
     for klass in CLASS_ORDER:
         same = [row for row in items if row.klass == klass]
-        queue += sorted(same, key=lambda row: (row.stage_rank, -(row.margin_db or 0.0), row.ntc_id))
+        queue += sorted(same, key=queue_key)
     return queue

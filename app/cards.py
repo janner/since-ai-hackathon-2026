@@ -17,6 +17,7 @@ from app.config import (
     DIRECTIVE_GAIN_DB,
     NTF_REASONS,
     THRESHOLD_NOTE,
+    fmt_date,
     fmt_mhz,
     fmt_num,
     regulatory_stage,
@@ -64,7 +65,7 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             # The run's input digest; the terrestrial path carries the same key in
             # its own `source` block. Same contract, different calculation path.
             "sha256": audit["input_sha256"],
-            "tables": ["notice", "freq", "emiss", "s_beam", "geo", "orbit", "ntc_lnk"],
+            "tables": ["notice", "freq", "emiss", "s_beam", "geo", "orbit", "ntc_lnk", "grp_res35"],
             "keys": {"ntc_id": case.ntc_id, "grp_id": case.grp_id, "beam_name": case.beam},
         },
         "parties": {
@@ -131,6 +132,8 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
         "m4": m4_lookup(m4_rows, case.band_lo_mhz, case.band_hi_mhz),
         "class": case.klass,
         "adjacent": case.adjacent,
+        "deadline": fmt_date(case.deadline) if case.deadline else None,
+        "deadline_passed": case.deadline_passed,
         "regulatory_stage": _regulatory_stage(notice),
         "filing_action": notice.act_code,
         "filing_follows": [
@@ -185,6 +188,14 @@ def _blocking(missing: list[str]) -> list[str]:
     return [field for field in missing if not field.startswith("s_beam.")]
 
 
+def deadline_lines(card: dict) -> list[str]:
+    """The Resolution 35 line, or none. A passed deadline is marked, never hidden."""
+    if not card.get("deadline"):
+        return []
+    passed = " (passed)" if card.get("deadline_passed") else ""
+    return [f"- **Resolution 35 deadline:** {card['deadline']}{passed}"]
+
+
 def render_card_md(card: dict) -> str:
     calc, band, victim = card["calculation"], card["band"], card["victim"] or {}
     stage = card["regulatory_stage"]
@@ -202,6 +213,7 @@ def render_card_md(card: dict) -> str:
         f"{card['parties']['admin']}), beam {card['coverage']['beam']}",
         f"- **Band:** {fmt_mhz(band['freq_min_mhz'])}-{fmt_mhz(band['freq_max_mhz'])} MHz",
         f"- **Stage:** {stage['provision']} — {stage['label']}",
+        *deadline_lines(card),
         f"- **Point:** {where}, elevation {fmt_num(card['coverage']['elevation_deg'])}°",
         f"- **PFD:** {fmt_num(calc['pfd_dbw_m2_hz'])} dB(W/m²/Hz) vs limit "
         f"{fmt_num(calc['limit_dbw_m2_hz'])} dB(W/m²/Hz) → margin {fmt_num(calc['margin_db'])} dB",
@@ -240,12 +252,13 @@ def render_queue_md(result: GateResult) -> str:
         f"# Queue ({len(result.queue)})\n\n"
         f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
         f"{counts['g3']} + {counts['cannot_decide']}\n\n"
-        f"| # | case | class | stage | action | margin dB | Finland band | settles at | reason |\n"
-        "|---|---|---|---|---|---|---|---|---|\n"
+        f"| # | case | class | stage | action | deadline | margin dB | Finland band | "
+        f"settles at | reason |\n"
+        "|---|---|---|---|---|---|---|---|---|---|\n"
     )
     rows = [
         f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
-        f"{item.filing_action or '-'} | "
+        f"{item.filing_action or '-'} | {_deadline_cell(item)} | "
         f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | "
         f"{item.band_use or '-'} | {_settles(item)} | {item.reason} |"
         for index, item in enumerate(result.queue, start=1)
@@ -254,9 +267,18 @@ def render_queue_md(result: GateResult) -> str:
         "\n`settles at` is the value the missing field would need to reach the Table 21-4 limit: "
         "a PSD in dBW/Hz, a beam gain in dBi. It comes from `margin = psd + gain - fspl - limit`, "
         "solved for the missing term at margin 0, so it is an exact bound and not a search "
-        "result.\n"
+        "result. `deadline` is the notice's earliest upcoming Resolution 35 deadline "
+        "(`grp_res35`); a passed one is marked, and `-` means no group of the notice carries one.\n"
     )
     return head + "\n".join(rows) + "\n" + note
+
+
+def _deadline_cell(item) -> str:
+    """The queue's deadline cell: the date, a passed one marked, or `-`."""
+    if item.deadline is None:
+        return "-"
+    passed = " (passed)" if item.deadline_passed else ""
+    return f"{fmt_date(item.deadline)}{passed}"
 
 
 def _settles(item) -> str:

@@ -14,7 +14,8 @@ import json
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 
 TABLES = (
@@ -34,6 +35,7 @@ TABLES = (
     "assgn",
     "ant_type",
     "ntc_lnk",
+    "grp_res35",
 )
 # Without notice and freq there is no analysis at all; the other tables may be absent.
 REQUIRED_TABLES = ("notice", "freq")
@@ -96,6 +98,15 @@ def watts(value, unit) -> float | None:
     if number is None:
         return None
     return number * _POWER_FACTOR.get(str(unit or "").strip().lower(), 1.0)
+
+
+def deadline(value) -> date | None:
+    """'12/19/26 00:00:00' -> date(2026, 12, 19). `mdb-export` renders a date column in the
+    database's own format; anything that is not that shape stays None rather than guessing."""
+    try:
+        return datetime.strptime(str(value or "").strip(), "%m/%d/%y %H:%M:%S").date()
+    except ValueError:
+        return None
 
 
 def iter_rows(path: Path, required: tuple[str, ...] = ()):
@@ -230,6 +241,7 @@ class IficData:
     counts: dict[str, int]
     file: str
     input_sha256: str
+    res35: dict[str, date] = field(default_factory=dict)  # grp_id -> Resolution 35 deadline
 
     def sat_name(self, ntc_id: str) -> str:
         geo = self.geo.get(ntc_id)
@@ -346,7 +358,7 @@ def _export(mdb: Path, table: str) -> list[dict]:
 
 
 def load_ific(mdb_path: Path) -> IficData:
-    """Read the 15 IFIC tables straight from the BR IFIC Access database.
+    """Read the 17 IFIC tables straight from the BR IFIC Access database.
 
     `mdb-export <mdb> <table>` per table: no shell, no intermediate CSV directory. Only
     `notice` and `freq` are mandatory; a table the export cannot read is treated as absent.
@@ -464,6 +476,14 @@ def load_ific(mdb_path: Path) -> IficData:
                 Link(ntc_id=followed, reason=row["lnkntf_rsn"].strip())
             )
 
+    # grp_res35: the Resolution 35 deadline of a group (an empty or unreadable date is dropped,
+    # the group then simply has no deadline).
+    res35: dict[str, date] = {}
+    for row in table("grp_res35", ("grp_id", "d_ms_next_deadline")):
+        value = deadline(row["d_ms_next_deadline"])
+        if value is not None:
+            res35[row["grp_id"].strip()] = value
+
     counts = {name: len(data) for name, data in tables.items()}
     counts["notice"] = len(notices)
     counts["freq"] = len(freqs)
@@ -481,6 +501,7 @@ def load_ific(mdb_path: Path) -> IficData:
         counts=counts,
         file=mdb.name,
         input_sha256=sha256(mdb),
+        res35=res35,
     )
 
 

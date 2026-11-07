@@ -1,11 +1,20 @@
 """The case card: schema, the golden case 3074-103500417 and the M4 lookup."""
 
 from dataclasses import replace
+from datetime import date
 
 import pytest
 
-from app.cards import build_card, m4_lookup, render_card_md, render_queue_md, results_rows
+from app.cards import (
+    build_card,
+    deadline_lines,
+    m4_lookup,
+    render_card_md,
+    render_queue_md,
+    results_rows,
+)
 from app.config import DIRECTIVE_GAIN_DB
+from app.gates import GateResult, QueueItem
 
 CARD_FIELDS = (
     "case_id",
@@ -21,6 +30,8 @@ CARD_FIELDS = (
     "m4",
     "class",
     "adjacent",
+    "deadline",
+    "deadline_passed",
     "regulatory_stage",
     "filing_action",
     "filing_follows",
@@ -261,3 +272,60 @@ def test_card_carries_the_filing_chain_and_the_queue_action(challenge):
     queue = render_queue_md(challenge.slice.result)
     assert "| # | case | class | stage | action |" in queue
     assert "| 103500417 | exceeds | No. 11.2 | M |" in queue
+
+
+def test_deadline_line_marks_a_passed_deadline():
+    """The card's Resolution 35 line shows the date; a passed deadline is marked, not hidden."""
+    assert deadline_lines({"deadline": "19.12.2026", "deadline_passed": False}) == [
+        "- **Resolution 35 deadline:** 19.12.2026"
+    ]
+    assert deadline_lines({"deadline": "18.12.2019", "deadline_passed": True}) == [
+        "- **Resolution 35 deadline:** 18.12.2019 (passed)"
+    ]
+    assert deadline_lines({"deadline": None, "deadline_passed": False}) == []
+
+
+def test_queue_md_carries_a_deadline_column():
+    """Synthetic queue: the deadline column shows the date, marks a passed one, else `-`."""
+    queue = [
+        QueueItem("1", "exceeds", "exceeds", 1.0, deadline=date(2026, 12, 19)),
+        QueueItem(
+            "2", "exceeds", "exceeds", 2.0, deadline=date(2019, 12, 18), deadline_passed=True
+        ),
+        QueueItem("3", "exceeds", "exceeds", 3.0),
+    ]
+    result = GateResult(
+        cases=[],
+        undecided={},
+        dropped={},
+        queue=queue,
+        counts={"notices": 3, "g1": 3, "g2": 3, "g3": 3, "cannot_decide": 0},
+    )
+    md = render_queue_md(result)
+    assert "| # | case | class | stage | action | deadline | margin dB |" in md
+    assert "| 1 | 1 | exceeds |  | - | 19.12.2026 |" in md
+    assert "| 2 | 2 | exceeds |  | - | 18.12.2019 (passed) |" in md
+    assert "| 3 | 3 | exceeds |  | - | - |" in md
+
+
+@pytest.mark.data
+def test_the_demo_card_shows_its_res35_deadline(challenge):
+    """125500277's group falls due on 19 Dec 2026; the card line carries it, a passed one is
+    marked, and a case without a deadline gets no line."""
+    result = challenge.slice.result
+    assert {case.ntc_id for case in result.cases if case.deadline} == {"125500277"}
+    case = result.case_by_id()["125500277"]
+    card = build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
+    assert card["deadline"] == "19.12.2026"
+    assert card["deadline_passed"] is False
+    assert "- **Resolution 35 deadline:** 19.12.2026" in render_card_md(card)
+
+    past = replace(case, deadline=date(2019, 12, 18), deadline_passed=True)
+    past_card = build_card(past, challenge.slice.ific, challenge.slice.m4, _audit())
+    assert past_card["deadline"] == "18.12.2019" and past_card["deadline_passed"] is True
+    assert "- **Resolution 35 deadline:** 18.12.2019 (passed)" in render_card_md(past_card)
+
+    without = replace(case, deadline=None, deadline_passed=False)
+    assert "- **Resolution 35 deadline:**" not in render_card_md(
+        build_card(without, challenge.slice.ific, challenge.slice.m4, _audit())
+    )

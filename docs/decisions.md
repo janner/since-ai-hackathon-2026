@@ -483,7 +483,7 @@ Test: `tests/test_cards.py::test_directive_antenna_gets_a_threshold_note`.
 
 ### I20. The space funnel reads the BR IFIC MDB directly
 
-`app/ingest.py::load_ific()`. The 15 tables are read straight from the Access database with
+`app/ingest.py::load_ific()`. The 17 tables are read straight from the Access database with
 `mdb-export <mdb> <table>` (subprocess, no shell), so there is no intermediate CSV directory and no
 synthetic extract anywhere in the repository. `--ific` takes the `.mdb` path
 (`data/itu-ific-3074/ific3074.mdb`); `scripts/fetch_data.py` only downloads and unpacks the zip. A
@@ -499,6 +499,50 @@ Tests that lock it: `tests/test_ingest.py::test_real_mdb_row_counts` and
 `test_exported_rows_are_mapped_to_ific_data` and the error paths
 `test_missing_mdb_is_a_clear_error`, `test_missing_mdb_export_is_a_clear_error` and
 `test_unreadable_table_is_a_clear_error`.
+
+### I21. The queue's Res 35 deadline is the notice's earliest upcoming group deadline
+
+`app/ingest.py::deadline()` with `IficData.res35`, `app/gates.py::notice_deadlines()` and
+`queue_key()`, `app/cards.py::deadline_lines()`. `grp_res35` carries a Resolution 35 deadline per
+group (`grp_id` -> `d_ms_next_deadline`), and a notice has many groups: the 254 rows of IFIC 3074
+belong to three notices only, 125500277, 126500053 and 325500168. The chain `freq.ntc_id` ->
+`freq.grp_id` -> `grp_res35.grp_id` was read and thrown away, so a filing with a bring-into-use
+deadline read like any other in the queue (the gap was listed in `docs/features.md`).
+
+Choice: a notice's deadline is the earliest date still upcoming over all of its groups, else the
+latest date that has already passed; the queue orders inside a class by stage rank, then that
+deadline (soonest upcoming first, a passed one behind every upcoming one, a notice with no deadline
+last), then the margin. The card carries `deadline` (Finnish `d.m.yyyy`) and `deadline_passed`, and
+`render_card_md()` writes `- **Resolution 35 deadline:** <date>`, appending `(passed)` for one
+already gone. The classes, the margins and every other number do not change: in the demo slice one
+row (125500277, due 19 Dec 2026) moves ahead of a larger margin in its stage, and its card gains one
+line.
+
+Alternatives: the case's own `grp_id` only (rejected: the worst-case group of a notice is not
+necessarily the group that falls due, so the deadline of 125500277 would be missed, since its case
+picked a group without one); sorting by the raw date even when it is past (rejected: a 2019
+deadline would outrank a 2026 one); hiding a passed deadline (rejected: a missed deadline is a
+finding, not noise). The reference date is the run's own instant (`gates.run(today=...)`, the same
+moment as `run_at`), so the run stays deterministic and the data tests pass a fixed date.
+
+Reopen if: the ITU says the deadline attaches to a frequency assignment rather than to the network's
+bring-into-use round, or Traficom wants the group's own deadline on the card rather than the
+notice's earliest.
+
+Tests: `tests/test_ingest.py::test_deadline_reads_the_exported_date`;
+`tests/test_gates.py::test_notice_deadlines_pick_the_earliest_upcoming` (synthetic: earliest
+upcoming, latest passed, a group with no deadline),
+`test_queue_orders_by_stage_then_deadline_then_margin` (synthetic: upcoming ascending, then passed,
+then none) and `test_only_one_demo_case_carries_a_res35_deadline` (data: 125500277 ahead of a larger
+margin in its stage); `tests/test_cards.py::test_deadline_line_marks_a_passed_deadline` and
+`test_queue_md_carries_a_deadline_column` (synthetic) and
+`test_the_demo_card_shows_its_res35_deadline` (data).
+
+Known limit: the order lives in three places (`gate4`, `scripts/notify.py::top_cases`, and
+`app/static/index.html`'s `compareQueue`); only `gate4` gained the deadline key here, so the digest
+and the UI still sort by stage then margin. `out/queue.md` is the queue of record. Updating the two
+copies is a separate change, because a new key can reorder the UI and invalidate the committed
+screenshot.
 
 ### T1. The P.1546 table is generated once and committed
 

@@ -1,3 +1,4 @@
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,6 +15,9 @@ DATA = ROOT / "data"
 IFIC = DATA / "itu-ific-3074" / "ific3074.mdb"
 REGISTER = DATA / "frequencies_of_interest.csv"
 M4 = DATA / "taajuusjakotaulukko.json"
+# A fixed run date keeps the data tests off the wall clock: 19 Dec 2026 is still upcoming,
+# 18 Dec 2019 is already passed (the two deadline values in grp_res35 that reach a demo case).
+RUN_DATE = date(2026, 11, 7)
 
 
 def pytest_collection_modifyitems(config, items):
@@ -45,6 +49,7 @@ def _run_pipeline(ific_mdb: Path, register: Path, m4: Path, all_bands: bool) -> 
         limits,
         m4_rows,
         mode="all" if all_bands else "slice",
+        today=RUN_DATE,
     )
     return SimpleNamespace(
         ific=ific,

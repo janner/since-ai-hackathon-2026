@@ -1,6 +1,7 @@
 """Ingest: unit normalisation, the register, the IFIC tables and the error paths."""
 
 import tracemalloc
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,16 @@ def test_watts_converts_units():
     assert ingest.watts("500", "mW") == 0.5
     assert ingest.watts("", "W") is None
     assert ingest.watts(None, None) is None
+
+
+def test_deadline_reads_the_exported_date():
+    """grp_res35.d_ms_next_deadline is rendered MM/DD/YY; anything else stays None."""
+    assert ingest.deadline("12/19/26 00:00:00") == date(2026, 12, 19)
+    assert ingest.deadline("01/19/31 00:00:00") == date(2031, 1, 19)
+    assert ingest.deadline("12/18/19 00:00:00") == date(2019, 12, 18)
+    assert ingest.deadline("") is None
+    assert ingest.deadline(None) is None
+    assert ingest.deadline("not a date") is None
 
 
 def test_load_register_skips_rows_without_frequency(tmp_path):
@@ -227,6 +238,8 @@ def test_exported_rows_are_mapped_to_ific_data(tmp_path, monkeypatch):
     assert ific.counts["s_beam"] == 1
     assert ific.counts["orbit"] == 1
     assert ific.counts["grp"] == 0  # an absent optional table is not an error
+    assert ific.counts["grp_res35"] == 0
+    assert ific.res35 == {}  # an absent grp_res35 leaves every notice without a deadline
     assert ific.notices["1"].adm == "CHN"
     assert ific.notices["1"].tgt_ntc_id == "2"
     assert ific.geo["1"].sat_name == "COMPASS-80E"
@@ -274,6 +287,7 @@ def test_real_mdb_row_counts(challenge):
     assert counts["geo"] == 72
     assert counts["non_geo"] == 112
     assert counts["orbit"] == 11221
+    assert counts["grp_res35"] == 254
 
 
 @pytest.mark.data

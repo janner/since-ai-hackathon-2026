@@ -94,6 +94,9 @@ def run(
         for index, (lo_mhz, hi_mhz) in enumerate(scope)
     ]
 
+    # The run's own date is the reference for "a deadline is still upcoming"; the same instant
+    # is the run_at stamp below.
+    now = datetime.now(UTC).astimezone()
     result = gates.run(
         ific,
         stations,
@@ -102,8 +105,9 @@ def run(
         limits_rows,
         m4_rows,
         mode="all" if all_bands else "slice",
+        today=now.date(),
     )
-    result.run_at = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
+    result.run_at = now.isoformat(timespec="seconds")
     result.rules_version = RULES_VERSION
     result.freq_rows = ific.counts.get("freq", 0)
     result.elapsed_s = time.monotonic() - started

@@ -1,6 +1,7 @@
 """Gates G1-G4: the funnel counts, the drop reasons and the queue rules."""
 
 from dataclasses import replace
+from datetime import date
 
 import pytest
 
@@ -78,6 +79,40 @@ def test_a_notice_type_s_sending_E_is_dropped(monkeypatch):
     found, dropped, _ = gates.gate1(_ific(freqs, notices), [band])
     assert found == {}
     assert dropped == {"1": ("G1", "earth_station_notice")}
+
+
+def test_notice_deadlines_pick_the_earliest_upcoming():
+    """A notice has many groups; the deadline that matters is its earliest one still upcoming,
+    falling back on the latest passed one when nothing is upcoming."""
+    freqs = [
+        Freq("1", "B", "g1", "E", 3600.0, 3610.0),
+        Freq("1", "B", "g2", "E", 3600.0, 3610.0),
+        Freq("2", "B", "g3", "E", 3600.0, 3610.0),
+        Freq("3", "B", "g4", "E", 3600.0, 3610.0),  # this group carries no deadline
+    ]
+    notices = {"1": _notice("1"), "2": _notice("2"), "3": _notice("3")}
+    ific = replace(
+        _ific(freqs, notices),
+        res35={"g1": date(2031, 1, 19), "g2": date(2026, 12, 19), "g3": date(2018, 1, 1)},
+    )
+    assert gates.notice_deadlines(ific, date(2026, 11, 7)) == {
+        "1": (date(2026, 12, 19), False),
+        "2": (date(2018, 1, 1), True),
+    }
+
+
+def test_queue_orders_by_stage_then_deadline_then_margin():
+    """Inside a class: the stage first, then the soonest upcoming deadline, then the margin.
+    A passed deadline is behind every upcoming one; a notice with no deadline comes last."""
+    notices = {str(i): _notice(str(i)) for i in range(1, 5)}  # all 11.2, one stage rank
+    deadlines = {
+        "1": (date(2031, 1, 19), False),
+        "2": (date(2026, 12, 19), False),
+        "3": (date(2019, 12, 18), True),
+    }  # notice 4 has no deadline
+    undecided = {ntc_id: "no_power" for ntc_id in notices}
+    queue = gates.gate4([], undecided, notices, deadlines=deadlines)
+    assert [item.ntc_id for item in queue] == ["2", "1", "3", "4"]
 
 
 @pytest.mark.data
@@ -206,19 +241,39 @@ def test_a_clear_margin_on_a_non_satellite_band_is_still_a_finding(challenge):
 
 @pytest.mark.data
 def test_queue_order(challenge):
-    """Class order first, then within a class the margin descending."""
+    """Class first; inside a class stage, then deadline, then margin descending."""
     queue = challenge.slice.result.queue
     assert {item.klass for item in queue} == {"exceeds", "near", "not_space", "cannot_decide"}
     ranks = [gates.CLASS_ORDER.index(item.klass) for item in queue]
     assert ranks == sorted(ranks)
+    for klass in gates.CLASS_ORDER:
+        keys = [gates.queue_key(item) for item in queue if item.klass == klass]
+        assert keys == sorted(keys)
+    # with the deadline out of the way, the margin still decides inside one stage
     for stage_rank in {item.stage_rank for item in queue if item.klass == "exceeds"}:
         margins = [
             item.margin_db
             for item in queue
-            if item.klass == "exceeds" and item.stage_rank == stage_rank
+            if item.klass == "exceeds" and item.stage_rank == stage_rank and not item.deadline
         ]
         assert margins == sorted(margins, reverse=True)
     assert [item.reason for item in queue if item.klass == "cannot_decide"] == ["no_power"]
+
+
+@pytest.mark.data
+def test_only_one_demo_case_carries_a_res35_deadline(challenge):
+    """One of the 20 demo cases falls in a group with a Resolution 35 deadline: 125500277, whose
+    earliest upcoming group deadline is 19 Dec 2026 (the fixture's run date is 7 Nov 2026)."""
+    result = challenge.slice.result
+    with_deadline = {case.ntc_id: case for case in result.cases if case.deadline}
+    assert set(with_deadline) == {"125500277"}
+    assert with_deadline["125500277"].deadline == date(2026, 12, 19)
+    assert with_deadline["125500277"].deadline_passed is False
+    # it sorts ahead of a larger margin in the same class and stage: its group falls due
+    first = next(i for i, item in enumerate(result.queue) if item.ntc_id == "125500277")
+    bigger = next(i for i, item in enumerate(result.queue) if item.ntc_id == "125500066")
+    assert result.queue[first].stage_rank == result.queue[bigger].stage_rank
+    assert first < bigger
 
 
 @pytest.mark.data

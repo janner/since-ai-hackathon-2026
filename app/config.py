@@ -7,6 +7,8 @@ register (see app.bands) -- no channel frequency is hardcoded anywhere in this r
 
 from __future__ import annotations
 
+from datetime import date
+
 # ITU space allocations (MHz) that the Finnish register is screened against.
 SPACE_BANDS_MHZ: tuple[tuple[float, float], ...] = (
     (3470.0, 3780.0),
@@ -101,6 +103,11 @@ def fmt_mhz(value: float) -> str:
 def fmt_num(value: float) -> str:
     """-184.78 -> '-184,78' (Finnish decimal comma)."""
     return f"{value:g}".replace(".", ",")
+
+
+def fmt_date(value: date) -> str:
+    """date(2026, 12, 19) -> '19.12.2026' (Finnish day-first order)."""
+    return value.strftime("%d.%m.%Y")
 
 
 def regulatory_stage(prov: str) -> dict:

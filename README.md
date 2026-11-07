@@ -161,7 +161,7 @@ preparation that downloads the fixed packages by hand.
 |---|---|
 | `cases.json` | One card per computed case, full schema, plus the prose block |
 | `cases.md` | The same cards as Markdown |
-| `queue.md` | The queue in decision order: class first, then stage, then margin |
+| `queue.md` | The queue in decision order: class first, then stage, then the earliest upcoming Resolution 35 deadline, then margin |
 | `funnel.json` | Counts per gate, drop reasons, queue state, input hash, rules version, mode |
 | `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 19 columns, dropped notices with stage and reason, plus the regulatory stage of every notice |
 | `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, the letter count, elapsed time |
@@ -305,12 +305,13 @@ at all: open `out/teams_message.html`.
     It does not compare the station's azimuth with the direction of the satellite: the register
     carries an azimuth but no beam width, so a direction-to-source claim would be a guess (I18 in
     `docs/decisions.md`).
-17. The ingest reads 16 IFIC tables and eight of them reach no gate on IFIC 3074 (`c_pfd`, the
+17. The ingest reads 17 IFIC tables and seven of them reach no gate on IFIC 3074 (`c_pfd`, the
     `s_beam.pwr_max_4k` / `pwr_avg_4k` power columns, `coord_agree_ntw`, `res49_sel`, `hist_notice`,
-    `e_stn`, `grp_res35`, `epfd_param`). Each is a measured negative
+    `e_stn`, `epfd_param`). Each is a measured negative
     result, written up table by table in `docs/features.md` under "Data we read and did not use".
     `s_beam.gain` is the one column that is used: it gives every PFD the notice's own peak gain
-    rather than a worst-case guess.
+    rather than a worst-case guess. `grp_res35` was on that list until Resolution 35 deadlines were
+    folded into the queue order and the card (decision I21 in `docs/decisions.md`).
 18. The register has 874 rows (871 stations load; three rows carry no frequency). It is a reference:
     the run reads it for the card's `Reference` line and does not bound the analysis by it. The
     sample's own cover note says a real dataset would be "tens of millions of rows"; the file is
@@ -319,7 +320,7 @@ at all: open `out/teams_message.html`.
     space bands (7 on the demo slice) become `Station` objects, and the funnel is unchanged.
 19. What is not built, and what each piece would take, is listed in `docs/features.md` under "Next
     steps": the AP30 plan path,
-    RR Art. 22 / EPFD, space-side trends, Resolution 35 deadline ordering, the M15 cross-check
+    RR Art. 22 / EPFD, space-side trends, the M15 cross-check
     and the CEPT/ECC DocDB tier.
 
 ## Layout
