@@ -105,7 +105,7 @@ A slice run against the served model, 18 cards, measured before the guard's list
 exceeds 9, near 5, clear 4, 19 in the queue (1 groups, 2 bands)
 ```
 
-That run predates the queue change: the current code queues the 15 cases that need a decision and
+That run predates the queue change: the current code queues the 21 cases that need a decision and
 leaves `clear` out.
 
 Funnel and class counts are identical to the local run. The prose step changes nothing but the
@@ -187,5 +187,7 @@ the same run took 1.19 s. The current code also drafts the nine `exceeds` letter
    card, and some of them still put a correct number in the wrong role (an M4 antenna gain
    reported as the victim's gain, `PSD -42.8 dBW/Hz` for a PFD). The guard cannot catch that, and
    this is exactly why the pipeline leaves the verdict to a human.
-6. **Sandbox lifetime.** The OpenShift AI sandbox expires about 6.12.2026. The local run is the
-   primary demo, and this route is the bonus.
+6. **Sandbox lifetime.** The OpenShift AI sandbox expires about 6.12.2026, and the route is not
+   guaranteed to answer when a judge tries it: on 7 Nov 2026 at about 22:00 it returned HTTP 503
+   (the pod was scaled down or the node was busy). The local run is the primary demo, and this
+   route is the bonus.

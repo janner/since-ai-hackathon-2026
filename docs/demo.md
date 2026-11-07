@@ -78,6 +78,9 @@ letters=3
 elapsed_s=2.05
 ```
 
+The current code reports `register_rows=7` for the same slice, because it builds only the stations
+on the run's bands; the 09:43 run above predates that change.
+
 `runs/3075/funnel.json` carries the counts as `129 → 19 → 9 → 7 + 2`, with the drops
 `no_band_overlap` 110 and `geo_below_horizon` 10, and 129 rows in the queue (9 need attention). The
 run wrote seven cards to `cases.json` (3 exceeds, 4 near, no clear), 129 rows to
@@ -140,7 +143,7 @@ third and not first, and 125500277 (group due 19.12.2026) moves ahead of a large
 - **Limit:** ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287
 - **Limit row:** A -152 dB(W/m²) at 0–5°, K 10 dB, reference bandwidth 4 kHz (p. 287)
 - **Criterion:** ITU RR Art. 21 Table 21-4 is the primary PFD limit (Traficom Q2); CEPT/ECC elaborations are not applied in this build.
-- **Finland allocation:** MOBILE AND FIXED (no satellite service on 3 442-3 478 MHz)
+- **Finland allocation:** MOBILE AND FIXED (no satellite downlink allocation on 3 442-3 478 MHz)
 - This filing follows 100543885 (advance publication, No. 9.1)
 - **Reference:** station 986805 (MVV), 66,1172 N 28,5729 E, directive, 58 dBi
 - **Coverage:** beam name CDN; worst case assumed: peak beam gain toward the Finnish territory
@@ -176,7 +179,7 @@ antenna can be protected at a lower level without changing any number.
 `out/run.log` is the audit line:
 
 ```
-run_at=2026-11-07T15:49:51+02:00
+run_at=2026-11-07T22:14:44+02:00
 input_sha256=a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31
 rules_version=1.1.0
 ific=3074
@@ -190,13 +193,13 @@ bands=1
 visible=GEO 18 NGSO 3
 g1=41 g2=21 g3=20 cannot_decide=1
 letters=11
-elapsed_s=3.92
+elapsed_s=5.45
 ```
 
 The hash is the SHA256 of the BR IFIC MDB the run read, and `source_file` names it; a rerun on
-another package is visible. `register_rows=871` is the reference list the run read, and
-`territory_points=552` is the edge it calculated at: the land borders plus the territorial sea
-outer limit. `bands=1` is the demo slice; the register's 13,1 MHz hole inside it no longer narrows
+another package is visible. `register_rows=7` is the stations the run built for the slice; the
+register has 871 in all, and the full allocation scope builds all of them. `territory_points=552`
+is the edge it calculated at: the land borders plus the territorial sea outer limit. `bands=1` is the demo slice; the register's 13,1 MHz hole inside it no longer narrows
 the screen, because the bands come from the run's scope, not from the register (D17).
 
 `out/funnel.json` carries the same counts as JSON with the drop reasons
@@ -212,15 +215,16 @@ uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 ```
 
 ```
-196 notices → G1 176 → G2 138 → G3 73 + 65 cannot decide
-exceeds 30, near 19, not_space 2, clear 22, 116 in the queue (299 bands, 22.56 s)
+196 notices → G1 176 → G2 138 → G3 100 + 38 cannot decide
+exceeds 55, near 30, not_space 9, clear 6, 196 in the queue (299 bands, 98.49 s)
 ```
 
 This is the accuracy run: every Finnish allocation, 552 points on the territory edge, and a queue of
-116 rows (30 exceeds, 19 near, 2 not_space, 65 cannot decide) that is not capped. The 65 cannot-decide
-rows are 63 `no_limit_for_band` (Table 21-4 has no row for their band; the row still names the Finnish
-band) and two `no_power`. The register's rows stay on the cards as a reference; they do not bound the
-analysis (D17, D18).
+196 rows (132 need attention, 6 checked, 58 no effect) that is not capped. The 38 cannot-decide rows
+are 22 `no_limit_for_band` (their bands are not in Table 21-4 at all: RNSS 1 164-1 300 MHz, 137 MHz,
+400-401 MHz, amateur 435-438 MHz, 1 544 MHz, 2 400-2 425 MHz, 235-400 MHz, 1 427-1 518 MHz), 10
+`no_orbit`, 4 `partly_screened` and 2 `no_power`. The register's rows stay on the cards as a
+reference; they do not bound the analysis (D17, D18).
 
 ## 5. The web UI
 
@@ -271,7 +275,7 @@ The register as this tree shows it, measured 7 Nov 2026:
 
 The five blocks are the three questions. Who: China 43 complaints and 23 still open, Russia 32, the
 United States 32. What: 3 400-4 200 MHz 97 complaints, PFD over the limit 83, near the limit 66, band
-without satellite use in Finland 33. What was done: a comment sent 191 times, coordination requested
+without a satellite downlink allocation 33. What was done: a comment sent 191 times, coordination requested
 26, BR assistance requested 16, no action decided 21, with the outcomes beside each. Per year: 2021
 35, 2022 38, 2023 36, 2024 35, 2025 33, 2026 47.
 
@@ -302,7 +306,7 @@ uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 ```
 
 ```
-terrestrial 3075→3076: 2905 new, 163 modified, 413 withdrawn, 28 notices in reach
+terrestrial 3075→3076: 2905 new, 163 modified, 413 withdrawn, 32 notices in reach
 ```
 
 `out/TERRESTRIAL.md` is the readable report: the intent table, the field strength at the border
@@ -311,24 +315,26 @@ samples, the trends and the anomalies.
 ```
 | terrakey | hallinto | tila | kaista | etäisyys km | max rajalla | kynnys | marginaali |
 |---|---|---|---|---|---|---|---|
-| 92817506 | POL | ADD | 801-806 MHz | 676 | -51.1 | 43.0 | -94.1 |
-| 93005609 | RUS | ADD | 791.14-798.34 MHz | 598 | -77.9 | 44.6 | -122.5 |
-| 93075637 | RUS | ADD | 152.892-152.908 MHz | 42 | 17.5 | 12.0 | +5.5 |
-| 93075638 | RUS | ADD | 152.892-152.908 MHz | 42 | - | 12.0 | - |
+| 92817506 | POL | ADD | 801-806 MHz | 626 | -38.1 | 43.0 | -81.1 |
+| 93005609 | RUS | ADD | 791.14-798.34 MHz | 563 | -66.0 | 44.6 | -110.6 |
+| 93075637 | RUS | ADD | 152.892-152.908 MHz | 42 | 20.9 | 12.0 | +8.9 |
+| 93075638 | RUS | ADD | 152.892-152.908 MHz | 42 | 5.9 | 12.0 | -6.1 |
 
 ## Poikkeamat
 
-- SVN 1770-1775 MHz: ei ilmoituksia edellisessä issuessa, nyt 49.
+- RUS FB 791-796 MHz: ei ilmoituksia edellisessä issuessa, nyt 9.
+- RUS FB 791.14-798.34 MHz: ei ilmoituksia edellisessä issuessa, nyt 10.
 ```
 
-(Three of the 28 rows are shown; the same table covers all of them. A mobile station carries no
-antenna height, so its row reports a dash.)
+(Four of the 32 rows are shown; the same table covers all of them. A mobile station carries no
+antenna height, so its row uses the stated 10 m assumption.)
 
 The header of the same file states the source and the criterion: both MDB file names with their
-SHA256, model `P.1546-6 land, 50/50, no terrain`, and the three-tier framework (ITU RR Art. 21
-Table 21-4 → ECC T/R 25-08 A1.2.3 → national M4). The ECC values are confirmed and applied per
-notice; the national value is not confirmed. The tool reports the margin against the ECC threshold
-and claims no exceedance against the national one.
+SHA256, model `P.1546-6 land, 10 % time, 50 % locations, no terrain`, and the three-tier framework
+(ITU RR Article 11 terrestrial notification and the notice's own coordination provision → ECC T/R
+25-08 A1.2.3 → national M4). The ECC values are confirmed and applied per notice; the national value
+is not confirmed. The tool reports the margin against the ECC threshold and claims no exceedance
+against the national one.
 
 ## 7. Proving the deterministic path
 
@@ -409,7 +415,7 @@ unfinished prototype.
 | 0:50 | open card `3075-108501259` (row 5) and its `Coverage` and `Missing` lines | APSTAR-92E, 3 440-3 480 MHz, No. 11.2: PFD −187,59 against the −188,02 dB(W/m²/Hz) limit, margin +0,43 dB. The beam geometry is empty in IFIC 3075, so the worst case is assumed: peak beam gain aimed at the territory edge. `Missing` says nothing, because nothing blocks the case, and the question asks China to confirm that worst-case PFD. |
 | 1:05 | `runs/3075/letters/3075-108501259.md` | the draft letter: the number, the worst-case assumption, the question. The tool drafts; a human sends it from their own mailbox. |
 | 1:20 | "Show calculation" on the card | the calculation behind the number: max PSD −50,3 dBW/Hz, beam gain 26,0 dBi, slant range 41 222 km, free-space loss 163,29 dB, and the limit with its Article 21 Table 21-4 row. |
-| 1:35 | `out/TERRESTRIAL.md` | the same style for terrestrial notices: 2 905 new, 163 modified, 413 withdrawn and 28 notices in reach against BR IFIC 3076. That file comes from the offline run into `out/`; the monitor run is space-only. |
+| 1:35 | `out/TERRESTRIAL.md` | the same style for terrestrial notices: 2 905 new, 163 modified, 413 withdrawn and 32 notices in reach against BR IFIC 3076, six above the ECC T/R 25-08 trigger. That file comes from the offline run into `out/`; the monitor run is space-only. |
 | 1:50 | `runs/3075/queue.md`, rows 8 and 9 (`126590034`, `126590035`) | "ihminen päättää": the two notices the tool refuses to decide, with the level each would need (psd ≥ −22,29 and −24,75 dBW/Hz). Listing them instead of guessing is the point; the decision is left to a human. |
 
 **Why not to click.** The check fetches the number after `runs/latest`. On 7 Nov 2026 that was 3075

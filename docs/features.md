@@ -60,10 +60,10 @@ counting the dropped rows), `test_register_streams_a_million_rows` (1 M syntheti
 `tracemalloc` peak under 20 MB),
 `test_exported_rows_are_mapped_to_ific_data` (the mapping from exported rows to `IficData`, with
 `mdb-export` stubbed), `test_ntc_lnk_maps_a_filing_to_the_notice_it_follows` (the same stub: the
-links, and an `ntc_lnk` row without a target), and the seven error paths (`test_empty_file_is_a_clear_error`,
-`test_missing_column_names_the_column`, `test_header_only_file_is_a_clear_error`,
-`test_missing_mdb_is_a_clear_error`, `test_missing_mdb_export_is_a_clear_error`,
-`test_unreadable_table_is_a_clear_error`, `test_m4_without_value_array_is_a_clear_error`).
+links, and an `ntc_lnk` row without a target), and the six error paths
+(`test_empty_file_is_a_clear_error`, `test_missing_column_names_the_column`,
+`test_header_only_file_is_a_clear_error`, `test_missing_mdb_is_a_clear_error`,
+`test_missing_mdb_export_is_a_clear_error`, `test_unreadable_table_is_a_clear_error`).
 The data tests `test_real_mdb_row_counts`, `test_real_register_and_mdb_hash` and
 `test_real_register_keeps_rows_without_a_licence_class` lock the 196 notices, 95 865 frequency rows,
 the 254 `grp_res35` rows, the MDB SHA256, and the 294 register rows that carry no `Class of licence`.
@@ -115,24 +115,29 @@ the full run, 8 earth-station drops in the full run) and the `ngso_never_visible
 ## F4: PFD geometry and the Table 21-4 limit
 
 `app/pfd.py` holds the physics and the limit table. Every number is a constant, a formula, or a row
-read from `rules/rr21_table21_4.csv` (13 rows, columns `freq_lo_mhz`, `freq_hi_mhz`, `orbit`,
-`a_db`, `k_db`, `ref_hz`, `offset`, `service`, `page`, `source`).
+read from `rules/rr21_table21_4.csv` (51 rows, every Region-1-applicable row of ITU RR 2024 Article
+21 Table 21-4, Vol. 1 pp. 286-291; columns `freq_lo_mhz`, `freq_hi_mhz`, `orbit`, `a_db`, `k_db`,
+`ref_hz`, `offset`, `service`, `page`, `source`, and the optional `breaks` for the piecewise
+elevation curves).
 
 | Function | What it computes |
 |---|---|
 | `look(lat, lon, sat_lon)` | GEO elevation in degrees and slant range in km from a station |
 | `slant(h_km, elev_deg)` | slant range from an altitude at an elevation angle |
 | `fspl(d_km)` | free-space loss, `10*log10(4*pi*(d*1000)^2)` |
-| `limit_row(limits, lo, hi, orbit)` | the row that contains the whole notified band, or `None`; a HEO notice without its own row falls back to the NGSO row |
+| `limit_row(limits, lo, hi, orbit)` | the strictest row that covers the notified band, splitting the band at the table's row and sub-band edges; `None` when any part is outside the table. A HEO notice uses its own rows (footnote 16 included) and falls back to the NGSO row only where the table has no HEO row |
 | `limit_hz(row, elev, offset)` | the limit at an elevation angle: flat below 5°, linear between 5° and 25°, flat again above, minus `10*log10(ref_hz)`. Continuous at 25° |
 | `x_fn(n)` | footnote 13 offset; `None` above 999, which forces `cannot_decide` |
 | `y_fn(n_max)` | footnote 22 offset, `5*log10(max(NN, NS))`, applied above 2 |
 | `ngso_reach(orbit)` | the highest latitude the orbit reaches at zero elevation |
 | `is_heo(orbits)` | apogee above 18 000 km with an inclination between 35° and 145° |
 
-Tests (`tests/test_pfd.py`, 12): `test_table_has_thirteen_rows`,
+Tests (`tests/test_pfd.py`, 12): `test_table_has_every_region_1_row`,
 `test_limit_row_needs_a_row_that_contains_the_whole_band`,
-`test_heo_uses_the_ngso_row_when_there_is_no_heo_row`, `test_vector_1_arithmetic`,
+`test_heo_uses_the_ngso_row_when_there_is_no_heo_row`,
+`test_heo_takes_the_footnote_16_row_at_17_7_to_19_7_ghz`,
+`test_breaks_interpolate_and_are_continuous`, `test_straddling_band_takes_the_strictest_row`,
+`test_gap_between_rows_gives_no_limit`, `test_vector_1_arithmetic`,
 `test_vector_2_arithmetic`, `test_every_limit_row_is_continuous_at_25_degrees`,
 `test_limit_hz_segments`, `test_limit_hz_offset_applies_to_the_low_angles`,
 `test_x_and_y_offsets`, `test_ngso_reach`, `test_is_heo_needs_both_apogee_and_inclination`,
@@ -156,9 +161,14 @@ limit does not rise faster. A non-GSO notice is sampled over a pass from 0° to 
 which is a worst case over every latitude and needs no location.
 
 A notice with nothing computable lands in `undecided` with one reason: `no_orbit`, `no_perigee`,
-`no_limit_for_band`, `no_power`, `no_gain` or `x_needs_nv`. Classification uses the margin rounded to
-two decimals: `exceeds` above 0 dB, `near` between −3 and 0 dB, `not_space` at or below −3 dB when
-a part of the band has no satellite service in Finland, `clear` otherwise. An adjacent-channel
+`no_limit_for_band`, `no_power`, `no_gain` or `x_needs_nv`. A notice whose rows are only partly
+computable is `cannot_decide` with reason `partly_screened` when the computed rows are clear, never
+`clear`; the case carries `unscreened`, the rows it could not compute with their reason, and the
+card prints them on a `Not computed` line. A blank constellation size is computed at X = Y = 0, the
+most lenient limit, and the row is marked `no_constellation_size` so a clear result cannot pass as
+clear. Classification uses the margin rounded to two decimals: `exceeds` above 0 dB, `near` between
+−3 and 0 dB, `not_space` at or below −3 dB when a part of the band has no satellite downlink
+allocation in Finland, `clear` otherwise. An adjacent-channel
 case (see F3) keeps its margin but is capped at `near`: the Table 21-4 limit belongs to the notified
 band and does not apply outside it. The register's rows on the band are a reference only: the block
 names the one with the highest margin, and the number itself is taken at the territory edge.
@@ -188,7 +198,8 @@ upcoming, one passed, one absent), `test_queue_orders_by_stage_then_class_then_d
 `test_queue_order`, `test_only_one_demo_case_carries_a_res35_deadline` (125500277, due 19 Dec 2026,
 sorts ahead of a larger margin in its stage), `test_an_adjacent_case_is_capped_at_near`,
 `test_demo_slice_funnel`, `test_all_bands_funnel`, `test_vector_2_from_the_real_data`,
-`test_case_126590032_cannot_be_decided`.
+`test_case_126590032_cannot_be_decided`, `test_a_clear_case_never_hides_an_uncomputed_row`,
+`test_the_allocation_is_checked_on_every_row`.
 
 ## F6: case cards and the M4 allocation
 
@@ -224,17 +235,20 @@ satellite direction (see I18 in `docs/decisions.md`).
 
 The `victim` block carries `power_w`, and the card carries a top-level `synthetic_data_warning`
 that is set when the victim received power is above 1 GW: the register value is a synthetic
-artefact, so it is shown but never used in the PFD. In the `--all` run 14 cards are flagged.
+artefact, so it is shown but never used in the PFD. In the `--all` run 10 cards are flagged.
 `point` carries the territory edge vertex where the level was taken (`lat`, `lon`, `place`), or
 `any point in Finland` for a non-GSO pass; `victim` is the reference row from the register, not the
 anchor of the number (D17).
 
 M4 (`app/allocation.py::m4_lookup()`) is a finding, not only context: it lists the sub-band IDs that
 overlap the notified band, the merged band range in MHz, the Finnish services from the open data
-table, `satellite_use` and the source URL. `satellite_use` is true only when every part of the
-notified band has a satellite service, in either direction; a part without one makes the notice a
-finding (D18). A band with no M4 row gets `rows: []`, `services_in_finland: "not allocated"` and the same
-`not_space` finding.
+table, `satellite_use`, `gaps` and the source URL. `satellite_use` is true only when every part of
+every row carries a space-to-Earth allocation: a satellite service with no stated direction, with
+space-to-Earth in its direction, or an active sensor. Uplink-only, inter-satellite and passive rows
+do not cover a downlink. The allocation is checked on every downlink row of the notice, not only on
+the row with the worst margin; one row without a downlink allocation makes the notice a finding
+(D18), and `gaps` lists every such part. A band with no M4 row gets `rows: []`,
+`services_in_finland: "not allocated"` and the same `not_space` finding.
 
 `same_network()` lists other notices of the same satellite and administration, or a notified
 target. The card shows them; every notice is still decided on its own.
@@ -252,7 +266,9 @@ cause. `render_run_log()` writes the IFIC number, the input file name and the ha
 counts.
 
 Tests (`tests/test_cards.py`, 16): `test_card_has_the_whole_schema`,
-`test_m4_lookup_names_the_service_and_the_downlink`, `test_missing_register_field_is_reported`,
+`test_m4_lookup_names_the_service_and_satellite_use`,
+`test_m4_lookup_splits_the_band_and_flags_the_part_without_satellite_use`,
+`test_missing_register_field_is_reported`,
 `test_results_rows_cover_every_notice` (asserts one row per notice, the empty `class` for a gate
 drop and the `dropped_at` plus `reason`), `test_a_too_large_victim_power_is_flagged`,
 `test_a_normal_victim_power_has_no_warning`, `test_directive_antenna_gets_a_threshold_note`,
@@ -296,8 +312,7 @@ Tests (`tests/test_pipeline.py`, 13): `test_slice_run_writes_every_output`,
 `test_run_log_records_the_source_and_the_counts`,
 `test_letters_are_written_for_the_exceeds_cards`, `test_out_directory_is_created`,
 `test_missing_input_is_a_clear_error`, `test_missing_argument_is_an_argparse_error`,
-`test_bad_input_returns_exit_code_two`, `test_missing_limits_is_a_clear_error`,
-`test_register_without_stations_on_a_band_is_a_clear_error`, and the data tests
+`test_bad_input_returns_exit_code_two`, `test_missing_limits_is_a_clear_error`, and the data tests
 `test_one_command_writes_both_space_and_terrestrial_outputs` and
 `test_without_the_terrestrial_flag_the_space_run_is_unchanged`. Every test that reads a run output
 runs the CLI once on the real MDB into a temporary `out/`.
@@ -348,7 +363,8 @@ the same pass as the space funnel, into the same `out/`, and its output carries 
 as a case card. It shares `app.ingest`'s provenance (`sha256`, `input_digest`) and
 `app.config.RULES_VERSION`, imports nothing from `app.gates` or `app.pfd`, and its own calculation
 path is ITU-R P.1546-6 field strength, not the PFD gates. It reads the real BR IFIC terrestrial
-databases with the same `mdb-export` reader `app/ingest.py` uses.
+databases through the same `app.ingest._export` helper as the space path: the same `mdb-export`
+step, and `DataError` when the export fails.
 
 ```bash
 uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
@@ -367,18 +383,20 @@ Tables used, one row per `fxm_terra` notice:
 
 `pwr_dbw` is dBW; an EIRP value is converted to ERP by −2.15 dB. A row without frequency, location
 or power is counted under the top-level `missing` block, under its reason (`frequency` / `location` /
-`power`), and not computed; a missing antenna height leaves the field strength empty rather than
-guessed.
+`power`), and not computed. A notice without an antenna height uses h1 = 10 m, the lowest P.1546
+table height, and the assumption is stated on the finding (2 notices in 3076). A notice that cannot
+be computed at all gets `coordination: null` (`undecided`) with the empty field named, never
+`false`; 3076 has none.
 
 | Step | Behaviour |
 |---|---|
 | Diff | from `fxm_terra.intent`: ADD → `new`, MODIFY → `modified`, SUPPRESS → `withdrawn`, RECORDED → the stock, not a change. The IFIC is not a cumulative database (3075 and 3076 share no `terrakey`), so the change is this field, not a key comparison |
-| Filter | keeps `stn_cls` in `{FB, ML, FL}`, within 1 000 km of the nearest point on the Finnish border, and overlapping the register on RX or TX. The border is the land borders with Sweden, Norway and Russia plus the outer limit of the territorial sea (12 nautical miles), not the coastline (Traficom 7.11.2026) |
-| Field strength | `field_strength_p1546(freq, dist, h_ant, p_erp_kw)` interpolates the P.1546-6 land table linearly in frequency, height and distance, then adds `10*log10(p)`. Model: land path, 50 % of time, 50 % of locations, no terrain, 10 m receiving antenna |
-| Extrapolation | a query outside any of the three table axes (frequency, antenna height, distance) clamps to the nearest node; the notice is flagged `extrapolated: true` when any border sample is outside |
-| Trends | grouped by administration, band label, class and bandwidth; new, modified and withdrawn against the same group in the previous number (3075) |
-| Anomalies | a group with nothing in the previous number and three or more now |
-| Threshold | the ECC T/R 25-08 A1.2.3 coordination values are confirmed (0/6/12/18/20 dBµV/m by band, 25 kHz reference, 10 % time, 10 m receiving antenna) and applied per notice; Traficom 7.11.2026 applies the same 20 dBµV/m above 470 MHz. The national M4 value is not confirmed. The criterion line names the three tiers (ITU RR Art. 21 Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4 / Traficomin taajuusjakotaulukko) |
+| Filter | keeps `stn_cls` in `{FB, ML, FL}` within 1 000 km of the nearest point on the Finnish border and overlapping the register on RX or TX, plus every notice whose `fxm_coord` lists Finland as an affected administration whatever its class or distance (11 in 3076, 4 of them outside the register overlap). Finland's own notices (`adm` FIN) are excluded. The border is the land borders with Sweden, Norway and Russia plus the outer limit of the territorial sea (12 nautical miles), not the coastline (Traficom 7.11.2026) |
+| Field strength | `field_strength_p1546(freq, dist, h_ant, p_erp_kw)` interpolates the P.1546-6 land table as Annex 5 prescribes (log distance, log antenna height, log frequency, capped at the free-space field), then adds `10*log10(p)`. Model: land path, 10 % time, 50 % of locations, no terrain, 10 m receiving antenna, 1 kW ERP basis |
+| Extrapolation | a query outside any of the three table axes (frequency, antenna height, distance) clamps to the nearest node and the clamp is listed in the run's assumptions; `extrapolated: true` is set only when the border point that gives the maximum is outside the table (0 notices in 3076) |
+| Trends | grouped by administration, band label, class and bandwidth, with a first column `neighbour` (RUS, S, NOR, EST, LVA, LTU, or any group with a notice within 1 000 km of the border), neighbours first; new, modified and withdrawn against the same group in the previous number (3075). `TERRESTRIAL.md` shows the 10 largest neighbour groups of 138 |
+| Anomalies | neighbours only, at most 5, each with a one-line reason: a group with nothing in the previous number and three or more now |
+| Threshold | the ECC T/R 25-08 A1.2.3 coordination values are confirmed (0/6/12/18/20 dBµV/m by band, 25 kHz reference, 10 % time, 10 m receiving antenna) and applied per notice, with the bandwidth correction `10*log10(bw/25 kHz)` from `fxm_terra.bdwdth` (fallback: the frequency range); Traficom 7.11.2026 applies the same 20 dBµV/m above 470 MHz. The national M4 value is not confirmed. The criterion line names the three tiers (ITU RR Article 11 terrestrial notification and the notice's own coordination provision → ECC T/R 25-08 trigger field strength → national M4 / Traficomin taajuusjakotaulukko) |
 
 Every finding carries its own source reference: the IFIC number, `terrakey`, `adm_ref_id`, `adm`,
 `intent` and the tables it came from, alongside `band`, `distance_to_finland_km`, `p_erp_kw`,
@@ -394,25 +412,38 @@ register directions count as overlap, because a channel
 is a pair: RX 464.04 MHz and TX 454.04 MHz belong to the same licence.
 
 Measured on the real pair: 3076 has 4 057 `fxm_terra` rows, `intent` ADD 2 905 / MODIFY 163 /
-SUPPRESS 413 / RECORDED 576, 313 Russian notices (FX 188, ML 68, FB 57); the filter leaves 28
-notices in reach of the register. 40 rows are skipped for a missing field (31 power, 9 location).
+SUPPRESS 413 / RECORDED 576, 313 Russian notices (FX 188, ML 68, FB 57); the filter leaves 32
+notices in reach, 6 above the ECC T/R 25-08 trigger at the border line (all RUS FB at 152-153 MHz,
+margins +8.1 to +13.0 dB), 0 undecided, and 4 of the 11 evaluated Finnish register stations above
+12 dBµV/m (614221 16.5, 617699 14.7, 601062 12.5, 615366 12.1). 40 rows are skipped for a missing
+field (31 power, 9 location).
 
 Outputs: `terrestrial_findings.json`, `terrestrial_trends.csv`, `TERRESTRIAL.md`.
 
 Tests (`tests/test_terrestrial.py`, 21): `test_diff_intents_reads_the_intent_field`,
-`test_filter_keeps_land_mobile_in_reach`, `test_trends_group_by_adm_band_class_width`,
-`test_findings_leaves_threshold_open_and_cites_the_source`,
+`test_filter_keeps_land_mobile_in_reach`,
+`test_a_notice_naming_finland_in_fxm_coord_shows_why_it_was_kept`,
+`test_trends_group_by_adm_band_class_width`,
+`test_anomalies_are_neighbours_only_with_a_reason`,
+`test_findings_applies_the_tr2508_threshold`,
+`test_findings_carry_the_same_provenance_contract_as_a_space_card`,
 `test_params_say_what_the_field_strength_is_computed_for`,
 `test_field_strength_matches_p1546_table_node`,
+`test_field_strength_interpolates_logarithmically_per_annex_5`,
 `test_field_strength_falls_with_distance_and_follows_power`,
 `test_field_strength_rejects_unusable_input`, `test_extrapolated_flags_clamped_query`,
-`test_findings_flags_extrapolated_per_point`, `test_a_notice_without_antenna_height_gets_no_value`,
+`test_extrapolated_follows_the_point_that_gives_the_maximum`,
+`test_a_notice_without_antenna_height_uses_the_stated_assumption`,
+`test_an_uncomputable_notice_is_undecided_never_clear`,
+`test_bandwidth_comes_from_bdwdth_when_present`,
+`test_tr2508_threshold_is_frequency_dependent_and_bandwidth_corrected`,
 `test_run_writes_three_outputs`, `test_load_issue_mdb_rejects_a_missing_file`,
 `test_cli_fails_cleanly_on_missing_input`, `test_register_counts_both_rx_and_tx_directions`,
-`test_register_without_frequency_columns_is_rejected`, and the four data tests
+`test_register_without_frequency_columns_is_rejected`, and the data tests
 `test_real_3076_intent_distribution_and_source`, `test_real_3076_russian_federation_notices`,
-`test_real_mdb_prints_the_example_finding` and `test_cli_runs_on_the_real_mdb`, which read the real
-MDBs and skip when `data/itu-terr-ific` is missing.
+`test_real_mdb_prints_the_example_finding`,
+`test_real_run_flags_the_vhf_stations_above_the_threshold` and `test_cli_runs_on_the_real_mdb`,
+which read the real MDBs and skip when `data/itu-terr-ific` is missing.
 
 The P.1546 table in `rules/p1546_land.csv` was generated once, outside the runtime, with the ITU
 reference implementation; see `docs/decisions.md`.
@@ -582,6 +613,8 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 | Step | What it would take | Estimate |
 |---|---|---|
 | Space-side trends | The customer's first next step. Needs a second space IFIC issue; the terrestrial side already has trends | Medium, blocked on data |
+| Table 21-4 footnote conditions | fn 11, fn 12, Nos. 5.381/5.382 and 5.453/5.455 are not modelled; the current rule is conservative and may over-flag | Medium |
+| Annex 5 eq. 9 for h1 below 10 m | The table starts at 10 m, so a lower antenna is clamped; the recommendation's own formula would remove the clamp | Small |
 | M15 cross-check | The brief lists it; the tool does not use it | Medium |
 | CEPT/ECC DocDB | The third tier of the protection framework; not used | Medium |
 | AP30 / AP30A / AP30B | The customer ranked this below space-side trends. Open `SPS_ALL_IFIC3083.zip` (72 MB) and `30B_3083.zip` (22 MB) with `mdb-export` and build a plan path | Large |

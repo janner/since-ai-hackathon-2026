@@ -24,7 +24,7 @@ terrestrial pass and the draft letter stay off the video.
 | 0:45 | the funnel of the 3075 run | Of the 129, 19 overlap a band in the scope. Nine can be seen from Finland. |
 | 0:52 | same funnel | Seven get a computed number. Two cannot be decided, and the tool says so. |
 | 0:58 | queue, rows 1–5; open card `3075-108501259` (fifth row) | The first row is a coordination-stage near case Finland can still influence; the APSTAR exceedance is fifth because its filing is already in the MIFR. |
-| 1:05 | the card | Its power flux density is 0.43 decibels over the Article 21, Table 21-4 limit, and the band is not a satellite allocation in Finland at all. |
+| 1:05 | the card | Its power flux density is 0.43 decibels over the Article 21, Table 21-4 limit, and the band has no satellite downlink allocation in Finland at all. |
 | 1:12 | "Show calculation" | Open the calculation: every input is on screen. |
 | 1:18 | the calculation block | Max power density, 26 decibels of beam gain, 41,222 kilometres of path, 163 decibels of free-space loss, against the limit row. |
 | 1:27 | the card's `Coverage` and `Missing` lines | The beam data is empty in this package, so the worst case is assumed: the peak gain is aimed at the territory edge. Nothing is listed as missing. |

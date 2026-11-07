@@ -144,8 +144,8 @@ percentage is A1.2.3's 10 % (the answer did not restate it, but A1.2.3 is the na
 
 **What changed.** The A1.2.3 reading is confirmed; `rules/tr2508_thresholds.csv` already carries the
 20 dBµV/m row above 470 MHz. The 400 MHz range's NB/WB and LTE/LTE tables (20/55/37 dBµV/m) are not
-used. The P.1546 table stays 50 % time, so the note in the output about a flagged station being a
-definite exceedance while a low value proves nothing remains true.
+used. The P.1546 table is generated at the same 10 % time as the criterion, so the model and the
+threshold describe the same quantity.
 
 ### F2. Which border sections count
 
@@ -159,8 +159,8 @@ sea. The Åland question is answered by the territorial sea outer limit, which s
 the 12 nautical mile territorial sea outer limit (TS) from Marine Regions. The coastline is dropped.
 `border_line()` returns polylines split on section, `border_samples()` samples each, and
 `distance_to_border_km()` takes the minimum over all of them. The border maximum for POL 92817506
-(801–806 MHz) moved from −51.1 to −46.9 dBµV/m, and its strongest section is now TS. Recorded in
-`docs/decisions.md` T2 and `docs/features.md` F6.
+(801–806 MHz) is −38.1 dBµV/m, and its strongest section is TS. Recorded in `docs/decisions.md` T2
+and `docs/features.md` F9.
 
 ### F3. Fixed (FX) records
 

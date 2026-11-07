@@ -127,8 +127,9 @@ exceeds 9, near 5, clear 4, 15 in the queue (1 groups, 2 bands, 7.42 s)
 wrote /workspace/out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log, letters/
 ```
 
-The funnel reproduces the laptop run exactly (196 → 41 → 19 → 18 + 1); the deterministic
-part took 7.42 s in the cluster.
+The funnel reproduces the laptop run of the same commit exactly (196 → 41 → 19 → 18 + 1); the
+deterministic part took 7.42 s in the cluster. The current code's slice is 196 → 41 → 21 → 20 + 1
+after the fail-closed and full-table fixes, so this run is dated evidence, not the current count.
 
 ### metrics
 

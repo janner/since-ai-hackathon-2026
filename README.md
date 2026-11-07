@@ -28,7 +28,8 @@ from ITU on the two-week cadence. The run screens every space-to-Earth notice, k
 satellite can bring over Finnish territory, and computes an upper-bound power flux
 density (PFD) at the edge of that territory against the ITU Radio Regulations Article 21, Table 21-4
 limit. Every band is also checked against Finland's own allocation (Regulation M4): a part of the
-band with no satellite service is a finding on its own, even when the PFD is below the limit. The
+band with no satellite downlink allocation is a finding on its own, even when the PFD is below the
+limit. The
 delivered register is a reference, not the boundary of the analysis. That is Traficom's rule of
 7 Nov 2026 (`docs/traficom-qa.md` F5): a limit exceedance alone is not enough, the level over
 Finnish territory is what matters, and the band is what a case is about. The full run covers every
@@ -45,7 +46,7 @@ undecidables. The queue lists every notice in three tiers: `attention` (what a h
 `checked` (clear of the limit) and `no_effect` (dropped by a gate, with the reason). It orders by
 regulatory stage first: a filing another administration can still influence (advance publication,
 coordination request) comes before one already recorded in the MIFR. Inside a stage it orders by
-class (exceedance, near-limit, band without satellite use, cannot decide), then by the earliest
+class (exceedance, near-limit, band without a satellite downlink, cannot decide), then by the earliest
 upcoming Resolution 35 deadline. The margin does not order, because the specialist reviews every
 case the filter passes (Traficom, S1). It is not capped. The results CSV still covers all 196
 notices, the dropped ones included (it ships as `results/3074_results.csv` inside the submission
@@ -59,9 +60,10 @@ deterministic template is the floor when no model answers.
 A side feature applies the same style to terrestrial land-mobile notices under the same command: it
 runs in the same `app.pipeline` pass (`--terrestrial`), writes into the same `out/`, and carries the
 same `source` / `audit` / `missing` fields. It reads two real BR IFIC terrestrial databases (3075 and
-3076), takes the change from each notice's `intent` field, filters what is within 1 000 km of Finland
-and overlaps the register, and computes ITU-R P.1546-6 field strength at points along the Finnish border
-(the land borders with Sweden, Norway and Russia plus the outer limit of the territorial sea).
+3076), takes the change from each notice's `intent` field, keeps the land-mobile notices within
+1 000 km of Finland that overlap the register and every notice whose coordination record names
+Finland, and computes ITU-R P.1546-6 field strength (land, 10 % time) at points along the Finnish
+border (the land borders with Sweden, Norway and Russia plus the outer limit of the territorial sea).
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
@@ -92,7 +94,7 @@ The history from 2021 to 2026 in the demo is generated and labelled: `python scr
 its banner. The real rows come from the pipeline runs; `ledger/complaints.jsonl` holds the IFIC 3074
 run, 18 complaints, and a second run of the same package adds none.
 
-The queue lists every notice in three tiers: `attention` (exceeds, near, a band with a part Finland has not allocated to satellite use, cannot decide), `checked` (clear of the limit) and `no_effect` (dropped by a gate, with the reason). `out/queue.md` has one section per tier.
+The queue lists every notice in three tiers: `attention` (exceeds, near, a band with a part Finland has not allocated to satellite downlink, cannot decide), `checked` (clear of the limit) and `no_effect` (dropped by a gate, with the reason). `out/queue.md` has one section per tier.
 
 ## Verified numbers
 
@@ -117,15 +119,16 @@ exits 1; `runs/latest` stays where it was, and `hermes cron runs` shows the run 
 | Bands in scope | 1 | 299 |
 | G1 band overlap | 41 | 176 |
 | G2 visible from Finland | 21 (18 GEO, 3 non-GSO) | 138 |
-| G3 computed | 20 | 73 |
-| cannot_decide | 1 (`no_power`) | 65 |
-| exceeds / near / not_space / clear | 11 / 5 / 4 / 0 | 30 / 19 / 2 / 22 |
-| Queue (needs attention) | 21 | 116 |
+| G3 computed | 20 | 100 |
+| cannot_decide | 1 (`no_power`) | 38 |
+| exceeds / near / not_space / clear | 11 / 5 / 4 / 0 | 55 / 30 / 9 / 6 |
+| Queue (needs attention) | 21 | 132 |
 
-`not_space` is the frequency finding of `docs/decisions.md` D17 and D18: the band has no satellite
-service in Finland, so a satellite transmitting there is a case even when the margin is clear.
-The demo slice is `MOBILE AND FIXED` in Finland, so all 20 demo cases carry it. The page lists
-every notice in three tiers; the queue column above is the needs-attention tier.
+`not_space` is the frequency finding of `docs/decisions.md` D17 and D18: a part of the band has no
+satellite downlink allocation in Finland, so a satellite transmitting there is a case even when the
+margin is clear. The demo slice is `MOBILE AND FIXED` in Finland, so all 20 demo cases carry the gap
+on their card. The page lists every notice in three tiers; the queue column above is the
+needs-attention tier.
 
 Two test vectors reproduce to the digit:
 
@@ -135,7 +138,7 @@ Two test vectors reproduce to the digit:
 | 124545403 | −137,56 dB(W/m²/Hz) | −198,00 | +60,44 dB | 5,0° | 2 310 km |
 
 The plan's own funnel (100 / 74 / 10) came from screening against the register's bands; this code
-screens every Finnish allocation and reaches 176 / 138 / 73 (D18), so the two are not comparable. The
+screens every Finnish allocation and reaches 176 / 138 / 100 (D18), so the two are not comparable. The
 reference tool behind the plan also read the register cell `0,1G` as 0.1 MHz; this code reads the
 `Channel bandwidth` column as 0.1 GHz = 100 MHz. The demo slice is identical either way, and the
 differences are written up in `docs/decisions.md`; `tests/test_gates.py` locks these numbers in.
@@ -144,8 +147,10 @@ The auto-fetch run in `runs/3075/` is the current code's demo; its counts were u
 (the slice is one band), but the queue order puts the coordination-stage cases first.
 
 The terrestrial side feature on the real BR IFIC 3076 against 3075 reports 2 905 new, 163 modified,
-413 withdrawn and 576 recorded notices, and 28 notices in reach (land mobile, within 1 000 km,
-overlapping the register).
+413 withdrawn and 576 recorded notices, and 32 notices in reach: land mobile within 1 000 km and
+overlapping the register, plus every notice whose coordination record names Finland. Six of them
+pass the ECC T/R 25-08 trigger at the border line, and four Finnish register stations see more than
+12 dBµV/m from a foreign transmitter.
 
 ## Run it
 
@@ -287,9 +292,11 @@ at all: open `out/teams_message.html`.
 3. Non-GSO geometry is a sweep, not an orbit propagation: the worst case samples a pass from
    perigee in 0.1° steps up to 90° (`app/gates.py`, marked `shortcut`). Station position does not
    change the result for a non-GSO notice, and there is no ephemeris.
-4. A Table 21-4 row must contain the whole notified band. A band that straddles two rows, or sits
-   outside the tabulated range, becomes `cannot_decide` with reason `no_limit_for_band` rather than
-   borrowing a neighbour's limit.
+4. A band that straddles two Table 21-4 rows is judged against the strictest row that covers it, and
+   a band with any part outside the table becomes `cannot_decide` with reason `no_limit_for_band`
+   rather than borrowing a neighbour's limit. A notice whose rows are only partly computable is
+   `cannot_decide` with reason `partly_screened` when the computed rows are clear, never `clear`;
+   the card lists the rows it could not compute under `unscreened`.
 5. Reason codes for one notice can hide each other: inside the per-notice loop the reason is
    overwritten in the order `no_limit_for_band`, `no_power`, `no_gain`, so a notice missing two
    things reports one of them.
@@ -304,22 +311,27 @@ at all: open `out/teams_message.html`.
    had no `LLM_BASE_URL`, so every card carries `prose.source = template`.
 8. The terrestrial path runs in the same command as the space funnel (`--terrestrial` on
    `app.pipeline`), writes into the same `out/`, and carries the same `source` / `audit` / `missing`
-   fields. It reads the real BR IFIC MDBs (3075 and 3076) with `mdb-export`. The IFIC is
+   fields. It reads the real BR IFIC MDBs (3075 and 3076) through the same `app.ingest._export`
+   helper as the space path, so the `mdb-export` step and its `DataError` are shared. The IFIC is
    not a cumulative database, so `new`/`modified`/`withdrawn` come from the `intent` field
    (ADD / MODIFY / SUPPRESS) and 3075 is only the trend baseline. A row without power or location
    (40 of the 4 057 `fxm_terra` rows in 3076: 31 without `pwr_dbw`, 9 whose `geo_type` is `ZONE`)
-   is counted under `missing` with its reason and not computed. Mobile stations (`ML`) carry no
-   antenna height, so their field strength stays empty rather than guessed.
+   is counted under `missing` with its reason and not computed. A notice without an antenna height
+   uses h1 = 10 m, the lowest P.1546 table height, and the assumption is stated on the finding
+   (2 notices in 3076). A notice that cannot be computed at all gets `coordination: null`
+   (`undecided`) with the empty field named, never `false`.
 9. The P.1546 table in `rules/p1546_land.csv` is coarse: three frequencies (100, 600, 2000 MHz),
    eight antenna heights, 70 distances from 1 to 1 000 km, rounded to 0.01 dB. A query outside any
-   of those three ranges clamps to the nearest node; the notice is then flagged `extrapolated: true`
-   if any border point is outside the table. The model is land path, 50 % of time, 50 %
-   of locations, no terrain, 10 m receiving antenna, 1 kW ERP basis.
+   of those three ranges clamps to the nearest node and the clamp is listed in the run's assumptions;
+   `extrapolated` is set only when the border point that gives the maximum is outside the table (no
+   notice in 3076). Between nodes the table is interpolated as P.1546-6 Annex 5 prescribes: log
+   distance, log antenna height, log frequency, capped at the free-space field. The model is land
+   path, 10 % time, 50 % of locations, no terrain, 10 m receiving antenna, 1 kW ERP basis.
 10. The ECC T/R 25-08 A1.2.3 trigger values are confirmed (0/6/12/18/20 dBµV/m by band on a
     25 kHz reference, and the same 20 dBµV/m above 470 MHz per Traficom 7.11.2026); the national M4
-    value is not confirmed. The report names the three tiers in its criterion line (ITU RR Art. 21
-    Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4) and applies the ECC
-    threshold per notice.
+    value is not confirmed. The report names the three tiers in its criterion line (ITU RR Article 11
+    terrestrial notification and the notice's own coordination provision → ECC T/R 25-08 trigger
+    field strength → national M4) and applies the ECC threshold per notice.
 11. The labelled evaluation set is the project's own reading, not ground truth (R16;
     `docs/decisions.md` D15): `docs/eval-3074.md` records the method and the
     21 cases that get a class from the 3074 run, each with an own label and a reason in
@@ -425,7 +437,7 @@ Traficom's synthetic dataset from the Since AI platform and has to be copied in 
 | FastAPI and uvicorn | web API and the page | MIT |
 | openpyxl | register xlsx to CSV | MIT |
 | pytest, ruff | tests, lint, format | MIT |
-| mdbtools | `mdb-export` reads the BR IFIC `.mdb` straight from the database: the 15 space tables and the terrestrial tables | GPL / LGPL, system tool, not bundled |
+| mdbtools | `mdb-export` reads the BR IFIC `.mdb` straight from the database: the 17 space tables and the terrestrial tables | GPL / LGPL, system tool, not bundled |
 | ITU-R P.1546-6 table | `rules/p1546_land.csv` | generated once from the ITU reference implementation, see `docs/decisions.md` |
 | any OpenAI-compatible chat endpoint | card and letter prose, optional | the user's choice |
 
@@ -447,7 +459,7 @@ arranged this way. Part 4 of `docs/decisions.md` records what each one changed, 
 - Selective classification, the literature name for `cannot_decide`. Heng and Soh define the two
   metrics a selective classifier is judged by, "Coverage" and "Selective Risk", and the trade-off
   between them. https://arxiv.org/html/2505.15008v3 `funnel.json` reports the same pair in its own
-  terms: 196 notices in, 15 rows in the queue, and a reason code for every abstention.
+  terms: 196 notices in, 21 that need attention, and a reason code for every abstention.
 - Technology-assisted review. Grossman and Cormack compared review with automated ranking against
   exhaustive manual review "as measured by recall, precision, and F1" (Richmond Journal of Law and
   Technology 17(3), Article 11, 2011). https://grossman.uwaterloo.ca/grossman-publications/jolt-2011/
