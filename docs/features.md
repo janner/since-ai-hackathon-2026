@@ -1,7 +1,7 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Verified on 7 Nov
-2026 with `make check` (182 passed) and a clean clone (134 passed, 48 skipped).
+2026 with `make check` (190 passed) and a clean clone (140 passed, 50 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
@@ -434,7 +434,9 @@ which holds cards only, so a
 `funnel.json::undecided_detail` with the missing field and the value it would need to reach the
 limit. The fetch line names the document series (`space`), so an IFIC number alone cannot be
 mistaken for the terrestrial series. The "Show calculation" block carries the formula, the limit
-source and the input keys, so a reader can recompute the number.
+source and the input keys, so a reader can recompute the number. Below it, "Show raw data (JSON)"
+shows the card exactly as `cases.json` holds it, field for field, for a reader who wants the
+unrendered record.
 
 Tests (`tests/test_api.py`, 16): the page, the fetch status and its lock, the `runs/latest` pointer,
 the funnel numbers, every card, one card and its 404, the queue order, and the 503/504 error paths.
@@ -558,13 +560,16 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 
 | Step | What it would take | Estimate |
 |---|---|---|
-| Scheduled cadence | The monitor is built (`scripts/monitor.py`) and the issue number is no longer given by hand, but nothing is installed: the cadence needs one line in whatever scheduler the operator already runs | Small |
-| Stage-first queue order | Sort the whole queue by regulatory stage before class; the customer said stage is the only priority that matters after filtering. The card keeps the margin as information | Small |
 | Space-side trends | The customer's first next step. Needs a second space IFIC issue; the terrestrial side already has trends | Medium, blocked on data |
 | M15 cross-check | The brief lists it; the tool does not use it | Medium |
 | CEPT/ECC DocDB | The third tier of the protection framework; not used | Medium |
 | AP30 / AP30A / AP30B | The customer ranked this below space-side trends. Open `SPS_ALL_IFIC3083.zip` (72 MB) and `30B_3083.zip` (22 MB) with `mdb-export` and build a plan path | Large |
 | RR Art. 22 / EPFD | A calculation and a criterion for protecting Finnish satellites; `epfd_param` is already read | Large |
+
+Scheduled cadence is installed: Hermes cron (profile `coder`) runs `uv run python scripts/monitor.py
+--check` in the repo every 14 days (first run 21 Nov 2026). Error path: network failure → `status:
+error` in `out/fetch_status.json`, exit 1, `runs/latest` does not move, and the cron run is recorded
+as failed (`hermes cron runs`).
 
 Register scale, measured 7 Nov 2026 with `load_register()` alone on a synthetic register (1 M rows,
 65 MB on disk, every 1000th row on the demo slice):
@@ -600,7 +605,43 @@ Tests (`tests/test_fetch_data.py`, 2): `test_html_instead_of_zip_is_rejected`,
 There are no committed data fixtures. The tests that need a real input are marked `data` and read
 `data/itu-ific-3074/ific3074.mdb`, `data/frequencies_of_interest.csv`, `data/taajuusjakotaulukko.json`
 and the two terrestrial BR IFIC MDBs; `tests/conftest.py` skips every one of them when
-`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (134 passed, 48 skipped).
+`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (140 passed, 48 skipped).
 The pure tests carry their own inputs in the test: the unit forms in `tests/test_ingest.py`, the band
 merging in `tests/test_bands.py`, the guard rows in `tests/test_gates.py`, the PFD vectors and the
 limit table in `tests/test_pfd.py`.
+
+## F12: the complaint register and the statistics
+
+`app/ledger.py` keeps the register as an append-only log: one JSON line per event in
+`ledger/complaints.jsonl` (`KAISTA_LEDGER` overrides the directory), and the state of a complaint is
+folded from its events on every read. The events are `opened`, `letter_sent`, `reply_received`,
+`action_recorded`, `closed` and `reopened`; `opened` copies the card's identifiers (`ific`, `case_id`,
+`ntc_id`, `adm`, `network_org`, `sat_name`, band, M4 services, class, regulatory stage, the input
+SHA256 and the rules version) rather than referencing a card that may not exist in five years. No
+code path edits or deletes a line, so the answer for a case is the same in 2031 as in 2026.
+
+Classification is a closed list: `ISSUE_TYPES`, `ACTIONS` and `OUTCOMES` in `app/ledger.py`. Anything
+outside them is a `ValueError`, and the API maps it to a 422, so no statistic can come from a
+free-text label. A free `note` is allowed.
+
+`python -m app.pipeline ... --ledger` opens a complaint for every flagged case and records the letter
+it drafted; a second run of the same case opens nothing (`ledger.open_complaint` follows the card's
+`same_network` chain). The humans' decisions go through `POST /api/complaints/{id}/events`. The
+pipeline never closes a complaint: closing is a human act, and an unknown outcome is refused.
+
+`app/stats.py` answers the specialist's three questions from the events, with no stored aggregate and
+no language model: what was complained about (`bands`, `issues`), whose operation (`admins`,
+`networks`) and what was done (`actions`, `outcomes`, the median days from letter to reply). The same
+rows are `GET /api/stats` and `GET /api/stats.csv`; `GET /api/complaints` filters and
+`GET /api/complaints/{id}` returns the whole timeline. `?synthetic=false` hides the demo history.
+
+The demo history is generated, not hand-written: `scripts/seed_history.py --seed 2026` writes
+`ledger/complaints.synthetic.jsonl` (206 complaints, 695 events, Jan 2021 - Oct 2026) byte for byte
+from the seed, with `synthetic: true` on every line and invented network names (`SYN-`). The UI says
+so in its banner, and the card says how often that administration and that network have come up
+before.
+
+Tests (`tests/test_ledger.py`, 6): the closed lists reject anything else, the state is folded from the
+events, a reopened complaint is open again, a second notice of the same case opens nothing, the
+statistics answer the three questions on a two-complaint fixture, and the API refuses a loose event
+(422) and an unknown complaint (404).

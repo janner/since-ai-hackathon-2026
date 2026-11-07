@@ -36,6 +36,10 @@
   .row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.4; }
   .row .k { color: var(--muted); }
   .row .v { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  button.row { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 0; border-bottom: 1px solid var(--line); border-left: 2px solid transparent; padding: 8px 8px 8px 10px; cursor: pointer; text-align: left; }
+  button.row:hover { background: var(--surface); }
+  button.row[aria-pressed="true"] { border-left-color: var(--accent); background: var(--accent-tint); }
+  button.row .k { color: var(--accent); }
   .note { margin: 0 0 8px; font-size: 12px; line-height: 1.33; color: var(--muted); }
   ul { list-style: none; margin: 0; padding: 0; }
   button.queue-item {
@@ -71,7 +75,7 @@
   .card li { margin-bottom: 4px; }
   .prose p { margin: 0 0 8px; }
   .src { font-size: 12px; line-height: 1.6; color: var(--muted); }
-  .undecided li { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+  .undecided li, li.u-row { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
   .btn { font: inherit; font-size: 14px; font-weight: 600; min-height: 40px; padding: 8px 16px; background: var(--accent); color: #fff; border: 0; cursor: pointer; }
   .btn:hover { background: var(--accent-hover); }
   .btn:disabled { background: var(--surface); color: var(--muted); cursor: default; }
@@ -108,6 +112,7 @@
   </section>
   <section id="queue-section" aria-labelledby="h-queue">
     <h2 id="h-queue">Queue</h2>
+    <p class="note" id="queue-filter"></p>
     <div class="queue-controls">
       <label for="group-by">Group by</label>
       <select id="group-by">
@@ -119,12 +124,23 @@
         <option value="none">None</option>
       </select>
     </div>
-    <p class="note">Notices that cannot be decided do not produce a card; they keep a row in queue.md and the CSV with the missing value.</p>
     <ul id="queue"></ul>
   </section>
   <section aria-labelledby="h-card">
     <h2 id="h-card">Card</h2>
     <div id="card">Select a card from the queue.</div>
+  </section>
+  <section id="stats-section" aria-labelledby="h-stats">
+    <h2 id="h-stats">Complaint register</h2>
+    <p class="note" id="stats-banner">loading...</p>
+    <div class="queue-controls">
+      <label for="stats-year">Year</label>
+      <select id="stats-year">
+        <option value="">All years</option>
+      </select>
+      <a class="btn btn-sm" id="stats-csv" href="/api/stats.csv">Download CSV</a>
+    </div>
+    <div id="stats"></div>
   </section>
 </main>
 <footer>The tool does not decide. Every number comes from code, not from a language model.</footer>
@@ -381,35 +397,63 @@ function undecidedRows(data) {
       parts.push("the " + field + " would need at least " + num(d.required_db, unit) +
         " to reach the limit");
     }
-    list.append(el("li", parts.join(" \u00b7 ")));
+    list.append(el("li", parts.join(" \u00b7 "), "u-row"));
   }
   return [
-    el("h3", "Cannot decide (" + ids.length + ")"),
-    list,
-    el("p", "No card: a missing value keeps the PFD undecided.", "note"),
+    el("li", "Notices that cannot be decided do not produce a card; they keep a row in queue.md and the CSV with the missing value.", "note"),
+    ...list.children,
   ];
 }
 
+// Funnel rows that are a class: a click filters the queue to that class (again clears it).
+function filterRows(pairs) {
+  const box = el("div", null, "rows");
+  for (const [label, value, klass] of pairs) {
+    const button = el("button", null, "row");
+    button.type = "button";
+    button.dataset.filter = klass;
+    button.setAttribute("aria-pressed", String(queueFilter === klass));
+    button.append(el("span", label, "k"), el("span", num(value), "v"));
+    button.addEventListener("click", () => setFilter(queueFilter === klass ? null : klass));
+    box.append(button);
+  }
+  return box;
+}
+
+function setFilter(klass) {
+  queueFilter = klass;
+  for (const button of document.querySelectorAll("button.row[data-filter]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.filter === klass));
+  }
+  renderQueue(queueItems);
+  setStatus("");
+}
+
 function renderFunnel(data) {
+  funnelData = data;
   const c = data.counts;
+  const q = data.queue || {};
   document.getElementById("funnel-line").textContent =
     c.notices + " \u2192 " + c.g1 + " \u2192 " + c.g2 + " \u2192 " + c.g3 + " + " +
-    c.cannot_decide + " \u00b7 queue " + ((data.queue && data.queue.shown) || 0);
+    c.cannot_decide + " \u00b7 every notice in the queue: " + (q.attention || 0) +
+    " need attention, " + (q.checked || 0) + " checked, " + (q.no_effect || 0) +
+    " without effect on Finland";
   document.getElementById("funnel").replaceChildren(
     rows([
       ["Notices", c.notices],
       ["Band overlap", c.g1],
       ["Visible from Finland", c.g2],
       ["Computed", c.g3],
-      ["Cannot decide", c.cannot_decide],
-      ["Exceeds limit", c.exceeds],
-      ["Near limit", c.near],
-      ["No satellite use in Finland", c.not_space],
-      ["Clear", c.clear],
+    ]),
+    filterRows([
+      ["Exceeds limit", c.exceeds, "exceeds"],
+      ["Near limit", c.near, "near"],
+      ["No satellite use in Finland", c.not_space, "not_space"],
+      ["Clear", c.clear, "clear"],
+      ["Cannot decide", c.cannot_decide, "cannot_decide"],
     ]),
     el("h3", "Drops"),
     rows(Object.entries(data.drops).map(([key, value]) => [DROP_LABEL[key] || key, value])),
-    ...undecidedRows(data),
     el("h3", "Run"),
     rows([
       ["Mode", data.mode],
@@ -593,15 +637,32 @@ function groupRow(items, by) {
 
 let queueItems = [];
 let queueGroup = "network";
+let queueFilter = null;
+let funnelData = {};
 let currentCaseId = null;
 
 function renderQueue(items) {
   queueItems = items;
   const ul = document.getElementById("queue");
-  // Clear cases are not the queue: the queue is the cases a human looks at.
-  const queue = items.filter((item) => item["class"] !== "clear").sort(compareQueue);
+  const label = document.getElementById("queue-filter");
+  label.replaceChildren();
+  if (queueFilter) {
+    const all = el("button", "Show all", "btn btn-sm");
+    all.type = "button";
+    all.addEventListener("click", () => setFilter(null));
+    label.append(document.createTextNode("Showing: " + (CLASS_EN[queueFilter] || queueFilter) + " "), all);
+  }
+  // Cannot-decide notices have no card, so the queue lists their missing values instead.
+  if (queueFilter === "cannot_decide") {
+    const undecided = undecidedRows(funnelData);
+    ul.replaceChildren(...(undecided.length ? undecided : [el("li", "Nothing is undecided.")]));
+    return;
+  }
+  // Clear cases are not the queue: the queue is the cases a human looks at (unless asked for).
+  const queue = items.filter((item) => queueFilter
+    ? item["class"] === queueFilter : item["class"] !== "clear").sort(compareQueue);
   if (!queue.length) {
-    ul.replaceChildren(el("li", "The queue is empty."));
+    ul.replaceChildren(el("li", queueFilter ? "No cases in this class." : "The queue is empty."));
     return;
   }
   if (queueGroup === "none") {
@@ -617,6 +678,118 @@ function markCurrent(caseId) {
   for (const button of document.querySelectorAll("button.queue-item")) {
     button.setAttribute("aria-current", String(button.dataset.caseId === caseId));
   }
+}
+
+// The register's closed lists, in the words the view uses. The data keeps its own codes.
+const ISSUE_EN = {
+  pfd_exceedance: "PFD over the limit",
+  near_limit: "Near the limit",
+  band_without_satellite_allocation: "Band without satellite use in Finland",
+  missing_data: "Cannot decide (missing data)",
+  terrestrial_field_strength: "Terrestrial field strength",
+};
+const DONE_EN = {
+  comment_sent: "Comment sent",
+  coordination_requested: "Coordination requested",
+  br_assistance_requested: "BR assistance requested",
+  no_action_decided: "No action decided",
+};
+
+// One fetch for the register, shared by the statistics view and the card's history line.
+let registerCache = null;
+async function registerSummary() {
+  if (!registerCache) registerCache = await get("/api/stats");
+  return registerCache;
+}
+
+function outcomeText(outcomes) {
+  return Object.entries(outcomes || {})
+    .map(([key, value]) => key.replace(/_/g, " ") + ": " + value)
+    .join(" \u00b7 ");
+}
+
+function statsBlock(title, items, label) {
+  const box = el("div");
+  box.append(el("h3", title, "card-title"));
+  if (!items || !items.length) {
+    box.append(el("p", "Nothing recorded.", "note"));
+    return box;
+  }
+  const list = el("div", null, "rows");
+  // The view shows the biggest rows; the CSV carries every one of them.
+  const shown = items.slice(0, 8);
+  for (const row of shown) {
+    const line = el("div", null, "row");
+    line.append(el("span", label(row), "k"));
+    line.append(el("span", [
+      num(row.count),
+      row.open ? row.open + " open" : "",
+      row.median_days === null || row.median_days === undefined ? "" : "median " + row.median_days + " d",
+    ].filter(Boolean).join(" \u00b7 "), "v"));
+    list.append(line);
+    if (outcomeText(row.outcomes)) list.append(el("div", outcomeText(row.outcomes), "note"));
+  }
+  box.append(list);
+  if (items.length > shown.length) {
+    box.append(el("p", (items.length - shown.length) + " more in the CSV.", "note"));
+  }
+  return box;
+}
+
+function renderStats(summary) {
+  const t = summary.totals || {};
+  document.getElementById("stats-banner").textContent = [
+    num(t.complaints) + " complaints",
+    t.open + " still open",
+    t.median_days === null ? "" : "median " + t.median_days + " days from letter to reply",
+    num(t.synthetic) + " of them are seeded demo history (2021-2026); the rest come from the pipeline runs",
+  ].filter(Boolean).join(" \u00b7 ") + ".";
+
+  const box = document.getElementById("stats");
+  box.replaceChildren();
+  box.append(statsBlock("Who it was about", summary.admins, (row) => adminName(row.key)));
+  box.append(statsBlock("Which network", summary.networks, (row) => row.key));
+  box.append(statsBlock("Which band", summary.bands, (row) => row.key));
+  box.append(statsBlock("What the issue was", summary.issues, (row) => ISSUE_EN[row.key] || row.key));
+  box.append(statsBlock("What was done", summary.actions, (row) => DONE_EN[row.key] || row.key));
+  const trend = (summary.trend || []).map((row) => row.year + ": " + row.total).join(" \u00b7 ");
+  if (trend) box.append(el("p", "Per year " + trend, "note"));
+
+  const year = document.getElementById("stats-year");
+  if (year.options.length === 1) {
+    for (const row of summary.trend || []) {
+      const option = el("option", row.year);
+      option.value = row.year;
+      year.append(option);
+    }
+  }
+}
+
+async function loadStats() {
+  const year = document.getElementById("stats-year").value;
+  const query = year ? "?year=" + encodeURIComponent(year) : "";
+  document.getElementById("stats-csv").href = "/api/stats.csv" + query;
+  try {
+    renderStats(await get("/api/stats" + query));
+  } catch (error) {
+    document.getElementById("stats-banner").textContent = "Could not load the register: " + error.message;
+  }
+}
+
+// The card's own history: how often this administration and this network have come up before.
+function cardHistoryLine(item) {
+  const line = el("p", "", "note");
+  registerSummary().then((summary) => {
+    const adm = (item.parties && item.parties.admin) || "";
+    const network = (item.coverage && item.coverage.sat_name) || "";
+    const admRow = (summary.admins || []).find((row) => row.key === adm);
+    const netRow = (summary.networks || []).find((row) => row.key === network);
+    const parts = [];
+    if (admRow) parts.push(adminName(adm) + ": " + admRow.count + " complaints, " + admRow.open + " open");
+    if (netRow) parts.push(network + ": " + netRow.count + " complaints, " + netRow.open + " open");
+    if (parts.length) line.textContent = "In the register " + parts.join(" \u00b7 ") + ".";
+  }).catch(() => {});
+  return line;
 }
 
 function renderCard(item) {
@@ -642,6 +815,7 @@ function renderCard(item) {
     coverage.beam ? "beam " + coverage.beam : "",
   ].filter(Boolean).join(" \u00b7 "), "card-sub"));
   card.append(el("p", "Filing stage: " + filingStage(item), "note"));
+  card.append(cardHistoryLine(item));
   const at = point.lat !== undefined && point.lat !== null
     ? point.lat + " N, " + point.lon + " E (" + (point.place || "") + ")"
     : (point.place || "Finnish territory");
@@ -719,6 +893,7 @@ async function showCase(caseId) {
 
 async function start() {
   loadFetch();
+  loadStats();
   try {
     renderFunnel(await get("/api/funnel"));
     renderQueue(await get("/api/queue"));
@@ -730,6 +905,7 @@ async function start() {
 }
 
 document.getElementById("fetch-check").addEventListener("click", checkNow);
+document.getElementById("stats-year").addEventListener("change", loadStats);
 document.getElementById("group-by").addEventListener("change", (event) => {
   queueGroup = event.target.value;
   renderQueue(queueItems);

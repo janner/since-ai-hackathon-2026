@@ -18,6 +18,14 @@ from app.territory import Place
 CLASS_ORDER = ("exceeds", "near", "not_space", "cannot_decide")
 STAGES = ("G1", "G2")
 
+# Plain-language reason for a notice that leaves the funnel, for the queue row a human reads.
+DROP_TEXT = {
+    "no_band_overlap": "no space-to-Earth row on the screened bands",
+    "earth_station_notice": "earth station notice, not a downlink",
+    "geo_below_horizon": "satellite below the horizon from Finland",
+    "ngso_never_visible": "orbit never reaches Finland's latitude",
+}
+
 
 def classify(margin_db: float, adjacent: bool = False, band_satellite: bool = True) -> str:
     """exceeds above 0 dB, near above -3 dB, not_space on a band Finland does not allocate
@@ -69,6 +77,7 @@ class Case:
     place: str = ""  # where the level was computed; "" for a non-GSO pass
     deadline: date | None = None  # the notice's Resolution 35 deadline, from grp_res35
     deadline_passed: bool = False  # that deadline is already behind the run
+    band_gaps: tuple[tuple[float, float], ...] = ()  # parts of the band with no satellite use
 
 
 @dataclass(frozen=True)
@@ -88,6 +97,7 @@ class QueueItem:
     filing_action: str = ""  # notice.act_code: A new, M modified, S suppressed
     deadline: date | None = None  # the notice's Resolution 35 deadline, from grp_res35
     deadline_passed: bool = False  # that deadline is already behind the run
+    tier: str = "attention"  # attention, checked or no_effect: every notice is in the queue
 
 
 @dataclass
@@ -182,7 +192,7 @@ def run(
         if freqs:
             band = allocation.m4_lookup(m4_rows, freqs[0].freq_min_mhz, freqs[0].freq_max_mhz)
             band_uses[ntc_id] = band["services_in_finland"]
-    queue = gate4(cases, undecided, ific.notices, required, deadlines, band_uses)
+    queue = gate4(cases, undecided, ific.notices, required, deadlines, band_uses, dropped)
 
     counts = {
         "notices": len(ific.notices),
@@ -443,6 +453,7 @@ def _worst_for_notice(
                 klass=classify(margin, adjacent, band["satellite_use"]),
                 band_satellite=band["satellite_use"],
                 band_use=band["services_in_finland"],
+                band_gaps=tuple(band["gaps"]),
                 adjacent=adjacent,
                 lat=lat,
                 lon=lon,
@@ -495,13 +506,16 @@ def gate4(
     required: dict[str, tuple[str, float]] | None = None,
     deadlines: dict[str, tuple[date, bool]] | None = None,
     band_uses: dict[str, str] | None = None,
+    dropped: dict[str, tuple[str, str]] | None = None,
 ) -> list[QueueItem]:
-    """Queue every concern: regulatory stage first, then class, then the earliest upcoming
-    Resolution 35 deadline. Clear stays out; the margin does not order (Traficom, S1).
+    """Queue every notice in three tiers: attention, checked, no_effect.
 
-    Every case is a concern unless the margin is clear *and* Finland allocates the band to a
-    satellite service: a satellite transmitting where Finland has no satellite use is a finding
-    on its own, whatever the PFD says. No cap: the challenge brief names no target number.
+    Inside attention the order is regulatory stage first, then class, then the earliest
+    upcoming Resolution 35 deadline; the margin does not order (Traficom, S1). A notice is in
+    attention when its margin is not clear, or when part of its band has no satellite use in
+    Finland: a satellite transmitting where Finland has no satellite use is a finding on its
+    own, whatever the PFD says. Nothing is dropped from the queue: a clear notice stays as
+    `checked` and a notice that failed a gate stays as `no_effect` with its reason.
     """
     stages = {ntc_id: config.regulatory_stage(notice.prov) for ntc_id, notice in notices.items()}
     unknown = config.regulatory_stage("")
@@ -509,8 +523,9 @@ def gate4(
     required = required or {}
     deadlines = deadlines or {}
     band_uses = band_uses or {}
+    dropped = dropped or {}
 
-    def item(ntc_id, klass, reason, margin, case=None) -> QueueItem:
+    def item(ntc_id, klass, reason, margin, case=None, tier="attention") -> QueueItem:
         stage = stages.get(ntc_id, unknown)
         field_name, value = required.get(ntc_id, ("", None))
         notice = notices.get(ntc_id)
@@ -529,12 +544,44 @@ def gate4(
             filing_action=notice.act_code if notice is not None else "",
             deadline=deadline,
             deadline_passed=passed,
+            tier=tier,
         )
 
-    items = [
-        item(case.ntc_id, case.klass, case.klass, case.margin_db, case)
+    def band_reason(case: Case) -> str:
+        """Why the band itself is a finding, when part of it has no satellite use here.
+
+        Only a `not_space` row carries the note: on an `exceeds` or `near` row the class is
+        the finding, and the Finland band column already names the allocation.
+        """
+        if case.klass != "not_space" or case.band_satellite:
+            return case.klass
+        parts = ", ".join(
+            f"{config.fmt_mhz(low)}–{config.fmt_mhz(high)} MHz" for low, high in case.band_gaps
+        )
+        return f"{case.klass}: no satellite allocation in Finland on {parts}"
+
+    attention = [
+        item(case.ntc_id, case.klass, band_reason(case), case.margin_db, case)
         for case in cases
         if case.klass != "clear"
     ]
-    items += [item(ntc_id, "cannot_decide", reason, None) for ntc_id, reason in undecided.items()]
-    return sorted(items, key=queue_key)
+    attention += [
+        item(ntc_id, "cannot_decide", reason, None) for ntc_id, reason in undecided.items()
+    ]
+    checked = [
+        item(case.ntc_id, "clear", "clear of the limit", case.margin_db, case, "checked")
+        for case in cases
+        if case.klass == "clear"
+    ]
+    no_effect = [
+        item(
+            ntc_id,
+            "no_effect",
+            DROP_TEXT.get(reason, f"{stage}: {reason}"),
+            None,
+            None,
+            "no_effect",
+        )
+        for ntc_id, (stage, reason) in sorted(dropped.items())
+    ]
+    return sorted(attention, key=queue_key) + sorted(checked, key=queue_key) + no_effect

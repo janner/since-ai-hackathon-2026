@@ -6,6 +6,8 @@ app.pipeline wrote into out/. No LLM call, no network, no new calculation.
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import subprocess
@@ -14,9 +16,11 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse, PlainTextResponse
+from pydantic import BaseModel
 
+from app import ledger, stats
 from app.gates import CLASS_ORDER
 
 app = FastAPI(title="Kaista")
@@ -147,3 +151,123 @@ def fetch_check() -> Any:
         raise HTTPException(403, "Check now is switched off on this demo.")
     run_monitor()
     return fetch_status()
+
+
+class ComplaintEvent(BaseModel):
+    """One human decision on a complaint. Closed lists only; `note` is free text."""
+
+    type: str
+    actor: str = "spec-01"  # a pseudonym, never a real name
+    at: str | None = None
+    payload: dict[str, Any] = {}
+
+
+def ledger_complaints(synthetic: bool = True) -> list[dict]:
+    return ledger.complaints(ledger.load(synthetic=synthetic))
+
+
+@app.get("/api/complaints")
+def complaints(
+    adm: str | None = None,
+    sat_name: str | None = None,
+    band: str | None = None,
+    issue_type: str | None = None,
+    status: str | None = None,
+    year: int | None = None,
+    synthetic: bool = True,
+) -> Any:
+    """The complaint register, newest filters first. `synthetic=false` hides the demo history."""
+    return stats.matching(
+        ledger_complaints(synthetic),
+        year=year,
+        adm=adm,
+        sat_name=sat_name,
+        band=band,
+        issue_type=issue_type,
+        status=status,
+    )
+
+
+@app.get("/api/complaints/{complaint_id}")
+def complaint(complaint_id: str) -> Any:
+    """One complaint with its whole event history, in order."""
+    for item in ledger_complaints():
+        if item["complaint_id"] == complaint_id:
+            return item
+    raise HTTPException(404, f"tuntematon complaint_id: {complaint_id}")
+
+
+@app.post("/api/complaints/{complaint_id}/events", status_code=201)
+def record_event(complaint_id: str, body: ComplaintEvent) -> Any:
+    """Record a human decision. An unknown type or list value is a 422, and an event without its
+    complaint is a 404: the log stays a log of complaints, not of loose events."""
+    known = any(item["complaint_id"] == complaint_id for item in ledger_complaints())
+    if body.type != "opened" and not known:
+        raise HTTPException(404, f"tuntematon complaint_id: {complaint_id}")
+    try:
+        event = ledger.event(
+            complaint_id, body.type, body.at or ledger.now(), body.actor, body.payload
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    ledger.append([event])
+    return event
+
+
+def stats_report(
+    from_: str | None,
+    to: str | None,
+    adm: str | None,
+    sat_name: str | None,
+    band: str | None,
+    issue_type: str | None,
+    year: int | None,
+    synthetic: bool,
+) -> dict:
+    summary, _ = stats.report(
+        synthetic=synthetic,
+        year=year,
+        adm=adm,
+        sat_name=sat_name,
+        band=band,
+        issue_type=issue_type,
+        start=from_,
+        end=to,
+    )
+    return summary
+
+
+@app.get("/api/stats")
+def stats_view(
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    adm: str | None = None,
+    sat_name: str | None = None,
+    band: str | None = None,
+    issue_type: str | None = None,
+    year: int | None = None,
+    synthetic: bool = True,
+) -> Any:
+    """What was complained about, who it was about, and what was done. All of it from the events."""
+    return stats_report(from_, to, adm, sat_name, band, issue_type, year, synthetic)
+
+
+@app.get("/api/stats.csv")
+def stats_export(
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    adm: str | None = None,
+    sat_name: str | None = None,
+    band: str | None = None,
+    issue_type: str | None = None,
+    year: int | None = None,
+    synthetic: bool = True,
+) -> Any:
+    """The same rows as the statistics view, flattened for a spreadsheet."""
+    summary = stats_report(from_, to, adm, sat_name, band, issue_type, year, synthetic)
+    buffer = io.StringIO()
+    fields = ("section", "key", "count", "open", "repeat", "median_days", "outcomes", "network_org")
+    writer = csv.DictWriter(buffer, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows(stats.csv_rows(summary))
+    return PlainTextResponse(buffer.getvalue(), media_type="text/csv; charset=utf-8")
