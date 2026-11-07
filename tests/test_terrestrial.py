@@ -103,8 +103,8 @@ def test_findings_applies_the_tr2508_threshold(tmp_path):
     issue = _issue([_notice()])
     doc = t.findings(issue, issue, _register(tmp_path))
     assert doc["coordination_thresholds"]["rows"][-1] == {
-        "f_min_mhz": 400.0,
-        "f_max_mhz": 470.0,
+        "f_min_mhz": 470.0,
+        "f_max_mhz": 10000.0,
         "dbuv_m": 20.0,
     }
     assert "T/R 25-08" in doc["criterion"] and "border line" in doc["criterion"]
@@ -196,12 +196,15 @@ def test_tr2508_threshold_is_frequency_dependent_and_bandwidth_corrected():
     assert t.tr2508_threshold(390) == 18.0
     assert t.tr2508_threshold(450) == 20.0
     assert t.tr2508_threshold(470) == 20.0
-    assert t.tr2508_threshold(500) is None  # above 470 MHz: T/R 25-08 sets no threshold
+    # Traficom 7.11.2026: above 470 MHz the same criterion as the 400-470 MHz range
+    assert t.tr2508_threshold(500) == 20.0
+    assert t.tr2508_threshold(818.5) == 20.0
     assert t.tr2508_threshold(29.0) is None  # below 29.7 MHz
     # narrower than the 25 kHz reference: no conversion (A1.2.3 applies within 25 kHz)
     assert t.tr2508_threshold(152.9, 16.0) == 12.0
     # wider channel: BC = 10*log10(bw / 25 kHz)
     assert t.tr2508_threshold(152.9, 50.0) == pytest.approx(12.0 + 10 * math.log10(2.0))
+    assert t.tr2508_threshold(818.5, 5000.0) == pytest.approx(20.0 + 10 * math.log10(200.0))
 
 
 def test_distance_to_border_is_a_line_not_four_points():
@@ -248,9 +251,17 @@ def test_flag_stations_reports_the_strongest_notice_per_station():
     assert [r["station"] for r in rows] == ["1", "2"]  # sorted by margin, strongest first
     assert rows[0]["threshold_dbuv_m"] == 12.0
     assert rows[0]["e_dbuv_m"] > rows[1]["e_dbuv_m"]
-    # a notice above 470 MHz has no T/R 25-08 threshold and is not evaluated
-    hf = _notice(freq_min_mhz=800.0, freq_max_mhz=805.0)
-    assert t.flag_stations([(hf, 10.0)], [station]) == []
+    # a channel the notice band does not overlap is not evaluated
+    assert (
+        t.flag_stations([(_notice(freq_min_mhz=800.0, freq_max_mhz=805.0), 10.0)], [station]) == []
+    )
+    # above 470 MHz the same criterion applies (Traficom 7.11.2026): 20 dB(uV/m) + BC
+    hf_station = {**station, "station": "3", "freq_mhz": 802.0, "freqs_mhz": [802.0]}
+    hf = _notice(
+        freq_min_mhz=800.0, freq_max_mhz=805.0, lat=60.9, lon=28.4, p_erp_kw=1.0, ant_h_m=30.0
+    )
+    rows3 = t.flag_stations([(hf, 10.0)], [hf_station])
+    assert rows3[0]["threshold_dbuv_m"] == pytest.approx(20.0 + 10 * math.log10(5000 / 25))
 
 
 def test_register_stations_reads_location_and_channel_bandwidth(tmp_path):
@@ -347,15 +358,16 @@ def test_real_3076_russian_federation_notices(issue3076):
 @pytest.mark.data
 @needs_mdb
 def test_real_mdb_prints_the_example_finding(issue3075, issue3076, tmp_path):
-    """The example in the handoff: POL 92817506 at 801-806 MHz, above the T/R 25-08 range."""
+    """The example in the handoff: POL 92817506 at 801-806 MHz, 43 dB(uV/m) with the extension."""
     doc = t.run(issue3075, issue3076, REGISTER, tmp_path)
     assert len(doc["notices"]) == 28
     assert doc["diff"]["counts"]["ADD"] == 2905
     finding = next(n for n in doc["notices"] if n["terrakey"] == "92817506")
     assert finding["adm"] == "POL" and finding["band"] == "801-806 MHz"
     assert finding["border"]["max_dbuv_m"] == pytest.approx(-51.1, abs=0.2)
-    assert finding["threshold_dbuv_m"] is None  # 803.5 MHz is above T/R 25-08's 470 MHz
-    assert finding["coordination"] is None
+    # 803.5 MHz: Traficom extends the 400-470 MHz criterion above 470 MHz, 5 MHz channel
+    assert finding["threshold_dbuv_m"] == pytest.approx(20.0 + 10 * math.log10(200.0))
+    assert finding["coordination"] is False
     assert (tmp_path / "TERRESTRIAL.md").exists()
 
 

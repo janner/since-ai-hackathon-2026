@@ -28,7 +28,8 @@ Traficomin Q&A 7.11.2026: kenttävoimakkuus lasketaan **rajaviivan pisteissä**,
 neljässä kaupungissa, ja lisäksi merkitään ne rekisterin suomalaiset asemat, joiden
 kenttävoimakkuus ylittää koordinointikynnyksen. Rajaviiva on `rules/finland_border.csv`
 (Natural Earth 50m, mantereen ulkorengas), kynnys on CEPT/ECC T/R 25-08 A1.2.3
-(`rules/tr2508_thresholds.csv`).
+(`rules/tr2508_thresholds.csv`); Traficomin 7.11.2026 mukaan sama kriteeri jatkuu
+yli 470 MHz:n, missä on 85 % aineiston maaliikenteen riveistä.
 """
 
 import argparse
@@ -66,11 +67,15 @@ KM_PER_DEG = 111.32
 TR2508_REF_BW_KHZ = 25.0
 # BR IFIC -asemaluokat: FB = tukiasema, ML = maaliikenne, FL = maaliikenne (kiinteä).
 LAND_MOBILE_CLASSES = frozenset({"FB", "ML", "FL"})
+# Traficom 7.11.2026: T/R 25-08 päättyy 470 MHz:iin, ja sen yläpuolella sovelletaan
+# samaa kriteeriä kuin 400-470 MHz:n alueella (20 dB(uV/m) + kaistanleveyskorjaus).
+# Ilman tätä 85 % 3076:n maaliikenteen riveistä jäisi ilman kynnystä.
 CRITERION = (
     "protection framework in three tiers: "
     "ITU RR Art. 21 Table 21-4 (PFD limit, the level the space path applies) -> "
     "CEPT/ECC T/R 25-08 A1.2.3 (coordination threshold at the border line, "
-    "25 kHz reference bandwidth, 10 % time, 10 m receiving antenna) applies here -> "
+    "25 kHz reference bandwidth, 10 % time, 10 m receiving antenna; Traficom "
+    "7.11.2026 applies the 400-470 MHz criterion above 470 MHz) applies here -> "
     "national M4 / Traficomin taajuusjakotaulukko (protection threshold to be confirmed)"
 )
 # T/R 25-08:n kynnys on määritelty 10 % ajasta; käytössä oleva P.1546-taulukko on
@@ -178,8 +183,9 @@ def tr2508_rows():
 def tr2508_threshold(freq_mhz, bw_khz=TR2508_REF_BW_KHZ):
     """T/R 25-08 A1.2.3 -koordinointikynnys dB(uV/m) 25 kHz vertailukaistalla.
 
-    None, jos taajuus on suosituksen ulkopuolella (29,7-470 MHz). Kaistanleveydelle
-    > 25 kHz lisätään A1.2.3:n mukainen korjaus 10*log10(bw/25) dB.
+    None vain alle 29,7 MHz:n. Traficomin 7.11.2026 mukaan yli 470 MHz:llä
+    sovelletaan samaa kriteeriä kuin 400-470 MHz:n alueella (20 dB(uV/m)).
+    Kaistanleveydelle > 25 kHz lisätään A1.2.3:n korjaus 10*log10(bw/25) dB.
     """
     if freq_mhz is None:
         return None
