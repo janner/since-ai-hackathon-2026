@@ -116,7 +116,8 @@ def page(title: str, body: str) -> bytes:
 <style>
   :root {{ --bg:#fff; --fg:#161616; --muted:#525252; --line:#e0e0e0; --accent:#0f62fe; }}
   body {{ margin:0; background:var(--bg); color:var(--fg);
-          font:400 16px/1.5 'IBM Plex Sans',system-ui,sans-serif; }}
+          font:400 16px/1.5 system-ui,-apple-system,'Segoe UI',Roboto,
+               'DejaVu Sans',sans-serif; }}
   header {{ padding:16px 24px; border-bottom:1px solid var(--line); }}
   header h1 {{ margin:0; font-size:24px; font-weight:600; }}
   main {{ max-width:720px; margin:0 auto; padding:24px; }}
