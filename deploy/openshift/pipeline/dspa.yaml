@@ -1,0 +1,21 @@
+# Data Science Pipelines Application for the IFIC triage run.
+# Managed MinIO is the object store the pipeline uses for artifacts (the sandbox has no S3).
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: kaista-pipelines
+  namespace: janner-1-dev
+spec:
+  dspVersion: v2
+  objectStorage:
+    minio:
+      deploy: true
+      image: quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance
+      bucket: mlpipeline
+      pvcSize: 10Gi
+      storageClassName: gp3-csi
+  database:
+    mariaDB:
+      deploy: true
+  mlflow:
+    integrationMode: DISABLED

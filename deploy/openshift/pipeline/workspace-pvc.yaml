@@ -1,0 +1,12 @@
+# The only thing the pipeline tasks share: the inputs and the run's output.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kaista-workspace
+  namespace: janner-1-dev
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: gp3-csi
+  resources:
+    requests:
+      storage: 5Gi

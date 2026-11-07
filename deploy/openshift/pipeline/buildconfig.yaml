@@ -1,0 +1,17 @@
+# Build the pipeline task image from a local binary source (the repo, without data/).
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: kaista-pipeline
+  namespace: janner-1-dev
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: kaista-pipeline:latest
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: deploy/openshift/pipeline/Dockerfile
