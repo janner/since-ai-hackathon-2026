@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaista · ryhmittely</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #161616; --muted: #525252; --line: #e0e0e0;
+    --surface: #f4f4f4; --accent: #0f62fe; --accent-hover: #0043ce; --tint: #edf5ff;
+    --warn: #a2191f; --warn-bg: #fff1f1;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'DejaVu Sans', sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    height: 760px; display: flex; flex-direction: column; overflow: hidden;
+    background: var(--bg); color: var(--fg);
+    font: 400 14px/1.45 var(--sans); font-variant-numeric: tabular-nums;
+  }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; gap: 20px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; font-weight: 600; line-height: 1.2; }
+  .sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+  .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .controls label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); }
+  select, button { font: inherit; font-size: 13px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); min-height: 32px; padding: 4px 8px; }
+  select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 27rem; min-height: 0; }
+  #left { padding: 14px 20px 24px; overflow: auto; min-height: 0; }
+  #detail { border-left: 1px solid var(--line); background: var(--surface); padding: 14px 16px 24px; overflow: auto; min-height: 0; }
+  h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; line-height: 1.25; }
+  h3 { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  p { margin: 0 0 8px; }
+  .view-head { margin: 0 0 10px; }
+  .view-note { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+  .warn-note { color: var(--warn); background: var(--warn-bg); font-size: 12px; padding: 6px 8px; margin: 0 0 10px; }
+  .muted { color: var(--muted); }
+  .m { font-weight: 600; white-space: nowrap; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 24px; font-size: 11px; line-height: 1.45; white-space: nowrap; }
+  .t-exceeds { background: var(--tint); color: var(--accent); }
+  .t-near { background: var(--surface); color: var(--fg); }
+  .t-not_space { background: var(--warn-bg); color: var(--warn); }
+  .t-clear { background: var(--surface); color: var(--muted); }
+  .linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; min-height: 0; font-size: 12px; }
+  .linkbtn:hover { color: var(--accent-hover); text-decoration: underline; }
+  .chip { border: 1px solid var(--accent); color: var(--accent); background: var(--tint); border-radius: 24px; min-height: 28px; padding: 2px 10px; cursor: pointer; font-size: 12px; margin: 0 0 8px; }
+  .group { border: 1px solid var(--line); margin: 0 0 8px; }
+  .group-head { width: 100%; display: grid; grid-template-columns: 1.25rem minmax(0, 1fr) auto; gap: 8px; align-items: center; text-align: left; background: var(--bg); border: 0; padding: 9px 11px; cursor: pointer; font: inherit; }
+  .group-head:hover { background: var(--surface); }
+  .chev { color: var(--muted); font-size: 12px; }
+  .group-name { display: block; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+  .group-meta { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; overflow-wrap: anywhere; }
+  .group-facts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .child-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 12px; align-items: start; text-align: left; background: var(--bg); border: 0; border-top: 1px solid var(--line); padding: 8px 11px; cursor: pointer; font: inherit; }
+  .child-row.single { border: 1px solid var(--line); margin: 0 0 8px; }
+  .child-row.single:hover { background: var(--surface); }
+  .child-row:hover { background: var(--surface); }
+  .child-row[aria-current="true"] { background: var(--tint); box-shadow: inset 3px 0 0 var(--accent); }
+  .child-main { min-width: 0; }
+  .child-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+  .child-meta { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; overflow-wrap: anywhere; }
+  .child-status { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+  .child-dl { font-size: 12px; color: var(--muted); white-space: nowrap; text-align: right; }
+  .child-dl.passed { color: var(--warn); font-weight: 600; }
+  .child-extra { grid-column: 1 / -1; display: none; color: var(--muted); font-size: 12px; border-top: 1px dotted var(--line); padding-top: 3px; margin-top: 1px; }
+  body[data-density="compact"] .child-meta { display: none; }
+  body[data-density="detailed"] .child-extra { display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; vertical-align: top; }
+  th { position: sticky; top: 0; background: var(--bg); font-weight: 600; cursor: pointer; white-space: nowrap; z-index: 1; }
+  th.num, td.num { text-align: right; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: var(--surface); }
+  tr.row[aria-current="true"] { background: var(--tint); }
+  .mono { font-family: var(--mono); font-size: 11px; }
+  .col-picker { margin: 0 0 8px; }
+  .col-picker summary { cursor: pointer; color: var(--accent); font-size: 12px; }
+  .col-box { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 0 2px; font-size: 12px; }
+  .col-box label { display: inline-flex; gap: 4px; align-items: center; color: var(--fg); }
+  .pivot { border: 1px solid var(--line); }
+  .pivot th, .pivot td { border: 1px solid var(--line); text-align: center; }
+  .pivot th:first-child, .pivot td:first-child { text-align: left; }
+  .pivot td.count { cursor: pointer; font-weight: 600; color: var(--accent); background: var(--tint); }
+  .pivot td.zero { color: var(--muted); }
+  .pivot tr.total-row td { font-weight: 600; background: var(--surface); }
+  .inline { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+  .tl-axis, .tl-row { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 10px; align-items: center; }
+  .tl-axis { margin-top: 8px; }
+  .tl-label { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .tl-ticks { position: relative; height: 18px; }
+  .tl-ticks span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .tl-row { padding: 7px 0; border-top: 1px solid var(--line); }
+  .tl-track { position: relative; height: 26px; }
+  .tl-track::before { content: ""; position: absolute; left: 0; right: 0; top: 12px; border-top: 1px solid var(--line); }
+  .tl-dot { position: absolute; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); transform: translateX(-50%); border: 2px solid var(--bg); }
+  .tl-dot.passed { background: var(--warn); }
+  .no-dl { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .card { background: var(--bg); border: 1px solid var(--line); padding: 14px 16px; }
+  .card-header { margin: 0 0 12px; }
+  .card-title { margin: 0 0 3px; font-size: 18px; }
+  .card-sub { margin: 0; color: var(--muted); font-size: 12px; }
+  .card-section { margin: 0 0 14px; }
+  .card-section:last-child { margin-bottom: 0; }
+  .prose p { margin: 0 0 7px; font-size: 13px; }
+  .kv { display: grid; grid-template-columns: minmax(7rem, auto) minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 13px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+  .question { margin: 6px 0; font-size: 13px; }
+  .copy { min-height: 30px; padding: 3px 10px; cursor: pointer; color: var(--accent); border-color: var(--accent); background: var(--tint); font-size: 12px; }
+  .copy:hover { background: var(--accent); color: #fff; }
+  #status { font-size: 12px; color: var(--accent); min-height: 18px; margin: 4px 0 0; }
+  footer { border-top: 1px solid var(--line); padding: 8px 20px; color: var(--muted); font-size: 11px; }
+  @media (max-width: 1000px) {
+    body { height: auto; min-height: 760px; overflow: auto; }
+    main { grid-template-columns: 1fr; }
+    #detail { border-left: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body data-density="standard">
+<header>
+  <div>
+    <h1>Kaista · ryhmittely</h1>
+    <p class="sub" id="run-line">Staattinen demo: out/cases.json</p>
+    <p id="status" role="status" aria-live="polite"></p>
+  </div>
+  <div class="controls">
+    <label>Näkymä
+      <select id="view">
+        <option value="groups">Ryhmät</option>
+        <option value="table">Taulukko</option>
+        <option value="pivot">Ristikko</option>
+        <option value="timeline">Aikajana</option>
+      </select>
+    </label>
+    <label>Ryhmittele
+      <select id="group">
+        <option value="network">Verkko</option>
+        <option value="admin">Hallinto</option>
+        <option value="band">Kaista</option>
+        <option value="stage">Vaihe</option>
+        <option value="victim">Uhriasema</option>
+      </select>
+    </label>
+    <label>Tiheys
+      <select id="density">
+        <option value="compact">Tiivis</option>
+        <option value="standard">Normaali</option>
+        <option value="detailed">Koko</option>
+      </select>
+    </label>
+    <label>Profiili
+      <select id="preset">
+        <option value="free">Vapaa</option>
+        <option value="prosessi">Prosessi</option>
+        <option value="kaista">Kaista</option>
+        <option value="verkko">Verkko</option>
+        <option value="uhri">Uhri</option>
+      </select>
+    </label>
+    <label>Kortin osat
+      <select id="cardorder">
+        <option value="process">Prosessi edellä</option>
+        <option value="spectrum">Laskenta edellä</option>
+        <option value="network">Verkko edellä</option>
+        <option value="victim">Uhri edellä</option>
+      </select>
+    </label>
+  </div>
+</header>
+<main>
+  <section id="left" aria-label="Tapaukset">
+    <div id="filter"></div>
+    <div id="view-root"></div>
+  </section>
+  <aside id="detail" aria-label="Tapauksen kortti">
+    <div id="card"></div>
+  </aside>
+</main>
+<footer>Staattinen design-demo. Jokainen luku tulee out/cases.json-tiedostosta. Ei backend-muutoksia, ei koneoppimista.</footer>
+<script>
+"use strict";
+const DATA = {"cases":[{"id":"3074-124545403","klass":"exceeds","margin":60.44,"adjacent":false,"band_min":3400.0,"band_max":3700.0,"bandwidth":300.0,"band_label":"3 400–3 700 MHz","admin":"CHN","network_org":"","sat":"CSN-SSO","orbit":"NGSO","longitude":null,"beam":"CD","beam_geometry":"missing","coverage_hint":"beam name CD; worst case assumed: peak beam gain toward the Finnish territory","point_lat":null,"point_lon":null,"point_place":"any point in Finland (the pass sweeps every elevation)","victim_station":"989011","victim_class":"MVV","victim_rx":3596.4,"victim_gain":22.0,"victim_power":127.0,"victim_direction":58.0,"victim_directivity":"D","victim_lat":60.2598,"victim_lon":19.9383,"stage_prov":"No. 9.1","stage_label":"advance publication; another administration can still influence the filing","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-137.56,"limit":-198.0,"psd":-42.8,"beam_gain":43.5,"fspl":138.26,"distance":2310,"elevation":5.0,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), NGSO, p. 287","m4":"Amateur, MOBILE AND FIXED, RADIOLOCATION","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":[],"network":"CSN-SSO · CHN","question":"Can China confirm the worst-case PFD the CSN-SSO CD beam produces on Finnish territory in the 3 400-3 700 MHz range?","prose":"# Case 3074-124545403\n\nSatellite CSN-SSO (CHN), beam CD, band 3 400-3 700 MHz. Worst case over Finnish\nterritory, elevation 5°.\n\nCalculated worst-case PFD -137,56 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-198 dB(W/m²/Hz), margin +60,44 dB. Class: exceeds. Finland's allocation on the band:\nAmateur, MOBILE AND FIXED, RADIOLOCATION (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"124545403","source_grp":"124747451","source_beam":"CD","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-125500066","klass":"exceeds","margin":21.32,"adjacent":false,"band_min":3400.0,"band_max":3700.0,"bandwidth":300.0,"band_label":"3 400–3 700 MHz","admin":"RUS","network_org":"","sat":"RGS-N","orbit":"HEO","longitude":null,"beam":"CGB","beam_geometry":"missing","coverage_hint":"beam name CGB; worst case assumed: peak beam gain toward the Finnish territory","point_lat":null,"point_lon":null,"point_place":"any point in Finland (the pass sweeps every elevation)","victim_station":"989011","victim_class":"MVV","victim_rx":3596.4,"victim_gain":22.0,"victim_power":127.0,"victim_direction":58.0,"victim_directivity":"D","victim_lat":60.2598,"victim_lon":19.9383,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"A","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-176.68,"limit":-198.0,"psd":-54.6,"beam_gain":19.0,"fspl":141.08,"distance":3194,"elevation":5.0,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), NGSO, p. 287","m4":"Amateur, MOBILE AND FIXED, RADIOLOCATION","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["125512024"],"network":"RGS-N · RUS","question":"Can Russia confirm the worst-case PFD the RGS-N CGB beam produces on Finnish territory in the 3 400-3 700 MHz range?","prose":"# Case 3074-125500066\n\nSatellite RGS-N (RUS), beam CGB, band 3 400-3 700 MHz. Worst case over Finnish\nterritory, elevation 5°.\n\nCalculated worst-case PFD -176,68 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-198 dB(W/m²/Hz), margin +21,32 dB. Class: exceeds. Finland's allocation on the band:\nAmateur, MOBILE AND FIXED, RADIOLOCATION (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"125500066","source_grp":"125638835","source_beam":"CGB","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-125500277","klass":"exceeds","margin":16.33,"adjacent":false,"band_min":3400.0,"band_max":4200.0,"bandwidth":800.0,"band_label":"3 400–4 200 MHz","admin":"CHN","network_org":"","sat":"GW-S","orbit":"NGSO","longitude":null,"beam":"CD","beam_geometry":"missing","coverage_hint":"beam name CD; worst case assumed: peak beam gain toward the Finnish territory","point_lat":null,"point_lon":null,"point_place":"any point in Finland (the pass sweeps every elevation)","victim_station":"989011","victim_class":"MVV","victim_rx":3596.4,"victim_gain":22.0,"victim_power":127.0,"victim_direction":58.0,"victim_directivity":"D","victim_lat":60.2598,"victim_lon":19.9383,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"A","deadline":"19.12.2026","deadline_iso":"2026-12-19","deadline_passed":false,"pfd":-194.84,"limit":-211.18,"psd":-75.9,"beam_gain":23.0,"fspl":141.94,"distance":3528,"elevation":5.0,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), NGSO, p. 287","m4":"AERONAUTICAL MOBILE (R), AERONAUTICAL RADIONAVIGATION, Amateur, FIXED SATELLITE (SPACE-TO-EARTH), MOBILE, MOBILE AND FIXED, RADIOLOCATION","m4_satellite":true,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":[],"network":"GW-S · CHN","question":"Can China confirm the worst-case PFD the GW-S CD beam produces on Finnish territory in the 3 400-4 200 MHz range?","prose":"# Case 3074-125500277\n\nSatellite GW-S (CHN), beam CD, band 3 400-4 200 MHz. Worst case over Finnish\nterritory, elevation 5°.\n\nCalculated worst-case PFD -194,84 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-211,18 dB(W/m²/Hz), margin +16,33 dB. Class: exceeds. Finland's allocation on the band:\nAERONAUTICAL MOBILE (R), AERONAUTICAL RADIONAVIGATION, Amateur, FIXED SATELLITE (SPACE-TO-EARTH), MOBILE, MOBILE AND FIXED, RADIOLOCATION.\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"125500277","source_grp":"125867441","source_beam":"CD","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-124520183","klass":"exceeds","margin":3.66,"adjacent":false,"band_min":3600.0,"band_max":3640.0,"bandwidth":40.0,"band_label":"3 600–3 640 MHz","admin":"CHN","network_org":"","sat":"CHINASAT-H-60.5E","orbit":"GSO","longitude":60.5,"beam":"CGDR","beam_geometry":"missing","coverage_hint":"beam name CGDR; worst case assumed: peak beam gain toward the Finnish territory","point_lat":69.21411,"point_lon":21.06611,"point_place":"land border, Norway","victim_station":"983254","victim_class":"MVV","victim_rx":3613.7,"victim_gain":49.0,"victim_power":154.0,"victim_direction":151.0,"victim_directivity":"D","victim_lat":68.4629,"victim_lon":24.8585,"stage_prov":"No. 9.6","stage_label":"coordination request; another administration can still influence the filing","stage_rank":9,"action":"A","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-183.22,"limit":-186.88,"psd":-50.0,"beam_gain":30.0,"fspl":163.22,"distance":40879,"elevation":7.28,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["324520183"],"network":"CHINASAT-H-60.5E · CHN","question":"Can China confirm the worst-case PFD the CHINASAT-H-60.5E CGDR beam produces on Finnish territory in the 3 600-3 640 MHz range?","prose":"# Case 3074-124520183\n\nSatellite CHINASAT-H-60.5E (CHN), beam CGDR, band 3 600-3 640 MHz. Worst case over Finnish\nterritory, elevation 7,28°.\n\nCalculated worst-case PFD -183,22 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-186,88 dB(W/m²/Hz), margin +3,66 dB. Class: exceeds. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"124520183","source_grp":"124793970","source_beam":"CGDR","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-103500417","klass":"exceeds","margin":3.25,"adjacent":false,"band_min":3442.0,"band_max":3478.0,"bandwidth":36.0,"band_label":"3 442–3 478 MHz","admin":"CHN","network_org":"","sat":"COMPASS-80E","orbit":"GSO","longitude":80.0,"beam":"CDN","beam_geometry":"missing","coverage_hint":"beam name CDN; worst case assumed: peak beam gain toward the Finnish territory","point_lat":64.3496,"point_lon":22.98844,"point_place":"territorial sea outer limit","victim_station":"986805","victim_class":"MVV","victim_rx":3520.5,"victim_gain":58.0,"victim_power":163.0,"victim_direction":82.0,"victim_directivity":"D","victim_lat":66.1172,"victim_lon":28.5729,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-184.78,"limit":-188.02,"psd":-50.0,"beam_gain":28.5,"fspl":163.28,"distance":41130,"elevation":4.96,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["303500417"],"network":"COMPASS-80E · CHN","question":"Can China confirm the worst-case PFD the COMPASS-80E CDN beam produces on Finnish territory in the 3 442-3 478 MHz range?","prose":"# Case 3074-103500417\n\nSatellite COMPASS-80E (CHN), beam CDN, band 3 442-3 478 MHz. Worst case over Finnish\nterritory, elevation 4,96°.\n\nCalculated worst-case PFD -184,78 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-188,02 dB(W/m²/Hz), margin +3,25 dB. Class: exceeds. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[{"ntc_id":"100543885","reason":"A"}],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"103500417","source_grp":"109692106","source_beam":"CDN","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-303500417","klass":"exceeds","margin":3.25,"adjacent":false,"band_min":3442.0,"band_max":3478.0,"bandwidth":36.0,"band_label":"3 442–3 478 MHz","admin":"CHN","network_org":"","sat":"COMPASS-80E","orbit":"GSO","longitude":80.0,"beam":"CDN","beam_geometry":"missing","coverage_hint":"beam name CDN; worst case assumed: peak beam gain toward the Finnish territory","point_lat":64.3496,"point_lon":22.98844,"point_place":"territorial sea outer limit","victim_station":"986805","victim_class":"MVV","victim_rx":3520.5,"victim_gain":58.0,"victim_power":163.0,"victim_direction":82.0,"victim_directivity":"D","victim_lat":66.1172,"victim_lon":28.5729,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-184.78,"limit":-188.02,"psd":-50.0,"beam_gain":28.5,"fspl":163.28,"distance":41130,"elevation":4.96,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["103500417"],"network":"COMPASS-80E · CHN","question":"Can China confirm the worst-case PFD the COMPASS-80E CDN beam produces on Finnish territory in the 3 442-3 478 MHz range?","prose":"# Case 3074-303500417\n\nSatellite COMPASS-80E (CHN), beam CDN, band 3 442-3 478 MHz. Worst case over Finnish\nterritory, elevation 4,96°.\n\nCalculated worst-case PFD -184,78 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-188,02 dB(W/m²/Hz), margin +3,25 dB. Class: exceeds. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[{"ntc_id":"100543885","reason":"A"}],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"303500417","source_grp":"309692106","source_beam":"CDN","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-124520184","klass":"exceeds","margin":1.74,"adjacent":false,"band_min":3600.0,"band_max":3640.0,"bandwidth":40.0,"band_label":"3 600–3 640 MHz","admin":"CHN","network_org":"","sat":"CHINASAT-G-33.5E","orbit":"GSO","longitude":33.5,"beam":"CGDR","beam_geometry":"missing","coverage_hint":"beam name CGDR; worst case assumed: peak beam gain toward the Finnish territory","point_lat":70.06484,"point_lon":27.74785,"point_place":"land border, Norway","victim_station":"983254","victim_class":"MVV","victim_rx":3613.7,"victim_gain":49.0,"victim_power":154.0,"victim_direction":151.0,"victim_directivity":"D","victim_lat":68.4629,"victim_lon":24.8585,"stage_prov":"No. 9.6","stage_label":"coordination request; another administration can still influence the filing","stage_rank":9,"action":"A","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-183.13,"limit":-184.87,"psd":-50.0,"beam_gain":30.0,"fspl":163.13,"distance":40448,"elevation":11.3,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["324520184"],"network":"CHINASAT-G-33.5E · CHN","question":"Can China confirm the worst-case PFD the CHINASAT-G-33.5E CGDR beam produces on Finnish territory in the 3 600-3 640 MHz range?","prose":"# Case 3074-124520184\n\nSatellite CHINASAT-G-33.5E (CHN), beam CGDR, band 3 600-3 640 MHz. Worst case over Finnish\nterritory, elevation 11,3°.\n\nCalculated worst-case PFD -183,13 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-184,87 dB(W/m²/Hz), margin +1,74 dB. Class: exceeds. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"124520184","source_grp":"124793583","source_beam":"CGDR","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-119500051","klass":"exceeds","margin":1.65,"adjacent":false,"band_min":3700.0,"band_max":3740.0,"bandwidth":40.0,"band_label":"3 700–3 740 MHz","admin":"CHN","network_org":"","sat":"COMPASS-80.3E","orbit":"GSO","longitude":80.300003,"beam":"CDN","beam_geometry":"missing","coverage_hint":"beam name CDN; worst case assumed: peak beam gain toward the Finnish territory","point_lat":64.72191,"point_lon":23.86612,"point_place":"territorial sea outer limit","victim_station":"983816","victim_class":"MVV","victim_rx":3726.8,"victim_gain":40.0,"victim_power":145.0,"victim_direction":253.0,"victim_directivity":"D","victim_lat":65.6981,"victim_lon":24.6245,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-186.37,"limit":-188.02,"psd":-50.1,"beam_gain":27.0,"fspl":163.27,"distance":41128,"elevation":4.99,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["319500051"],"network":"COMPASS-80.3E · CHN","question":"Can China confirm the worst-case PFD the COMPASS-80.3E CDN beam produces on Finnish territory in the 3 700-3 740 MHz range?","prose":"# Case 3074-119500051\n\nSatellite COMPASS-80.3E (CHN), beam CDN, band 3 700-3 740 MHz. Worst case over Finnish\nterritory, elevation 4,99°.\n\nCalculated worst-case PFD -186,37 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-188,02 dB(W/m²/Hz), margin +1,65 dB. Class: exceeds. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"119500051","source_grp":"120711232","source_beam":"CDN","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-319500051","klass":"exceeds","margin":1.65,"adjacent":false,"band_min":3700.0,"band_max":3740.0,"bandwidth":40.0,"band_label":"3 700–3 740 MHz","admin":"CHN","network_org":"","sat":"COMPASS-80.3E","orbit":"GSO","longitude":80.300003,"beam":"CDN","beam_geometry":"missing","coverage_hint":"beam name CDN; worst case assumed: peak beam gain toward the Finnish territory","point_lat":64.72191,"point_lon":23.86612,"point_place":"territorial sea outer limit","victim_station":"983816","victim_class":"MVV","victim_rx":3726.8,"victim_gain":40.0,"victim_power":145.0,"victim_direction":253.0,"victim_directivity":"D","victim_lat":65.6981,"victim_lon":24.6245,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-186.37,"limit":-188.02,"psd":-50.1,"beam_gain":27.0,"fspl":163.27,"distance":41128,"elevation":4.99,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["119500051"],"network":"COMPASS-80.3E · CHN","question":"Can China confirm the worst-case PFD the COMPASS-80.3E CDN beam produces on Finnish territory in the 3 700-3 740 MHz range?","prose":"# Case 3074-319500051\n\nSatellite COMPASS-80.3E (CHN), beam CDN, band 3 700-3 740 MHz. Worst case over Finnish\nterritory, elevation 4,99°.\n\nCalculated worst-case PFD -186,37 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-188,02 dB(W/m²/Hz), margin +1,65 dB. Class: exceeds. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"319500051","source_grp":"320711232","source_beam":"CDN","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-95500027","klass":"exceeds","margin":0.82,"adjacent":false,"band_min":3725.5,"band_max":3759.5,"bandwidth":34.0,"band_label":"3 725,5–3 759,5 MHz","admin":"USA","network_org":"","sat":"INTELSAT7 66E","orbit":"GSO","longitude":66.0,"beam":"Z4","beam_geometry":"missing","coverage_hint":"beam name Z4; worst case assumed: peak beam gain toward the Finnish territory","point_lat":69.03687,"point_lon":20.62217,"point_place":"land border, Norway","victim_station":"983816","victim_class":"MVV","victim_rx":3726.8,"victim_gain":40.0,"victim_power":145.0,"victim_direction":253.0,"victim_directivity":"D","victim_lat":65.6981,"victim_lon":24.6245,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-186.75,"limit":-187.57,"psd":-53.0,"beam_gain":29.5,"fspl":163.25,"distance":41028,"elevation":5.9,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["322500245"],"network":"INTELSAT7 66E · USA","question":"Can the United States confirm the worst-case PFD the INTELSAT7 66E Z4 beam produces on Finnish territory in the 3 725,5-3 759,5 MHz range?","prose":"# Case 3074-95500027\n\nSatellite INTELSAT7 66E (USA), beam Z4, band 3 725,5-3 759,5 MHz. Worst case over Finnish\nterritory, elevation 5,9°.\n\nCalculated worst-case PFD -186,75 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-187,57 dB(W/m²/Hz), margin +0,82 dB. Class: exceeds. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[{"ntc_id":"89540034","reason":"A"},{"ntc_id":"90500774","reason":"C"}],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"95500027","source_grp":"95601162","source_beam":"Z4","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-322500245","klass":"exceeds","margin":0.82,"adjacent":false,"band_min":3725.5,"band_max":3759.5,"bandwidth":34.0,"band_label":"3 725,5–3 759,5 MHz","admin":"USA","network_org":"","sat":"INTELSAT7 66E","orbit":"GSO","longitude":66.0,"beam":"Z4","beam_geometry":"missing","coverage_hint":"beam name Z4; worst case assumed: peak beam gain toward the Finnish territory","point_lat":69.03687,"point_lon":20.62217,"point_place":"land border, Norway","victim_station":"983816","victim_class":"MVV","victim_rx":3726.8,"victim_gain":40.0,"victim_power":145.0,"victim_direction":253.0,"victim_directivity":"D","victim_lat":65.6981,"victim_lon":24.6245,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-186.75,"limit":-187.57,"psd":-53.0,"beam_gain":29.5,"fspl":163.25,"distance":41028,"elevation":5.9,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["95500027"],"network":"INTELSAT7 66E · USA","question":"Can the United States confirm the worst-case PFD the INTELSAT7 66E Z4 beam produces on Finnish territory in the 3 725,5-3 759,5 MHz range?","prose":"# Case 3074-322500245\n\nSatellite INTELSAT7 66E (USA), beam Z4, band 3 725,5-3 759,5 MHz. Worst case over Finnish\nterritory, elevation 5,9°.\n\nCalculated worst-case PFD -186,75 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-187,57 dB(W/m²/Hz), margin +0,82 dB. Class: exceeds. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[{"ntc_id":"89540034","reason":"A"},{"ntc_id":"90500774","reason":"C"}],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"322500245","source_grp":"295601162","source_beam":"Z4","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-124520214","klass":"near","margin":-0.25,"adjacent":false,"band_min":3600.0,"band_max":4200.0,"bandwidth":600.0,"band_label":"3 600–4 200 MHz","admin":"IND","network_org":"","sat":"INSAT-COM(71E)","orbit":"GSO","longitude":71.0,"beam":"CDL","beam_geometry":"missing","coverage_hint":"beam name CDL; worst case assumed: peak beam gain toward the Finnish territory","point_lat":68.69067,"point_lon":21.46543,"point_place":"land border, Sweden","victim_station":"983254","victim_class":"MVV","victim_rx":3613.7,"victim_gain":49.0,"victim_power":154.0,"victim_direction":151.0,"victim_directivity":"D","victim_lat":68.4629,"victim_lon":24.8585,"stage_prov":"No. 9.6","stage_label":"coordination request; another administration can still influence the filing","stage_rank":9,"action":"A","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-188.28,"limit":-188.02,"psd":-56.0,"beam_gain":31.0,"fspl":163.28,"distance":41129,"elevation":4.97,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"AERONAUTICAL MOBILE (R), AERONAUTICAL RADIONAVIGATION, FIXED SATELLITE (SPACE-TO-EARTH), MOBILE, MOBILE AND FIXED","m4_satellite":true,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["324520214"],"network":"INSAT-COM(71E) · IND","question":"Can IND confirm the worst-case PFD the INSAT-COM(71E) CDL beam produces on Finnish territory in the 3 600-4 200 MHz range?","prose":"# Case 3074-124520214\n\nSatellite INSAT-COM(71E) (IND), beam CDL, band 3 600-4 200 MHz. Worst case over Finnish\nterritory, elevation 4,97°.\n\nCalculated worst-case PFD -188,28 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-188,02 dB(W/m²/Hz), margin -0,25 dB. Class: near. Finland's allocation on the band:\nAERONAUTICAL MOBILE (R), AERONAUTICAL RADIONAVIGATION, FIXED SATELLITE (SPACE-TO-EARTH), MOBILE, MOBILE AND FIXED.\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"124520214","source_grp":"124727416","source_beam":"CDL","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-103500416","klass":"near","margin":-2.03,"adjacent":false,"band_min":3442.0,"band_max":3478.0,"bandwidth":36.0,"band_label":"3 442–3 478 MHz","admin":"CHN","network_org":"","sat":"COMPASS-58.75E","orbit":"GSO","longitude":58.75,"beam":"CDN","beam_geometry":"missing","coverage_hint":"beam name CDN; worst case assumed: peak beam gain toward the Finnish territory","point_lat":69.24727,"point_lon":21.14375,"point_place":"land border, Norway","victim_station":"986805","victim_class":"MVV","victim_rx":3520.5,"victim_gain":58.0,"victim_power":163.0,"victim_direction":82.0,"victim_directivity":"D","victim_lat":66.1172,"victim_lon":28.5729,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-188.71,"limit":-186.68,"psd":-54.0,"beam_gain":28.5,"fspl":163.21,"distance":40835,"elevation":7.68,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["303500416"],"network":"COMPASS-58.75E · CHN","question":"Can China confirm the worst-case PFD the COMPASS-58.75E CDN beam produces on Finnish territory in the 3 442-3 478 MHz range?","prose":"# Case 3074-103500416\n\nSatellite COMPASS-58.75E (CHN), beam CDN, band 3 442-3 478 MHz. Worst case over Finnish\nterritory, elevation 7,68°.\n\nCalculated worst-case PFD -188,71 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-186,68 dB(W/m²/Hz), margin -2,03 dB. Class: near. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[{"ntc_id":"100543884","reason":"A"}],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"103500416","source_grp":"109671614","source_beam":"CDN","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-303500416","klass":"near","margin":-2.03,"adjacent":false,"band_min":3442.0,"band_max":3478.0,"bandwidth":36.0,"band_label":"3 442–3 478 MHz","admin":"CHN","network_org":"","sat":"COMPASS-58.75E","orbit":"GSO","longitude":58.75,"beam":"CDN","beam_geometry":"missing","coverage_hint":"beam name CDN; worst case assumed: peak beam gain toward the Finnish territory","point_lat":69.24727,"point_lon":21.14375,"point_place":"land border, Norway","victim_station":"986805","victim_class":"MVV","victim_rx":3520.5,"victim_gain":58.0,"victim_power":163.0,"victim_direction":82.0,"victim_directivity":"D","victim_lat":66.1172,"victim_lon":28.5729,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-188.71,"limit":-186.68,"psd":-54.0,"beam_gain":28.5,"fspl":163.21,"distance":40835,"elevation":7.68,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["103500416"],"network":"COMPASS-58.75E · CHN","question":"Can China confirm the worst-case PFD the COMPASS-58.75E CDN beam produces on Finnish territory in the 3 442-3 478 MHz range?","prose":"# Case 3074-303500416\n\nSatellite COMPASS-58.75E (CHN), beam CDN, band 3 442-3 478 MHz. Worst case over Finnish\nterritory, elevation 7,68°.\n\nCalculated worst-case PFD -188,71 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-186,68 dB(W/m²/Hz), margin -2,03 dB. Class: near. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[{"ntc_id":"100543884","reason":"A"}],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"303500416","source_grp":"309671614","source_beam":"CDN","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-125512022","klass":"near","margin":-2.5,"adjacent":false,"band_min":3450.0,"band_max":3500.0,"bandwidth":50.0,"band_label":"3 450–3 500 MHz","admin":"RUS","network_org":"","sat":"RGS-S-45E","orbit":"GSO","longitude":45.0,"beam":"CGB","beam_geometry":"missing","coverage_hint":"beam name CGB; worst case assumed: peak beam gain toward the Finnish territory","point_lat":69.27368,"point_lon":21.2668,"point_place":"land border, Norway","victim_station":"987028","victim_class":"MVV","victim_rx":3544.3,"victim_gain":67.0,"victim_power":172.0,"victim_direction":62.0,"victim_directivity":"D","victim_lat":68.846,"victim_lon":28.323,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"A","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-187.85,"limit":-185.35,"psd":-43.7,"beam_gain":19.0,"fspl":163.15,"distance":40549,"elevation":10.35,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["125500060"],"network":"RGS-S-45E · RUS","question":"Can Russia confirm the worst-case PFD the RGS-S-45E CGB beam produces on Finnish territory in the 3 450-3 500 MHz range?","prose":"# Case 3074-125512022\n\nSatellite RGS-S-45E (RUS), beam CGB, band 3 450-3 500 MHz. Worst case over Finnish\nterritory, elevation 10,35°.\n\nCalculated worst-case PFD -187,85 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-185,35 dB(W/m²/Hz), margin -2,50 dB. Class: near. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"125512022","source_grp":"125622408","source_beam":"CGB","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-125512023","klass":"near","margin":-2.93,"adjacent":false,"band_min":3450.0,"band_max":3500.0,"bandwidth":50.0,"band_label":"3 450–3 500 MHz","admin":"RUS","network_org":"","sat":"RGS-S-35E","orbit":"GSO","longitude":35.0,"beam":"CGB","beam_geometry":"missing","coverage_hint":"beam name CGB; worst case assumed: peak beam gain toward the Finnish territory","point_lat":70.06484,"point_lon":27.74785,"point_place":"land border, Norway","victim_station":"987028","victim_class":"MVV","victim_rx":3544.3,"victim_gain":67.0,"victim_power":172.0,"victim_direction":62.0,"victim_directivity":"D","victim_lat":68.846,"victim_lon":28.323,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"A","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-187.83,"limit":-184.9,"psd":-43.7,"beam_gain":19.0,"fspl":163.13,"distance":40454,"elevation":11.24,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["125500061"],"network":"RGS-S-35E · RUS","question":"Can Russia confirm the worst-case PFD the RGS-S-35E CGB beam produces on Finnish territory in the 3 450-3 500 MHz range?","prose":"# Case 3074-125512023\n\nSatellite RGS-S-35E (RUS), beam CGB, band 3 450-3 500 MHz. Worst case over Finnish\nterritory, elevation 11,24°.\n\nCalculated worst-case PFD -187,83 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-184,9 dB(W/m²/Hz), margin -2,93 dB. Class: near. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"125512023","source_grp":"125622496","source_beam":"CGB","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-109500876","klass":"not_space","margin":-3.75,"adjacent":false,"band_min":3702.0,"band_max":3738.0,"bandwidth":36.0,"band_label":"3 702–3 738 MHz","admin":"CHN","network_org":"","sat":"CHINASAT-31","orbit":"GSO","longitude":80.0,"beam":"CDN","beam_geometry":"missing","coverage_hint":"beam name CDN; worst case assumed: peak beam gain toward the Finnish territory","point_lat":64.3496,"point_lon":22.98844,"point_place":"territorial sea outer limit","victim_station":"983816","victim_class":"MVV","victim_rx":3726.8,"victim_gain":40.0,"victim_power":145.0,"victim_direction":253.0,"victim_directivity":"D","victim_lat":65.6981,"victim_lon":24.6245,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"A","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-191.78,"limit":-188.02,"psd":-54.5,"beam_gain":26.0,"fspl":163.28,"distance":41130,"elevation":4.96,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["309500876"],"network":"CHINASAT-31 · CHN","question":"Can China confirm the worst-case PFD the CHINASAT-31 CDN beam produces on Finnish territory in the 3 702-3 738 MHz range?","prose":"# Case 3074-109500876\n\nSatellite CHINASAT-31 (CHN), beam CDN, band 3 702-3 738 MHz. Worst case over Finnish\nterritory, elevation 4,96°.\n\nCalculated worst-case PFD -191,78 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-188,02 dB(W/m²/Hz), margin -3,75 dB. Class: not_space. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[{"ntc_id":"94540124","reason":"A"},{"ntc_id":"95520151","reason":"C"}],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"109500876","source_grp":"109665579","source_beam":"CDN","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-309500876","klass":"not_space","margin":-3.75,"adjacent":false,"band_min":3702.0,"band_max":3738.0,"bandwidth":36.0,"band_label":"3 702–3 738 MHz","admin":"CHN","network_org":"","sat":"CHINASAT-31","orbit":"GSO","longitude":80.0,"beam":"CDN","beam_geometry":"missing","coverage_hint":"beam name CDN; worst case assumed: peak beam gain toward the Finnish territory","point_lat":64.3496,"point_lon":22.98844,"point_place":"territorial sea outer limit","victim_station":"983816","victim_class":"MVV","victim_rx":3726.8,"victim_gain":40.0,"victim_power":145.0,"victim_direction":253.0,"victim_directivity":"D","victim_lat":65.6981,"victim_lon":24.6245,"stage_prov":"No. 11.2","stage_label":"notification recorded in the MIFR","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-191.78,"limit":-188.02,"psd":-54.5,"beam_gain":26.0,"fspl":163.28,"distance":41130,"elevation":4.96,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"MOBILE AND FIXED","m4_satellite":false,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["109500876"],"network":"CHINASAT-31 · CHN","question":"Can China confirm the worst-case PFD the CHINASAT-31 CDN beam produces on Finnish territory in the 3 702-3 738 MHz range?","prose":"# Case 3074-309500876\n\nSatellite CHINASAT-31 (CHN), beam CDN, band 3 702-3 738 MHz. Worst case over Finnish\nterritory, elevation 4,96°.\n\nCalculated worst-case PFD -191,78 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-188,02 dB(W/m²/Hz), margin -3,75 dB. Class: not_space. Finland's allocation on the band:\nMOBILE AND FIXED (no satellite service).\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[{"ntc_id":"94540124","reason":"A"},{"ntc_id":"95520151","reason":"C"}],"threshold_note":"the station has a directive antenna; the trigger level may be lower if the source is in the main beam direction","source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"309500876","source_grp":"309665579","source_beam":"CDN","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-124520179","klass":"clear","margin":-5.66,"adjacent":false,"band_min":3625.0,"band_max":4200.0,"bandwidth":575.0,"band_label":"3 625–4 200 MHz","admin":"E","network_org":"","sat":"HISPASAT-5-52.5W","orbit":"GSO","longitude":-52.5,"beam":"TCB","beam_geometry":"missing","coverage_hint":"beam name TCB; worst case assumed: peak beam gain toward the Finnish territory","point_lat":60.19168,"point_lon":19.0832,"point_place":"territorial sea outer limit","victim_station":"","victim_class":"","victim_rx":null,"victim_gain":null,"victim_power":null,"victim_direction":null,"victim_directivity":"","victim_lat":null,"victim_lon":null,"stage_prov":"No. 9.6","stage_label":"coordination request; another administration can still influence the filing","stage_rank":9,"action":"A","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-193.68,"limit":-188.02,"psd":-59.8,"beam_gain":29.5,"fspl":163.38,"distance":41642,"elevation":0.34,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"AERONAUTICAL MOBILE (R), AERONAUTICAL RADIONAVIGATION, FIXED SATELLITE (SPACE-TO-EARTH), MOBILE, MOBILE AND FIXED","m4_satellite":true,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["324520179"],"network":"HISPASAT-5-52.5W · E","question":"Can E confirm the worst-case PFD the HISPASAT-5-52.5W TCB beam produces on Finnish territory in the 3 625-4 200 MHz range?","prose":"# Case 3074-124520179\n\nSatellite HISPASAT-5-52.5W (E), beam TCB, band 3 625-4 200 MHz. Worst case over Finnish\nterritory, elevation 0,34°.\n\nCalculated worst-case PFD -193,68 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-188,02 dB(W/m²/Hz), margin -5,66 dB. Class: clear. Finland's allocation on the band:\nAERONAUTICAL MOBILE (R), AERONAUTICAL RADIONAVIGATION, FIXED SATELLITE (SPACE-TO-EARTH), MOBILE, MOBILE AND FIXED.\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":null,"source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"124520179","source_grp":"124711896","source_beam":"TCB","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"},{"id":"3074-324520179","klass":"clear","margin":-5.66,"adjacent":false,"band_min":3625.0,"band_max":4200.0,"bandwidth":575.0,"band_label":"3 625–4 200 MHz","admin":"E","network_org":"","sat":"HISPASAT-5-52.5W","orbit":"GSO","longitude":-52.5,"beam":"TCB","beam_geometry":"missing","coverage_hint":"beam name TCB; worst case assumed: peak beam gain toward the Finnish territory","point_lat":60.19168,"point_lon":19.0832,"point_place":"territorial sea outer limit","victim_station":"","victim_class":"","victim_rx":null,"victim_gain":null,"victim_power":null,"victim_direction":null,"victim_directivity":"","victim_lat":null,"victim_lon":null,"stage_prov":"No. 9.6","stage_label":"coordination request; another administration can still influence the filing","stage_rank":9,"action":"M","deadline":null,"deadline_iso":null,"deadline_passed":false,"pfd":-193.68,"limit":-188.02,"psd":-59.8,"beam_gain":29.5,"fspl":163.38,"distance":41642,"elevation":0.34,"limit_source":"ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287","m4":"AERONAUTICAL MOBILE (R), AERONAUTICAL RADIONAVIGATION, FIXED SATELLITE (SPACE-TO-EARTH), MOBILE, MOBILE AND FIXED","m4_satellite":true,"m4_source":"opendata.traficom.fi/api/v13/Taajuusjakotaulukko","missing":["s_beam.bore_long","s_beam.bore_lat","s_beam.maj_axis","s_beam.min_axis"],"same_network":["124520179"],"network":"HISPASAT-5-52.5W · E","question":"Can E confirm the worst-case PFD the HISPASAT-5-52.5W TCB beam produces on Finnish territory in the 3 625-4 200 MHz range?","prose":"# Case 3074-324520179\n\nSatellite HISPASAT-5-52.5W (E), beam TCB, band 3 625-4 200 MHz. Worst case over Finnish\nterritory, elevation 0,34°.\n\nCalculated worst-case PFD -193,68 dB(W/m²/Hz) against the ITU RR Art. 21 Table 21-4 limit\n-188,02 dB(W/m²/Hz), margin -5,66 dB. Class: clear. Finland's allocation on the band:\nAERONAUTICAL MOBILE (R), AERONAUTICAL RADIONAVIGATION, FIXED SATELLITE (SPACE-TO-EARTH), MOBILE, MOBILE AND FIXED.\n\nThe number is an upper bound for screening; it does not show interference. A human decides.\n","filing_follows":[],"threshold_note":null,"source_file":"ific3074.mdb","source_ific":"3074","source_sha":"a9755213b6cdb7a26a1ca1dcf95ba69a362d3bcc2cb088e91b6b8e01e4790e31","source_tables":["notice","freq","emiss","s_beam","geo","orbit","ntc_lnk","grp_res35"],"source_ntc":"324520179","source_grp":"324711896","source_beam":"TCB","rules_version":"1.1.0","run_at":"2026-11-07T16:45:09+02:00"}],"run_at":"2026-11-07T16:45:09+02:00"};
+const CASES = DATA.cases.filter(c => c.klass !== "clear");
+const CLEAR_COUNT = DATA.cases.length - CASES.length;
+const RUN_AT = DATA.run_at;
+const RUN_MS = Date.parse(RUN_AT);
+
+const CLASS_ORDER = ["exceeds", "near", "not_space", "cannot_decide", "clear"];
+const CLASS_FI = {exceeds: "Ylittää rajan", near: "Lähellä rajaa", not_space: "Ei satelliittikäyttöä", clear: "Selvästi alle", cannot_decide: "Ei ratkaistavissa"};
+const ACTION_FI = {A: "Uusi (A)", M: "Muutos (M)", S: "Poisto (S)"};
+const STAGE_SHORT = {"No. 9.1": "API", "No. 9.6": "CRC", "No. 11.2": "MIFR", "Resolution 49": "Res. 49"};
+const STAGE_RANK = {"No. 9.1": 0, "No. 9.6": 0, "No. 11.2": 1, "Resolution 49": 2};
+const ADMIN_FI = {CHN: "Kiina", RUS: "Venäjä", USA: "Yhdysvallat", IND: "Intia", E: "Espanja"};
+const GROUP_LABEL = {network: "verkko", admin: "hallinto", band: "kaista", stage: "vaihe", victim: "uhriasema"};
+
+const COLUMNS = {
+  id: {label: "Tunnus", text: c => c.id, mono: true},
+  sat: {label: "Satelliitti", text: c => c.sat || "—"},
+  admin: {label: "Hallinto", text: c => adminName(c.admin)},
+  band: {label: "Kaista", text: c => c.band_label},
+  klass: {label: "Luokka", text: c => classLabel(c.klass)},
+  margin: {label: "Marginaali", text: c => signed(c.margin, "dB"), num: true},
+  pfd: {label: "PFD", text: c => num(c.pfd, "dB(W/m²/Hz)"), num: true},
+  limit: {label: "Raja", text: c => num(c.limit, "dB(W/m²/Hz)"), num: true},
+  elevation: {label: "Korkeus", text: c => num(c.elevation, "°"), num: true},
+  stage: {label: "Vaihe", text: c => stageLabel(c)},
+  deadline: {label: "Deadline", text: c => c.deadline || "—"},
+  action: {label: "Toiminto", text: c => actionLabel(c.action)},
+  orbit: {label: "Rata", text: c => c.orbit || "—"},
+  beam: {label: "Keila", text: c => c.beam || "—"},
+  victim: {label: "Uhri", text: c => c.victim_station || "—"},
+  victim_class: {label: "Uhrin luokka", text: c => c.victim_class || "—"},
+  rx: {label: "RX", text: c => num(c.victim_rx, "MHz"), num: true},
+  gain: {label: "Vahvistus", text: c => num(c.victim_gain, "dBi"), num: true},
+  m4: {label: "M4-palvelu", text: c => c.m4 || "—"}
+};
+const ALL_COLUMNS = ["id", "sat", "admin", "band", "klass", "margin", "stage", "deadline", "action", "pfd", "limit", "elevation", "orbit", "beam", "victim", "victim_class", "rx", "gain", "m4"];
+
+const PROFILES = {
+  free: null,
+  prosessi: {group: "stage", density: "standard", card: "process", columns: ["id", "sat", "admin", "stage", "deadline", "action", "klass"]},
+  kaista: {group: "band", density: "compact", card: "spectrum", columns: ["id", "sat", "band", "margin", "pfd", "limit", "elevation"]},
+  verkko: {group: "network", density: "standard", card: "network", columns: ["sat", "admin", "orbit", "beam", "band", "stage", "klass"]},
+  uhri: {group: "victim", density: "standard", card: "victim", columns: ["victim", "victim_class", "rx", "gain", "m4", "margin", "klass"]}
+};
+const CARD_ORDERS = {
+  process: ["reg", "summary", "calc", "victim", "network", "source"],
+  spectrum: ["calc", "summary", "victim", "reg", "network", "source"],
+  network: ["network", "summary", "reg", "calc", "victim", "source"],
+  victim: ["victim", "summary", "calc", "reg", "network", "source"]
+};
+
+const state = {
+  view: "groups", group: "network", density: "standard", preset: "free",
+  cardOrder: "process", pivotCol: "class", sort: {key: "priority", dir: 1},
+  selected: null, expanded: new Set(), filter: null,
+  columns: ["id", "sat", "admin", "band", "klass", "margin", "stage", "deadline", "action"]
+};
+
+function el(tag, text, cls) {
+  const node = document.createElement(tag);
+  if (text !== undefined && text !== null) node.textContent = text;
+  if (cls) node.className = cls;
+  return node;
+}
+function num(v, unit) {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = Number(v);
+  if (!isFinite(n)) return String(v);
+  return n.toLocaleString("fi-FI", {maximumFractionDigits: 2}) + (unit ? " " + unit : "");
+}
+function signed(v, unit) {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = Number(v);
+  if (!isFinite(n)) return String(v);
+  return (n >= 0 ? "+" : "") + n.toLocaleString("fi-FI", {maximumFractionDigits: 2}) + (unit ? " " + unit : "");
+}
+function adminName(code) {
+  return code ? (ADMIN_FI[code] ? ADMIN_FI[code] + " (" + code + ")" : code) : "tuntematon";
+}
+function classLabel(k) { return CLASS_FI[k] || k || "—"; }
+function actionLabel(a) { return ACTION_FI[a] || a || "—"; }
+function stageLabel(c) { return [c.stage_prov, STAGE_SHORT[c.stage_prov]].filter(Boolean).join(" ") || "tuntematon vaihe"; }
+function stageRank(c) { return STAGE_RANK[c.stage_prov] ?? 9; }
+function countText(n) { return n === 1 ? "1 tapaus" : n + " tapausta"; }
+function classTag(k) { return el("span", classLabel(k), "tag t-" + k); }
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? (iso || "—") : d.toLocaleDateString("fi-FI");
+}
+function deadlineRank(c) { if (!c.deadline) return 2; return c.deadline_passed ? 1 : 0; }
+function deadlineOrd(c) {
+  if (!c.deadline) return 0;
+  const t = Date.parse(c.deadline_iso);
+  return c.deadline_passed ? -t : t;
+}
+function queueKey(c) {
+  return [CLASS_ORDER.indexOf(c.klass), stageRank(c), deadlineRank(c), deadlineOrd(c), -(typeof c.margin === "number" ? c.margin : 0), c.id];
+}
+function byQueue(a, b) {
+  const ka = queueKey(a), kb = queueKey(b);
+  for (let i = 0; i < ka.length; i += 1) {
+    if (ka[i] < kb[i]) return -1;
+    if (ka[i] > kb[i]) return 1;
+  }
+  return 0;
+}
+function groupKey(c, dim) {
+  if (dim === "network") return c.network;
+  if (dim === "admin") return adminName(c.admin);
+  if (dim === "band") return c.band_label;
+  if (dim === "stage") return stageLabel(c);
+  if (dim === "victim") return c.victim_station ? c.victim_station + " (" + (c.victim_class || "—") + ")" : "Ei uhriasemaa";
+  return "Kaikki";
+}
+function filteredCases() {
+  if (!state.filter) return CASES;
+  const f = state.filter;
+  return CASES.filter(c => {
+    if (groupKey(c, f.dim) !== f.groupName) return false;
+    if (f.colDim === "class") return c.klass === f.colValue;
+    return stageLabel(c) === f.colValue;
+  });
+}
+function groupBy(dim) {
+  const map = new Map();
+  for (const c of filteredCases()) {
+    const key = groupKey(c, dim);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(c);
+  }
+  const groups = [];
+  for (const [name, items] of map) {
+    const sorted = items.slice().sort(byQueue);
+    const worst = sorted[0];
+    const margins = items.map(c => c.margin).filter(v => typeof v === "number");
+    const upcoming = items.filter(c => c.deadline && !c.deadline_passed).sort((a, b) => a.deadline_iso.localeCompare(b.deadline_iso));
+    const passed = items.filter(c => c.deadline && c.deadline_passed).sort((a, b) => b.deadline_iso.localeCompare(a.deadline_iso));
+    groups.push({name, items: sorted, worst, count: items.length, maxMargin: margins.length ? Math.max(...margins) : null, deadline: upcoming[0] || passed[0] || null});
+  }
+  groups.sort((a, b) => byQueue(a.worst, b.worst));
+  return groups;
+}
+function uniqueText(values) {
+  return [...new Set(values.filter(Boolean))].join(", ");
+}
+function groupMeta(g, dim) {
+  const parts = [countText(g.count)];
+  if (dim !== "admin") parts.push(uniqueText(g.items.map(c => adminName(c.admin))));
+  if (dim !== "network" && dim !== "victim") parts.push(uniqueText(g.items.map(c => c.sat)));
+  if (dim !== "band") parts.push(uniqueText(g.items.map(c => c.band_label)));
+  return parts.filter(Boolean).join(" · ");
+}
+function currentColumns() {
+  const p = PROFILES[state.preset];
+  return p && p.columns ? p.columns : state.columns;
+}
+function resetExpanded() {
+  state.expanded = new Set(groupBy(state.group).filter(g => g.count > 1).slice(0, 4).map(g => g.name));
+}
+function syncControls() {
+  document.getElementById("view").value = state.view;
+  document.getElementById("group").value = state.group;
+  document.getElementById("density").value = state.density;
+  document.getElementById("preset").value = state.preset;
+  document.getElementById("cardorder").value = state.cardOrder;
+}
+function setStatus(message) { document.getElementById("status").textContent = message || ""; }
+function copyText(text, button) {
+  const done = () => { button.textContent = "Kopioitu"; setStatus("Kysymys kopioitu leikepöydälle."); };
+  const fail = () => setStatus("Kopiointi ei onnistunut. Valitse teksti käsin.");
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail);
+  else fail();
+}
+
+function render() {
+  document.body.dataset.density = state.density;
+  syncControls();
+  renderFilterChip();
+  if (state.view === "groups") renderGroups();
+  else if (state.view === "table") renderTable();
+  else if (state.view === "pivot") renderPivot();
+  else renderTimeline();
+  renderCard();
+}
+function renderFilterChip() {
+  const box = document.getElementById("filter");
+  if (!state.filter) { box.replaceChildren(); return; }
+  const f = state.filter;
+  const label = f.groupName + " · " + (f.colDim === "class" ? classLabel(f.colValue) : f.colValue);
+  const chip = el("button", "Suodatin: " + label + "  ✕", "chip");
+  chip.type = "button";
+  chip.addEventListener("click", () => { state.filter = null; render(); });
+  box.replaceChildren(chip);
+}
+
+function renderGroups() {
+  const groups = groupBy(state.group);
+  const root = document.getElementById("view-root");
+  const head = el("div", null, "view-head");
+  const title = el("h2", "Ryhmät");
+  const note = el("p", "Yksi rivi per " + GROUP_LABEL[state.group] + ". Ryhmä avautuu tapauksiin. Järjestys: luokka, vaihe, deadline, marginaali.", "view-note");
+  const toggle = el("button", "Avaa kaikki", "linkbtn");
+  toggle.type = "button";
+  toggle.addEventListener("click", () => {
+    const multi = groupBy(state.group).filter(g => g.count > 1);
+    if (state.expanded.size >= multi.length) state.expanded.clear();
+    else state.expanded = new Set(multi.map(g => g.name));
+    renderGroups();
+  });
+  head.append(title, note, toggle);
+  const list = el("div");
+  for (const g of groups) list.append(groupNode(g));
+  root.replaceChildren(head, list);
+  if (!groups.length) root.append(el("p", "Ei tapauksia tällä suodattimella.", "muted"));
+}
+function groupNode(g) {
+  if (g.count === 1) {
+    const row = childRow(g.items[0]);
+    row.classList.add("single");
+    return row;
+  }
+  const wrap = el("article", null, "group");
+  const open = state.expanded.has(g.name);
+  const head = el("button", null, "group-head");
+  head.type = "button";
+  head.setAttribute("aria-expanded", String(open));
+  head.append(el("span", open ? "▾" : "▸", "chev"));
+  const box = el("span");
+  box.append(el("span", g.name, "group-name"));
+  box.append(el("span", groupMeta(g, state.group), "group-meta"));
+  const facts = el("span", null, "group-facts");
+  facts.append(classTag(g.worst.klass));
+  if (g.maxMargin !== null) facts.append(el("span", signed(g.maxMargin, "dB"), "m"));
+  if (g.deadline) facts.append(el("span", "DL " + g.deadline.deadline, "child-dl" + (g.deadline.deadline_passed ? " passed" : "")));
+  head.append(box, facts);
+  head.addEventListener("click", () => {
+    if (open) state.expanded.delete(g.name); else state.expanded.add(g.name);
+    renderGroups();
+  });
+  wrap.append(head);
+  if (open) {
+    const kids = el("div");
+    for (const c of g.items) kids.append(childRow(c));
+    wrap.append(kids);
+  }
+  return wrap;
+}
+function childRow(c) {
+  const row = el("button", null, "child-row");
+  row.type = "button";
+  row.dataset.id = c.id;
+  row.setAttribute("aria-current", String(state.selected === c.id));
+  const main = el("span", null, "child-main");
+  main.append(el("span", c.sat || c.id, "child-title"));
+  main.append(el("span", [c.id, c.band_label, stageLabel(c), actionLabel(c.action)].filter(Boolean).join(" · "), "child-meta"));
+  const status = el("span", null, "child-status");
+  status.append(classTag(c.klass), el("span", signed(c.margin, "dB"), "m"));
+  const dl = el("span", c.deadline ? "DL " + c.deadline : "—", "child-dl" + (c.deadline_passed ? " passed" : ""));
+  const extra = el("span", ["PFD " + num(c.pfd, "dB(W/m²/Hz)"), "raja " + num(c.limit, "dB(W/m²/Hz)"), "korkeus " + num(c.elevation, "°"), c.victim_station ? "uhri " + c.victim_station : ""].filter(Boolean).join(" · "), "child-extra");
+  row.append(main, status, dl, extra);
+  row.addEventListener("click", () => selectCase(c.id));
+  return row;
+}
+
+function renderTable() {
+  const cols = currentColumns();
+  const rows = sortCases(filteredCases());
+  const root = document.getElementById("view-root");
+  const head = el("div", null, "view-head");
+  head.append(el("h2", "Taulukko"));
+  head.append(el("p", "Sarakeprofiili vaihtaa mitä dataa näytetään. Rivi avaa kortin oikealle.", "view-note"));
+  const picker = el("details", null, "col-picker");
+  picker.append(el("summary", "Sarakkeet (" + cols.length + ")"));
+  const box = el("div", null, "col-box");
+  for (const key of ALL_COLUMNS) {
+    const label = el("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = cols.includes(key);
+    cb.dataset.col = key;
+    cb.addEventListener("change", () => {
+      state.columns = ALL_COLUMNS.filter(k => {
+        const input = box.querySelector('input[data-col="' + k + '"]');
+        return input && input.checked;
+      });
+      state.preset = "free";
+      render();
+    });
+    label.append(cb, document.createTextNode(" " + COLUMNS[key].label));
+    box.append(label);
+  }
+  picker.append(box);
+  head.append(picker);
+  const table = el("table");
+  const thead = el("thead");
+  const htr = el("tr");
+  for (const key of cols) {
+    const th = el("th", COLUMNS[key].label + (state.sort.key === key ? (state.sort.dir > 0 ? " ↑" : " ↓") : ""));
+    if (COLUMNS[key].num) th.className = "num";
+    th.addEventListener("click", () => {
+      if (state.sort.key === key) state.sort.dir *= -1;
+      else state.sort = {key, dir: 1};
+      renderTable();
+    });
+    htr.append(th);
+  }
+  thead.append(htr);
+  table.append(thead);
+  const tbody = el("tbody");
+  for (const c of rows) {
+    const row = el("tr", null, "row");
+    row.dataset.id = c.id;
+    row.setAttribute("aria-current", String(state.selected === c.id));
+    for (const key of cols) {
+      const td = el("td", COLUMNS[key].text(c));
+      if (COLUMNS[key].num) td.className = "num";
+      if (COLUMNS[key].mono) td.classList.add("mono");
+      row.append(td);
+    }
+    row.addEventListener("click", () => selectCase(c.id));
+    tbody.append(row);
+  }
+  table.append(tbody);
+  root.replaceChildren(head, table);
+}
+function sortValue(key, c) {
+  if (key === "deadline") return c.deadline_iso || "9999-12-31";
+  if (key === "klass") return CLASS_ORDER.indexOf(c.klass);
+  if (key === "stage") return stageRank(c) * 100 + c.stage_prov.length;
+  const col = COLUMNS[key];
+  return col ? col.text(c) : "";
+}
+function sortCases(list) {
+  const s = state.sort;
+  if (s.key === "priority") return list.slice().sort(byQueue);
+  const col = COLUMNS[s.key];
+  if (!col) return list.slice().sort(byQueue);
+  return list.slice().sort((a, b) => {
+    let va = sortValue(s.key, a), vb = sortValue(s.key, b);
+    if (col.num) {
+      va = parseFloat(String(va).replace(/\\s/g, "").replace(",", "."));
+      vb = parseFloat(String(vb).replace(/\\s/g, "").replace(",", "."));
+      if (!isFinite(va)) va = -Infinity;
+      if (!isFinite(vb)) vb = -Infinity;
+      return (va - vb) * s.dir || byQueue(a, b);
+    }
+    return String(va).localeCompare(String(vb), "fi") * s.dir || byQueue(a, b);
+  });
+}
+
+function renderPivot() {
+  const dim = state.group;
+  const colDim = state.pivotCol;
+  const groups = groupBy(dim);
+  const cols = colDim === "class"
+    ? ["exceeds", "near", "not_space"]
+    : [...new Set(CASES.map(stageLabel))].sort((a, b) => {
+        const ra = Math.min(...CASES.filter(c => stageLabel(c) === a).map(c => stageRank(c)));
+        const rb = Math.min(...CASES.filter(c => stageLabel(c) === b).map(c => stageRank(c)));
+        return ra - rb;
+      });
+  const root = document.getElementById("view-root");
+  const head = el("div", null, "view-head");
+  head.append(el("h2", "Ristikko"));
+  head.append(el("p", "Rivit: " + GROUP_LABEL[dim] + ". Sarakkeet: " + (colDim === "class" ? "luokka" : "vaihe") + ". Solu suodattaa taulukon.", "view-note"));
+  const toggle = el("label", null, "inline");
+  toggle.append(document.createTextNode("Sarakkeet "));
+  const sel = document.createElement("select");
+  sel.append(new Option("Luokka", "class"), new Option("Vaihe", "stage"));
+  sel.value = colDim;
+  sel.addEventListener("change", () => { state.pivotCol = sel.value; renderPivot(); });
+  toggle.append(sel);
+  head.append(toggle);
+  const table = el("table", null, "pivot");
+  const thead = el("thead");
+  const htr = el("tr");
+  htr.append(el("th", GROUP_LABEL[dim]));
+  for (const col of cols) htr.append(el("th", colDim === "class" ? classLabel(col) : col));
+  htr.append(el("th", "Yhteensä"));
+  thead.append(htr);
+  table.append(thead);
+  const tbody = el("tbody");
+  const totals = Object.fromEntries(cols.map(c => [c, 0]));
+  for (const g of groups) {
+    const tr = el("tr");
+    tr.append(el("td", g.name + " (" + g.count + ")", "row-label"));
+    for (const col of cols) {
+      const n = g.items.filter(c => colDim === "class" ? c.klass === col : stageLabel(c) === col).length;
+      totals[col] += n;
+      const td = el("td", String(n), n ? "count" : "zero");
+      if (n) {
+        td.title = "Suodata nämä " + n + " tapausta";
+        td.addEventListener("click", () => {
+          state.filter = {dim, groupName: g.name, colDim, colValue: col};
+          state.view = "table";
+          render();
+        });
+      }
+      tr.append(td);
+    }
+    tr.append(el("td", String(g.count), "total"));
+    tbody.append(tr);
+  }
+  const totalRow = el("tr", null, "total-row");
+  totalRow.append(el("td", "Yhteensä"));
+  for (const col of cols) totalRow.append(el("td", String(totals[col])));
+  totalRow.append(el("td", String(CASES.length)));
+  tbody.append(totalRow);
+  table.append(tbody);
+  root.replaceChildren(head, table);
+}
+
+function renderTimeline() {
+  const groups = groupBy(state.group);
+  const withDl = groups.filter(g => g.deadline);
+  const without = groups.filter(g => !g.deadline);
+  const deadlineCount = withDl.reduce((n, g) => n + g.items.filter(c => c.deadline).length, 0);
+  const root = document.getElementById("view-root");
+  const head = el("div", null, "view-head");
+  head.append(el("h2", "Aikajana"));
+  head.append(el("p", "Res 35 -deadlinet akselilla -14…+90 päivää ajosta " + fmtDate(RUN_AT) + ".", "view-note"));
+  if (deadlineCount < CASES.length) {
+    head.append(el("p", "Vain " + deadlineCount + " tapauksella " + CASES.length + ":stä on deadline. Aikajana näyttää samalla datan aukon.", "warn-note"));
+  }
+  const axis = el("div", null, "tl-axis");
+  axis.append(el("span", "", "tl-label"));
+  const ticks = el("div", null, "tl-ticks");
+  for (const t of [-14, 0, 14, 30, 60, 90]) {
+    const span = el("span", (t > 0 ? "+" : "") + t);
+    span.style.left = ((t + 14) / 104 * 100) + "%";
+    ticks.append(span);
+  }
+  axis.append(ticks);
+  const list = el("div");
+  for (const g of withDl) {
+    const row = el("div", null, "tl-row");
+    row.append(el("span", g.name + " (" + countText(g.items.length) + ")", "tl-label"));
+    const track = el("div", null, "tl-track");
+    for (const c of g.items.filter(c => c.deadline)) {
+      const offset = Math.round((Date.parse(c.deadline_iso) - RUN_MS) / 86400000);
+      const dot = el("span", "", "tl-dot" + (c.deadline_passed ? " passed" : ""));
+      dot.style.left = Math.max(0, Math.min(100, ((offset + 14) / 104) * 100)) + "%";
+      dot.title = c.id + " · " + c.deadline + " · " + (offset >= 0 ? "+" + offset + " pv" : offset + " pv");
+      track.append(dot);
+    }
+    row.append(track);
+    list.append(row);
+  }
+  root.replaceChildren(head, axis, list);
+  if (without.length) {
+    const box = el("div", null, "no-dl");
+    box.append(el("h3", "Ei deadlinea (" + countText(without.reduce((n, g) => n + g.count, 0)) + ")"));
+    box.append(el("p", "Näille aika ei sido. Ne pysyvät jonossa luokan ja vaiheen mukaan.", "view-note"));
+    root.append(box);
+  }
+}
+
+function selectCase(id) {
+  state.selected = id;
+  for (const node of document.querySelectorAll("[data-id]")) {
+    node.setAttribute("aria-current", String(node.dataset.id === id));
+  }
+  renderCard();
+}
+function kv(pairs) {
+  const dl = el("dl", null, "kv");
+  for (const [k, v] of pairs) {
+    if (v === null || v === undefined || v === "") continue;
+    dl.append(el("dt", k), el("dd", v));
+  }
+  return dl;
+}
+function cardHeader(c) {
+  const box = el("div", null, "card-header");
+  box.append(el("h2", (c.sat || c.id) + " · " + adminName(c.admin), "card-title"));
+  box.append(el("p", [c.id, c.band_label, classLabel(c.klass), signed(c.margin, "dB")].join(" · "), "card-sub"));
+  return box;
+}
+function cardSection(key, c) {
+  const box = el("section", null, "card-section");
+  if (key === "summary") {
+    box.append(el("h3", "Mitä tämä tarkoittaa"));
+    if (c.prose) {
+      const prose = el("div", null, "prose");
+      const text = c.prose.split("\n").filter(line => !line.trim().startsWith("#")).join("\n");
+      for (const p of text.split(/\n{2,}/).map(s => s.trim()).filter(Boolean)) prose.append(el("p", p));
+      box.append(prose);
+    }
+  } else if (key === "calc") {
+    box.append(el("h3", "Laskenta"));
+    box.append(kv([
+      ["PFD", num(c.pfd, "dB(W/m²/Hz)")],
+      ["Raja", num(c.limit, "dB(W/m²/Hz)")],
+      ["Marginaali", signed(c.margin, "dB")],
+      ["Lähetysteho (PSD)", num(c.psd, "dBW/Hz")],
+      ["Keilan vahvistus", num(c.beam_gain, "dBi")],
+      ["FSPL", num(c.fspl, "dB")],
+      ["Etäisyys", num(c.distance, "km")],
+      ["Korkeus", num(c.elevation, "°")],
+      ["Kaava", "PFD = PSD + keilan vahvistus - FSPL; raja = taulukon 21-4 arvo korkeudella."],
+      ["Rajan lähde", c.limit_source || "—"]
+    ]));
+  } else if (key === "reg") {
+    box.append(el("h3", "Sääntely"));
+    box.append(kv([
+      ["Vaihe", stageLabel(c) + (c.stage_label ? " · " + c.stage_label : "")],
+      ["Toiminto", actionLabel(c.action)],
+      ["Deadline", c.deadline ? c.deadline + (c.deadline_passed ? " (mennyt)" : "") : "—"],
+      ["Seuraa", (c.filing_follows || []).join(", ") || "—"],
+      ["Puuttuva tieto", (c.missing || []).filter(f => !String(f).startsWith("s_beam.")).join(", ") || "ei puutteita"],
+      ["Huom", c.threshold_note || "—"],
+      ["Viereinen kanava", c.adjacent ? "kyllä, luokka rajattu near-tasolle" : "ei"]
+    ]));
+    if (c.question) {
+      box.append(el("p", c.question, "question"));
+      const btn = el("button", "Kopioi kysymys", "copy");
+      btn.type = "button";
+      btn.addEventListener("click", () => copyText(c.question, btn));
+      box.append(btn);
+    }
+  } else if (key === "network") {
+    box.append(el("h3", "Verkko"));
+    box.append(kv([
+      ["Satelliitti", c.sat || "—"],
+      ["Hallinto", adminName(c.admin)],
+      ["Verkon organisaatio", c.network_org || "—"],
+      ["Rata", c.orbit || "—"],
+      ["Pituusaste", c.longitude !== null && c.longitude !== undefined ? num(c.longitude, "°") : "—"],
+      ["Keila", c.beam || "—"],
+      ["Keilan geometria", c.beam_geometry || "—"],
+      ["Kattavuus", c.coverage_hint || "—"],
+      ["Piste", c.point_lat !== null && c.point_lat !== undefined ? num(c.point_lat, "N") + ", " + num(c.point_lon, "E") + " (" + (c.point_place || "") + ")" : (c.point_place || "—")],
+      ["Samat verkot", (c.same_network || []).join(", ") || "—"]
+    ]));
+  } else if (key === "victim") {
+    box.append(el("h3", "Uhri"));
+    box.append(kv([
+      ["Asema", c.victim_station || "ei uhriasemaa"],
+      ["Luokka", c.victim_class || "—"],
+      ["RX", num(c.victim_rx, "MHz")],
+      ["Vahvistus", num(c.victim_gain, "dBi")],
+      ["Teho", num(c.victim_power, "W")],
+      ["Suunta", num(c.victim_direction, "°")],
+      ["Suuntaavuus", c.victim_directivity || "—"],
+      ["Koordinaatit", c.victim_lat !== null && c.victim_lat !== undefined ? num(c.victim_lat, "N") + ", " + num(c.victim_lon, "E") : "—"],
+      ["M4-palvelut", c.m4 || "—"],
+      ["Satelliittikäyttö Suomessa", c.m4_satellite === false ? "ei" : c.m4_satellite === true ? "kyllä" : "—"]
+    ]));
+  } else if (key === "source") {
+    box.append(el("h3", "Lähde"));
+    box.append(kv([
+      ["Tiedosto", c.source_file || "—"],
+      ["IFIC", c.source_ific || "—"],
+      ["SHA256", c.source_sha ? c.source_sha.slice(0, 12) + "…" + c.source_sha.slice(-4) : "—"],
+      ["Säännöt", c.rules_version || "—"],
+      ["Ajo", fmtDate(c.run_at)],
+      ["Taulut", (c.source_tables || []).join(", ") || "—"],
+      ["Avaimet", [c.source_ntc ? "ntc " + c.source_ntc : "", c.source_grp ? "grp " + c.source_grp : "", c.source_beam ? "beam " + c.source_beam : ""].filter(Boolean).join(" · ") || "—"]
+    ]));
+  }
+  return box;
+}
+function renderCard() {
+  const root = document.getElementById("card");
+  if (!state.selected) { root.replaceChildren(el("p", "Valitse tapaus vasemmalta.", "muted")); return; }
+  const c = CASES.find(x => x.id === state.selected);
+  if (!c) { root.replaceChildren(el("p", "Tapausta ei löytynyt.", "muted")); return; }
+  const order = CARD_ORDERS[state.cardOrder] || CARD_ORDERS.process;
+  const article = el("article", null, "card");
+  article.append(cardHeader(c));
+  for (const key of order) {
+    if (state.density !== "detailed" && key === "source") continue;
+    article.append(cardSection(key, c));
+  }
+  root.replaceChildren(article);
+}
+
+function applyProfile(name) {
+  state.preset = name;
+  const p = PROFILES[name];
+  if (p) {
+    state.group = p.group;
+    state.density = p.density;
+    state.cardOrder = p.card;
+    if (p.columns) state.columns = p.columns.slice();
+  }
+  resetExpanded();
+  render();
+}
+function start() {
+  resetExpanded();
+  state.selected = CASES.slice().sort(byQueue)[0]?.id || null;
+  document.getElementById("run-line").textContent =
+    "Staattinen demo: out/cases.json · " + CASES.length + " kortillista tapausta" +
+    (CLEAR_COUNT ? " · " + CLEAR_COUNT + " clear ei näytetä" : "");
+  render();
+}
+
+document.getElementById("view").addEventListener("change", e => { state.view = e.target.value; render(); });
+document.getElementById("group").addEventListener("change", e => { state.group = e.target.value; state.preset = "free"; resetExpanded(); render(); });
+document.getElementById("density").addEventListener("change", e => { state.density = e.target.value; state.preset = "free"; render(); });
+document.getElementById("preset").addEventListener("change", e => applyProfile(e.target.value));
+document.getElementById("cardorder").addEventListener("change", e => { state.cardOrder = e.target.value; state.preset = "free"; render(); });
+start();
+</script>
+</body>
+</html>
