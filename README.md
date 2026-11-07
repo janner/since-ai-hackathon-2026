@@ -67,9 +67,11 @@ border (the land borders with Sweden, Norway and Russia plus the outer limit of 
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
-The screenshot above is the auto-fetch run: the funnel and the status line for IFIC 3075, the queue of
-the nine cases it found, and a selected card with its territory point, the Finnish allocation and the
-register's reference row.
+The screenshot above is the auto-fetch run: the funnel and the status line for IFIC 3075, the queue in
+its three tiers (nine need attention, none checked, 120 with no effect), and the first card opened:
+its territory point on the Russian border, the calculation against Table 21-4, the part of the band
+without a Finnish satellite downlink allocation, the register's reference row, and the question it
+drafts for the administration.
 
 ## The complaint register
 
