@@ -56,7 +56,7 @@ The screenshot above is the demo slice after the run: the funnel, the queue and 
 
 ## Verified numbers
 
-Measured 7 Nov 2026 on IFIC 3074: `make check` 134 tests passed (91 passed, 43 skipped without
+Measured 7 Nov 2026 on IFIC 3074: `make check` 137 tests passed (94 passed, 43 skipped without
 `data/`), the slice run takes about 3.5 s, the seven-band run about 7.7 s — most of it `mdb-export`
 reading the 15 tables out of the BR IFIC Access database. The deterministic pipeline is offline; the
 optional LLM prose step is the only part that opens a connection, and only when `LLM_BASE_URL` is
@@ -164,8 +164,8 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 134 passed |
-| Clean clone, no `data/` | 91 passed, 43 skipped |
+| With `data/` | 137 passed |
+| Clean clone, no `data/` | 94 passed, 43 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
