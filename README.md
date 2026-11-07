@@ -224,9 +224,11 @@ at all: open `out/teams_message.html`.
    minus free-space loss, against Table 21-4. There is no I/N calculation, no receiver noise
    figure and no bandwidth term. `exceeds` means the upper bound is over the limit at some
    elevation angle.
-2. Beam geometry is empty in IFIC 3074 (`s_beam.bore_long`, `bore_lat`, `maj_axis`, `min_axis`), so
-   the tool cannot decide whether a beam illuminates Finland. Each card carries one question about
-   the service area instead of an answer, and lists those fields under `missing`.
+2. Beam geometry is empty in IFIC 3074 (`s_beam.bore_long`, `bore_lat`, `maj_axis`, `min_axis`).
+   Following Traficom's Q3 answer the tool does not try to decide coverage from the beam: the worst
+   case is always assumed, with the notice's own peak gain aimed at the Finnish station. A card
+   states that on a `Coverage` line and asks the administration to confirm the worst-case PFD, so
+   the `s_beam` fields no longer appear under `missing` (Q3 in `docs/traficom-qa.md`).
 3. Non-GSO geometry is a sweep, not an orbit propagation: the worst case samples a pass from
    perigee in 0.1° steps up to 90° (`app/gates.py`, marked `shortcut`). Station position does not
    change the result for a non-GSO notice, and there is no ephemeris.
@@ -273,7 +275,8 @@ at all: open `out/teams_message.html`.
     clear cases keep their row in `cases.json` and `3074_results.csv` and are left out of the queue.
 13. The 26 protected bands are an artefact of the register, not a simplification: the demo slice
     has two bands separated by a 13.1 MHz hole, and the hole is shown rather than covered.
-14. `main` is ahead of `origin/main` and not pushed. The push is Janne's call.
+14. `main` is pushed: `origin/main` sits at the same commit. Any later commit needs its own push,
+    which is Janne's call.
 15. A notice that survives G1 and G2 but cannot be computed gets no case card. In the demo slice
     126590032 passes both gates and carries no emission power, so it lands in `queue.md` and
     `3074_results.csv` under class `cannot_decide`, while `cases.json` holds 18 cards, not the 19

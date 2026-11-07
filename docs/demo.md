@@ -9,7 +9,9 @@ Two runs sit side by side, and the script in section 10 keeps them apart.
 - **IFIC 3074 is the accuracy material.** It is the package the challenge ships, and the numbers in
   sections 2 to 4 (196 notices, the slice, the seven-band run) come from it. `out/` holds that run.
 - **IFIC 3075 is the automatic-search demo.** The monitor fetched it on 7 Nov 2026 and the funnel
-  ran into `runs/3075/`; `runs/latest` points there, so the web UI shows the 3075 queue. Section 2b
+  ran into `runs/3075/`. After the Q3 wording change the same input was rerun into
+  `runs/3075-worstcase/` with identical numbers (only `run_at` differs), and `runs/latest` points
+  there, so the web UI shows that run's card text. Section 2b
   is that run.
 
 ## 1. One-time setup
@@ -84,7 +86,7 @@ to `cases.json` (3 exceeds, 4 near, no clear), 129 rows to `3075_results.csv`, t
 `126590034` and `126590035`, Resolution 49, no PSD, each with the value it would need (`psd ≥`
 −21,77 and −24,74 dBW/Hz).
 
-`runs/latest` now points at 3075, so the web UI shows the 3075 queue. The monitor does not touch
+`runs/latest` now points at 3075-worstcase, so the web UI shows that run's queue. The monitor does not touch
 `out/`: that directory keeps the 3074 outputs. A failed check (a truncated download, a broken zip,
 a run that dies) writes `status: error`, exits 1, and leaves `runs/latest` and `out/` as they were.
 
@@ -139,8 +141,10 @@ MIFR notifications, whose margins do not put them second.
 Four things to point at on that card. The PFD, the limit and the margin come from the calculation
 block (max PSD −50,0 dBW/Hz, beam gain 28,5 dBi, distance 41 143 km, free-space loss 163,28 dB).
 The limit is a citation, not a constant: `rules/rr21_table21_4.csv` holds the row. The `Missing`
-line is why the case exists at all: IFIC 3074 does not declare the beam geometry, so the tool cannot
-say whether Finland is inside the beam, and the card asks instead of concluding. `Question` is the
+line is why the case exists at all: IFIC 3074 does not declare the beam geometry. The `out/` copy
+quoted here predates Traficom's Q3 answer; the current card assumes the worst case (peak gain aimed
+at the Finnish station), says so on a `Coverage` line, lists nothing under `Missing` and asks the
+administration to confirm the worst-case PFD. `Question` is the
 draft the administration would receive. `Stage` names the provision the filing stands under, and
 `Threshold` (here the anchor's station is directive at 40 dBi) restates Traficom's point that a
 directive antenna can be protected at a lower level without changing any number.
@@ -335,11 +339,11 @@ produced. The two-minute video version, with narration and captions, is `docs/de
 | 0:10 | the top-bar status line with its funnel count, and the "Check now" button; do not click | the status line reads the last check, that of 7 Nov 2026: "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices." The button would ask ITU right away and, on this tree, fetch 3076, so the demo does not click it; see "Why not to click". |
 | 0:25 | the funnel panel | 129 notices: 110 with no band overlap and 10 below the horizon dropped, 19 overlap a protected band, 9 of those can be seen from Finland, 7 get a number and 2 cannot be decided. |
 | 0:35 | the queue, card `3075-108501259` (the first card of `cases.json`) | APSTAR-92E, 3 520-3 560 MHz, No. 11.2, recorded in the MIFR: PFD −187,64 against the −188,02 dB(W/m²/Hz) limit, margin +0,38 dB. |
-| 0:50 | the card's "Missing" line | the beam geometry is empty in IFIC 3075, so the tool cannot say whether the beam covers Finland. Four fields are listed, and the question to China follows from them. |
-| 1:05 | `runs/3075/letters/3075-108501259.md` | the draft letter: the number, the missing service area, the question. The tool drafts; a human sends it from their own mailbox. |
+| 0:50 | the card's `Coverage` and `Missing` lines | the beam geometry is empty in IFIC 3075, so the worst case is assumed: peak beam gain aimed at the Finnish station. `Missing` says nothing, because nothing blocks the case, and the question asks China to confirm that worst-case PFD. |
+| 1:05 | `runs/3075-worstcase/letters/3075-108501259.md` | the draft letter: the number, the worst-case assumption, the question. The tool drafts; a human sends it from their own mailbox. |
 | 1:20 | "Show calculation" on the card | the calculation behind the number: max PSD −50,3 dBW/Hz, beam gain 26,0 dBi, slant range 41 441 km, free-space loss 163,34 dB, and the limit with its Article 21 Table 21-4 row. |
 | 1:35 | `out/TERRESTRIAL.md` | the same style for terrestrial notices: 2 905 new, 163 modified, 413 withdrawn and 28 notices in reach against BR IFIC 3076. That file comes from the offline run into `out/`; the monitor run is space-only. |
-| 1:50 | `runs/3075/queue.md`, rows 8 and 9 (`126590034`, `126590035`) | "ihminen päättää": the two notices the tool refuses to decide, with the level each would need (psd ≥ −21,77 and −24,74 dBW/Hz). Listing them instead of guessing is the point; the decision is left to a human. |
+| 1:50 | `runs/3075-worstcase/queue.md`, rows 8 and 9 (`126590034`, `126590035`) | "ihminen päättää": the two notices the tool refuses to decide, with the level each would need (psd ≥ −21,77 and −24,74 dBW/Hz). Listing them instead of guessing is the point; the decision is left to a human. |
 
 **Why not to click.** The check fetches the number after `runs/latest`. On 7 Nov 2026 that was 3075
 and ITU had already published 3076; `https://www.itu.int/sns/ific10/ific3076.zip` answers 200 with
@@ -347,6 +351,6 @@ and ITU had already published 3076; `https://www.itu.int/sns/ific10/ific3076.zip
 reads the status line the 3075 run left and leaves the button alone. Do not run the check on the
 tree you are about to submit.
 
-If the UI is not running, the demo works from `cases.md` and `queue.md` alone; for the 3075 run those
-are in `runs/3075/`. Everything except the "Check now" click is offline, and nothing breaks when
+If the UI is not running, the demo works from `cases.md` and `queue.md` alone; for the run the page shows those
+are in `runs/3075-worstcase/`; the first monitor run is kept in `runs/3075/`. Everything except the "Check now" click is offline, and nothing breaks when
 the language model is absent: every card of the 3075 run carries the deterministic template.

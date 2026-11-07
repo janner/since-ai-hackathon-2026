@@ -50,8 +50,11 @@ screening convention, not a CEPT threshold. Recorded in `docs/decisions.md` D4.
 **Answer.** Beams are not relevant to the analysis; the worst case is always assumed. Satellites
 move, rotate and can change their pointing, except GSO.
 
-**What changed.** No code change. The worst-case assumption is confirmed; GIMS data is not needed.
-The "beam geometry missing" note stays as the description of the upper bound.
+**What changed.** The calculation did not change; the worst case was already the premise. The card
+and the letter did: since 7 Nov 2026 they state the assumption on a `Coverage` line, drop the beam
+fields from `Missing` and ask the administration to confirm the worst-case PFD instead of asking
+about the service area (`app/cards.py`, `templates/correspondence_fi_en.md`). GIMS data is not
+needed.
 
 ### Q4. Terrestrial field strength: border line or the register's stations
 

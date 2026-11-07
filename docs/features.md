@@ -191,8 +191,9 @@ URL. A band with no M4 row gets `rows: []` and `services_in_finland: "not alloca
 `same_network()` lists other notices of the same satellite and administration, or a notified
 target. The card shows them; every notice is still decided on its own.
 
-`missing_fields()` names the empty beam geometry (`s_beam.bore_long`, `bore_lat`, `maj_axis`,
-`min_axis`) and a register row without gain or power. `render_card_md()` and `render_queue_md()`
+`missing_fields()` names every empty input, beam geometry (`s_beam.*`) included. `_blocking()`
+keeps the ones that decide a case: since Traficom's Q3 answer the beam geometry is not among them,
+because the worst case covers it. `render_card_md()` and `render_queue_md()`
 write the Markdown, `results_rows()` writes the CSV rows, `render_run_log()` the log. In the CSV,
 `results_rows()` leaves `class` empty for a notice dropped at G1 or G2 and writes `cannot_decide`
 only for a case that reached G3 and could not be computed; the `regulatory_stage` column carries the

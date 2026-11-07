@@ -27,9 +27,9 @@ terrestrial pass and the draft letter stay off the video.
 | 1:05 | the card | Its power flux density is 0.38 decibels over the Article 21, Table 21-4 limit. |
 | 1:12 | "Show calculation" | Open the calculation: every input is on screen. |
 | 1:18 | the calculation block | Max power density, 26 decibels of beam gain, 41,441 kilometres of path, 163 decibels of free-space loss, against the limit row. |
-| 1:27 | the card's "Missing" line | One field is missing. The beam geometry is empty in this package, so the tool cannot say whether the beam covers Finland. |
-| 1:33 | the missing fields and the drafted question | It lists the missing fields and drafts the question for the other administration instead of guessing. |
-| 1:40 | `runs/3075/queue.md` rows 8–9 (the two refused) or `out/cases.md` | On the challenge package the same pass turns 196 notices and 95,865 rows into 18 case cards, with the numbers already done. |
+| 1:27 | the card's `Coverage` and `Missing` lines | The beam data is empty in this package, so the worst case is assumed: the peak gain is aimed at the Finnish station. Nothing is listed as missing. |
+| 1:33 | the drafted question | It drafts the question for the other administration: confirm the worst-case PFD on Finnish territory. The tool does not guess. |
+| 1:40 | `runs/3075-worstcase/queue.md` rows 8–9 (the two refused) or `out/cases.md` | On the challenge package the same pass turns 196 notices and 95,865 rows into 18 case cards, with the numbers already done. |
 | 1:48 | same | Nothing is dropped silently: every notice keeps a stage and a reason. |
 | 1:52 | same | The specialist decides. The tool does the reading, and it repeats for free every two weeks. |
 | 1:58 | end card: **Kaista** — "From 95,865 frequency rows to every case that needs a human decision." | Kaista: from 95,865 frequency rows to every case that needs a human decision. |
