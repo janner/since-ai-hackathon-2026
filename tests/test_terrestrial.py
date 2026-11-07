@@ -368,6 +368,7 @@ def test_real_3076_intent_distribution_and_source(issue3076):
     assert issue3076["issue"] == "3076"
     assert issue3076["file"] == "brific3076.mdb"
     assert issue3076["sha256"] == ingest.sha256(MDB_CURR)
+    assert issue3076["skipped_invalid"] == {"power": 31, "location": 9}
 
 
 @pytest.mark.data
@@ -385,6 +386,8 @@ def test_real_mdb_prints_the_example_finding(issue3075, issue3076, tmp_path):
     doc = t.run(issue3075, issue3076, REGISTER, tmp_path)
     assert len(doc["notices"]) == 28
     assert doc["diff"]["counts"]["ADD"] == 2905
+    assert doc["missing"] == {"power": 31, "location": 9}
+    assert doc["missing_prev"] == {"power": 19, "location": 6}
     finding = next(n for n in doc["notices"] if n["terrakey"] == "92817506")
     assert finding["adm"] == "POL" and finding["band"] == "801-806 MHz"
     # The 12 nm territorial-sea line is closer to the POL transmitter than the

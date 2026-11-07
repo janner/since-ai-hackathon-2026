@@ -251,8 +251,9 @@ queue would still hide the filings the customer wants to act on); sample a terri
 polygon (rejected: the edge is exact for a monotone worst case and needs no new data); keep the
 seven-band scope (rejected: the customer requires every Finnish allocation, D18).
 
-Cost: `--all` takes about 20 s instead of 4 s, because every GSO notice is evaluated at 552 edge
-points instead of a handful of stations. The demo slice stays at about 4 s.
+Cost: `--all` took about 20 s instead of 4 s at the time, because every GSO notice is evaluated at
+552 edge points instead of a handful of stations; the per-sub-band check in D18 later raised it to
+49 s and the demo slice to 5 s (measured 7 Nov 2026).
 
 Test: `tests/test_gates.py::test_a_clear_margin_on_a_non_satellite_band_is_still_a_finding`,
 `tests/test_cards.py::test_m4_lookup_names_the_service_and_satellite_use`,
@@ -291,7 +292,7 @@ Alternatives: keep the seven bands (rejected: the customer requires every alloca
 space-to-Earth direction test (rejected: an uplink allocation is still satellite use for the
 customer's rule); sort by margin (rejected: S1 says the margin does not order).
 
-Cost: `--all` 22 s (299 bands, 552 edge points); the demo slice 4 s.
+Cost: `--all` 49 s (299 bands, 552 edge points); the demo slice 5 s (measured 7 Nov 2026, current code).
 
 Test: `tests/test_gates.py::test_all_bands_funnel`, `test_queue_order`,
 `tests/test_territory.py::test_any_satellite_allocation_counts`,

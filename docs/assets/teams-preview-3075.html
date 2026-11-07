@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teams preview — BR IFIC 3075</title>
+<style>
+  :root {
+    --bg: #f0f0f0;
+    --pane: #ffffff;
+    --ink: #242424;
+    --muted: #616161;
+    --line: #e1dfdd;
+    --accent: #5b5fc7;
+    --accent-dark: #444791;
+    --soft: #f5f5f5;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 var(--sans);
+  }
+  .teams {
+    width: min(980px, 92vw);
+    background: var(--pane);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 8px 28px rgba(0,0,0,.10);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .bar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+  .bar .where { color: var(--muted); font-weight: 400; }
+  .thread { padding: 22px 26px 26px; background: #fafafa; }
+  .msg {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 12px;
+    max-width: 760px;
+    animation: rise .45s ease-out both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 18px;
+  }
+  .who { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .who b { font-size: 14px; }
+  .who .time { color: var(--muted); font-size: 12px; }
+  .pill {
+    display: inline-block; padding: 1px 7px; border-radius: 10px;
+    background: #fff4ce; color: #6b5a00; border: 1px solid #f2e2a0;
+    font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px 20px 16px;
+  }
+  .card h1 { margin: 0 0 4px; font-size: 21px; line-height: 1.25; font-weight: 650; }
+  .card .sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .facts {
+    display: flex; flex-wrap: wrap; gap: 8px 18px;
+    padding: 10px 12px; margin: 0 0 14px;
+    background: var(--soft); border-radius: 6px;
+    font-size: 14px;
+  }
+  .facts b { font-variant-numeric: tabular-nums; }
+  .label { margin: 0 0 6px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  ol.top { margin: 0 0 16px; padding-left: 22px; }
+  ol.top li { margin: 4px 0; font-size: 14px; }
+  ol.top code { font-family: var(--mono); font-size: 13px; }
+  .muted { color: var(--muted); }
+  .btn {
+    display: inline-block; padding: 8px 16px;
+    background: var(--accent); color: #fff;
+    border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 14px;
+  }
+  .btn:hover { background: var(--accent-dark); }
+  .foot { margin: 12px 0 0; color: var(--muted); font-size: 11px; }
+</style>
+<body>
+  <section class="teams" aria-label="Teams channel preview">
+    <div class="bar"><span class="dot"></span> Chat <span class="where">· Kaista bot</span></div>
+    <div class="thread">
+      <article class="msg">
+        <div class="avatar" aria-hidden="true">K</div>
+        <div>
+          <div class="who"><b>Kaista bot</b> <span class="pill">preview</span> <span class="time">now</span></div>
+          <div class="card">
+            <h1>New BR IFIC 3075 — 9 cases need attention</h1>
+            <p class="sub">129 notices → 19 in scope → 9 need attention</p>
+            <div class="facts">
+              <span><b>3</b> exceed</span>
+              <span><b>4</b> near</span>
+              <span><b>2</b> cannot decide</span>
+            </div>
+            <p class="label">Top 3, in queue order</p>
+            <ol class="top">
+              <li><code>125520114</code> — near, No. 9.6, <b>−0.26 dB</b></li>
+              <li><code>125520132</code> — near, No. 9.6, <b>−0.25 dB</b></li>
+              <li><code>125520135</code> — near, No. 9.6, <b>−0.86 dB</b></li>
+            </ol>
+            <a class="btn" href="http://127.0.0.1:8020/">Open Kaista</a>
+            <p class="foot">Preview of <code>scripts/notify.py --html</code>. No live Teams send; the webhook path is implemented and the payload is covered by a stub.</p>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+</body>
+</html>

@@ -656,9 +656,8 @@ def findings(prev, curr, register_path):
     kept, dropped = select(curr["notices"], register)
     notices = [_notice_finding(notice, distance, curr["issue"]) for notice, distance in kept]
     rows = trends(prev["notices"], curr["notices"])
-    skipped = Counter(prev.get("skipped_invalid") or {}) + Counter(
-        curr.get("skipped_invalid") or {}
-    )
+    # The missing block describes the issue under evaluation (3076), not the baseline.
+    skipped = Counter(curr.get("skipped_invalid") or {})
     audit = {
         # Sama provenienssi kuin avaruuskortilla: yksi tiiviste kaikista ajon syötteistä.
         "input_sha256": input_digest(
@@ -714,6 +713,7 @@ def findings(prev, curr, register_path):
         # Sama kontrakti kuin avaruuskortin `missing`: mitä jäi lukematta. Kortilla
         # puuttuvat kenttänimet, täällä syyt ja rivimäärät, koska ilmoituksia on monta.
         "missing": dict(skipped),
+        "missing_prev": dict(prev.get("skipped_invalid") or {}),
         "filter": {
             "max_distance_km": MAX_DIST_KM,
             "classes": sorted(LAND_MOBILE_CLASSES),

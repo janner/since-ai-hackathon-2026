@@ -100,7 +100,7 @@ the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 
 9 need attention out of 129 queue rows; the first queue row is `125520114`, a coordination-stage near case, and the APSTAR-92E
 exceedance is fifth because its filing is already in the MIFR. The accuracy dataset is the challenge's
 IFIC 3074 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026:
-`make check` 190 tests (140 passed, 50 skipped without `data/`). The deterministic pipeline is offline; the
+`make check` 192 tests (140 passed, 52 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
@@ -223,8 +223,8 @@ under a `kaista/` prefix, plus the accuracy files from the last run under `resul
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 190 passed |
-| Clean clone, no `data/` | 140 passed, 48 skipped |
+| With `data/` | 192 passed |
+| Clean clone, no `data/` | 140 passed, 52 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
@@ -279,8 +279,10 @@ at all: open `out/teams_message.html`.
 2. Beam geometry is empty in IFIC 3074 (`s_beam.bore_long`, `bore_lat`, `maj_axis`, `min_axis`).
    Following Traficom's Q3 answer the tool does not try to decide coverage from the beam: the worst
    case is always assumed, with the notice's own peak gain aimed at the edge of Finnish territory. A card
-   states that on a `Coverage` line and asks the administration to confirm the worst-case PFD, so
-   the `s_beam` fields no longer appear under `missing` (Q3 in `docs/traficom-qa.md`).
+   states that on a `Coverage` line and asks the administration to confirm the worst-case PFD. The
+   card's `Missing` line drops the `s_beam` fields because the worst case covers them; the JSON
+   `missing` list keeps the raw field names, and `coverage.beam_geometry` records `missing` (Q3 in
+   `docs/traficom-qa.md`).
 3. Non-GSO geometry is a sweep, not an orbit propagation: the worst case samples a pass from
    perigee in 0.1° steps up to 90° (`app/gates.py`, marked `shortcut`). Station position does not
    change the result for a non-GSO notice, and there is no ephemeris.
