@@ -1,7 +1,0 @@
-Station number,Class of licence,Longitude,Latitude,Ground height (m),Mast height (m),Mast type,Channel bandwidth,TX frequency,RX frequency,Ant height AGL (m),Ant height ASL (m),Ant gain (dB),Class of transmission,Transmission bandwidth,Radiation direction (°),Polarisation,Radioation power,Radioation power (ITU),Radiation power unit,Transmission line (dB),Directivity
-9000,MVV,24.9,60.2,,,,25.000 kHz,454.040 MHz,454.040 MHz,,,,,,,,10,,kW,,
-9001,MVV,24.9,60.2,,,,25.000 kHz,454.040 MHz,454.040 MHz,,,,,,,,10,,kW,,
-9002,MVV,24.9,60.2,,,,25.000 kHz,796.400 MHz,796.400 MHz,,,,,,,,10,,kW,,
-9003,MVV,24.9,60.2,,,,25.000 kHz,803.200 MHz,803.200 MHz,,,,,,,,10,,kW,,
-9004,MVV,24.9,60.2,,,,25.000 kHz,890.000 MHz,890.000 MHz,,,,,,,,10,,kW,,
-9005,MVV,24.9,60.2,,,,25.000 kHz,901.700 MHz,901.700 MHz,,,,,,,,10,,kW,,

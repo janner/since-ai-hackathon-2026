@@ -158,56 +158,42 @@ notice in the slice has no row there; its count is in the funnel panel.
 
 ## 6. The terrestrial side feature
 
-The fixture holds both issues in one file, and the CLI takes one issue per file:
+The side feature reads the real BR IFIC terrestrial databases, one MDB per number:
 
 ```bash
-uv run python - <<'PY'
-import json
-prev, curr = json.load(open("tests/fixtures/terrestrial_fixture.json"))["issues"]
-json.dump(prev, open("prev.json", "w"))
-json.dump(curr, open("curr.json", "w"))
-PY
-
-uv run python -m app.terrestrial --prev prev.json --curr curr.json \
+uv run python -m app.terrestrial --prev data/itu-terr-ific/brific3075.mdb \
+  --curr data/itu-terr-ific/brific3076.mdb \
   --register data/frequencies_of_interest.csv --out out/
 ```
 
 ```
-3 new, 1 modified, 1 withdrawn; 12 notices in reach; -> out/
+2905 new, 163 modified, 413 withdrawn, 576 recorded; 28 notices in reach; -> out/
 ```
 
-`out/TERRESTRIAL.md` is the readable report: the diff table, the field strength at the four Finnish
-test points, the trends and the anomalies.
+`out/TERRESTRIAL.md` is the readable report: the intent table, the field strength at the four
+Finnish test points, the trends and the anomalies.
 
 ```
-| muutos | ntc_id | hallinto | kaista | kentät |
-|---|---|---|---|---|
-| modified | 1090006 | RUS | 453.9-454.1 MHz | p_erp_kw |
-| withdrawn | 1090010 | RUS | 800-805 MHz | - |
-| new | 1090011 | SVE | 800-805 MHz | - |
-| new | 1090012 | SVE | 800-805 MHz | - |
-| new | 1090013 | SVE | 800-805 MHz | - |
-
-Uudet 3, muutetut 1, poistetut 1.
-
-| ntc_id | hallinto | kaista | Helsinki | Turku | Lappeenranta | Maarianhamina |
-|---|---|---|---|---|---|---|
-| 1090001 | EST | 453.9-454.1 MHz | 26.5 | 9.4 | -1.1 | -3.0 |
-| 1090004 | SVE | 796-796.5 MHz | -14.8 | -0.6 | -32.6 | 17.7 |
-| 1090007 | RUS | 900-905 MHz | -0.7 | -16.7 | 34.1 | -29.6 |
+| terrakey | hallinto | tila | kaista | Helsinki | Turku | Lappeenranta | Maarianhamina |
+|---|---|---|---|---|---|---|---|
+| 92817506 | POL | ADD | 801-806 MHz | -56.9 | -56.5 | -70.8 | -53.0 |
+| 93005609 | RUS | ADD | 791.14-798.34 MHz | -82.6 | -84.0 | -95.8 | -82.3 |
+| 93075637 | RUS | ADD | 152.892-152.908 MHz | -29.9 | -40.2 | -8.8 | -51.1 |
+| 93075638 | RUS | ADD | 152.892-152.908 MHz | - | - | - | - |
 
 ## Poikkeamat
 
-- SVE 800-805 MHz: ei ilmoituksia edellisessä issuessa, nyt 3.
+- SVN 1770-1775 MHz: ei ilmoituksia edellisessä issuessa, nyt 49.
 ```
 
-(Three of the twelve rows are shown; the same tables cover all of them.)
+(Three of the 28 rows are shown; the same table covers all of them. A mobile station carries no
+antenna height, so its row reports a dash.)
 
-The header of the same file states the model and the open question: source `synthetic_fixture`
-(marked as synthetic, no real 3076 data), model `P.1546-6 land, 50/50, no terrain`, and protection
-threshold `None` with the framework named in three tiers (ITU RR Art. 21 Table 21-4 → ECC T/R 25-08
-→ national M4); the ECC and national values are to be confirmed. The tool reports a calculated
-estimate and claims no exceedance, because no threshold was given.
+The header of the same file states the source and the open question: both MDB file names with their
+SHA256, model `P.1546-6 land, 50/50, no terrain`, and protection threshold `None` with the framework
+named in three tiers (ITU RR Art. 21 Table 21-4 → ECC T/R 25-08 → national M4); the ECC and national
+values are to be confirmed. The tool reports a calculated estimate and claims no exceedance, because
+no threshold was given.
 
 ## 7. Proving the deterministic path
 
@@ -228,10 +214,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 125 passed with data/
+make check        # ruff check, ruff format --check, pytest: 128 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 111 passed, 14 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 111 passed, 17 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. Three-minute demo script
@@ -242,7 +228,7 @@ to quote for "does it work on my machine" is that one, since it needs no challen
 | 0:20 | run the slice command, funnel line appears | 196 to 41 to 19 to 18 plus one that cannot be decided |
 | 0:50 | `out/cases.md`, card 3074-103500417 | the number, the citation for the limit, the missing beam geometry, the question we would send |
 | 1:40 | `queue.md`, row 15, case 126590032 | the case the tool refuses to decide, with the reason `no_power`, and why that is a feature |
-| 2:20 | terrestrial split and run, `TERRESTRIAL.md` | the same style for terrestrial notices: diff, field strength, trends, threshold open |
+| 2:20 | terrestrial MDB run, `TERRESTRIAL.md` | the same style for terrestrial notices: the intent diff, field strength, trends, threshold open |
 | 2:50 | the UI, or `run.log` | every number is reproducible from the hash and the rules version; the human decides |
 
 If the UI is not running, the demo works from `cases.md` and `queue.md` alone. The deterministic run

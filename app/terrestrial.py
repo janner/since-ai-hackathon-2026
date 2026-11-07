@@ -1,7 +1,12 @@
-"""Terrestriaalinen sivutehtävä: 3076-tyyliset land-mobile-extractit Suomen rekisteriä vasten.
+"""Terrestriaalinen sivutehtävä: BR IFIC -MDB Suomen rekisteriä vasten.
 
 Deterministinen ja stdlib-vain: ei verkkoa, ei ydinputken importtia.
-Moduuli lukee omat syötteensä ja kirjoittaa omat tulosteensa (päätös D7).
+Moduuli lukee omat syötteensä (BR IFIC -MDB `mdb-export`illa, kuten
+`scripts/fetch_data.py`) ja kirjoittaa omat tulosteensa (päätös D7).
+
+Ilmoituksen tila tulee `fxm_terra.intent`-kentästä (ADD/MODIFY/SUPPRESS/RECORDED):
+IFIC ei ole kumulatiivinen kanta, joten kahden numeron avainvertailu ei kerro
+muutoksista. 3075 on trendien vertailupohja.
 
 Malli: ITU-R P.1546-6 maapolku, 50 % ajasta, 50 % paikoista, ei maastoa,
 vastaanottoantenni 10 m. Taulukko `rules/p1546_land.csv` on generoitu ITU:n
@@ -17,13 +22,21 @@ kaikilla kolmella akselilla ja kiinnittyy taulukon reunaan sen ulkopuolella.
 
 import argparse
 import csv
+import hashlib
+import io
 import json
 import math
+import subprocess
 from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 
 RULES = Path(__file__).resolve().parent.parent / "rules" / "p1546_land.csv"
+
+# BR IFIC 3076 -skeeman taulut, joista notice rakennetaan.
+TABLES = ("fxm_terra", "fxm_geo", "fxm_ant")
+# intent -> muutoksen nimi. RECORDED on kanta, ei muutos.
+INTENT_CHANGE = {"ADD": "new", "MODIFY": "modified", "SUPPRESS": "withdrawn"}
 
 # Neljä suomalaista testipistettä. Samat pisteet toimivat kenttävoimakkuuden
 # mittauspisteinä ja "etäisyys Suomeen" -suodattimen ankkureina.
@@ -35,7 +48,8 @@ POINTS = {
 }
 MAX_DIST_KM = 1000.0
 RX_HEIGHT_M = 10.0
-LAND_MOBILE_CLASSES = frozenset({"LM", "MVV"})
+# BR IFIC -asemaluokat: FB = tukiasema, ML = maaliikenne, FL = maaliikenne (kiinteä).
+LAND_MOBILE_CLASSES = frozenset({"FB", "ML", "FL"})
 # Traficom ei ole nimennyt kenttävoimakkuutta, jolla suojelu käynnistyy: työkalu raportoi
 # lasketun arvon eikä väitä ylitystä eikä alitusta sen sijaan että keksisi kynnyksen (T5).
 THRESHOLD_DBUV_M = None  # asetetaan vasta kun Traficom nimeää suojelukriteerin
@@ -45,9 +59,6 @@ CRITERION = (
     "CEPT/ECC T/R 25-08 (field strength that triggers protection, no value confirmed) -> "
     "national M4 / Traficomin taajuusjakotaulukko (protection threshold to be confirmed)"
 )
-
-FIELDS = ("ntc_id", "adm", "stn_cls", "freq_min_mhz", "freq_max_mhz", "lat", "lon")
-DIFF_FIELDS = ("freq_min_mhz", "freq_max_mhz", "lat", "lon", "p_erp_kw", "ant_h_m", "stn_cls")
 
 
 def _num(value):
@@ -153,35 +164,88 @@ def extrapolated(freq_mhz, dist_km, h_ant_m):
     )
 
 
-def load_issue(path):
-    """Lukee yhden extractin. Rivit, joilta puuttuu pakollinen kenttä, ohitetaan laskien."""
-    doc = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(doc, dict) or not isinstance(doc.get("notices"), list):
-        raise ValueError(f"{path}: odotettiin {{'issue': ..., 'notices': [...]}}")
-    notices, skipped = [], 0
-    for row in doc["notices"]:
-        if not isinstance(row, dict):
-            skipped += 1
-            continue
-        notice = {
-            "ntc_id": row.get("ntc_id"),
-            "adm": str(row.get("adm") or "?"),
-            "stn_cls": str(row.get("stn_cls") or ""),
-        }
-        notice.update({key: _num(row.get(key)) for key in FIELDS[3:]})
-        notice["p_erp_kw"] = _num(row.get("p_erp_kw"))
-        notice["ant_h_m"] = _num(row.get("ant_h_m"))
-        notice["act_code"] = str(row.get("act_code") or "")
-        bad = not isinstance(notice["ntc_id"], str) or not notice["ntc_id"]
-        if bad or any(notice[key] is None for key in FIELDS[3:]):
-            skipped += 1
-            continue
-        notices.append(notice)
+def sha256_of(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _export(mdb, table):
+    """Yksi taulu `mdb-export`illa (sama lukija kuin scripts/fetch_data.py)."""
+    result = subprocess.run(
+        ["mdb-export", str(mdb), table], capture_output=True, text=True, check=False
+    )
+    if result.returncode != 0:
+        raise ValueError(f"{mdb}: mdb-export {table} epäonnistui: {result.stderr.strip()}")
+    return list(csv.DictReader(io.StringIO(result.stdout)))
+
+
+def _notice(row, geo, antennas):
+    """Yksi fxm_terra-rivi notice-rakenteeksi; (None, syy) kun pakollinen kenttä puuttuu.
+
+    Teho: `pwr_dbw` on dBW. `pwr_eiv == "I"` on EIRP, joka muunnetaan ERP:iksi
+    -2,15 dB:llä. Antennirivi valitaan deterministisesti: TX ja pienin `ant_key`.
+    """
+    terrakey = row.get("terrakey")
+    freq_min, freq_max = _num(row.get("freq_min")), _num(row.get("freq_max"))
+    if not terrakey or freq_min is None or freq_max is None:
+        return None, "frequency"
+    place = geo.get(row.get("geo_key"))
+    lat, lon = (_num(place.get("lat_dec")), _num(place.get("long_dec"))) if place else (None, None)
+    if lat is None or lon is None:
+        return None, "location"
+    cands = antennas.get(terrakey) or []
+    if not cands:
+        return None, "power"
+    ant = min(cands, key=lambda a: _num(a.get("ant_key")) or 0)
+    pwr_dbw = _num(ant.get("pwr_dbw"))
+    if pwr_dbw is None:
+        return None, "power"
+    if ant.get("pwr_eiv") == "I":
+        pwr_dbw -= 2.15
     return {
-        "issue": str(doc.get("issue") or Path(path).stem),
-        "synthetic": bool(doc.get("synthetic")),
+        "terrakey": terrakey,
+        "adm": row.get("adm") or "?",
+        "stn_cls": row.get("stn_cls") or "",
+        "intent": row.get("intent") or "",
+        "freq_min_mhz": freq_min,
+        "freq_max_mhz": freq_max,
+        "lat": lat,
+        "lon": lon,
+        "p_erp_kw": 10 ** (pwr_dbw / 10) / 1000,
+        "ant_h_m": _num(ant.get("hgt_agl")),
+    }, None
+
+
+def load_issue_mdb(path):
+    """Lukee yhden BR IFIC -MDB:n (fxm_terra + fxm_geo + fxm_ant).
+
+    Rivit, joilta puuttuu taajuus, sijainti tai teho, ohitetaan ja lasketaan
+    syyn mukaan (`skipped_invalid`); puuttuvaa arvoa ei arvata. `intent_counts`
+    lasketaan kaikista fxm_terra-riveistä: IFIC:n tila ei riipu siitä, pystyikö
+    työkalu laskemaan rivin.
+    """
+    mdb = Path(path)
+    if not mdb.is_file():
+        raise ValueError(f"{mdb}: tiedostoa ei löytynyt")
+    tables = {name: _export(mdb, name) for name in TABLES}
+    geo = {row["geo_key"]: row for row in tables["fxm_geo"]}
+    antennas = {}
+    for row in tables["fxm_ant"]:
+        if row["tx_rx"] == "TX":
+            antennas.setdefault(row["terrakey"], []).append(row)
+    notices, skipped = [], Counter()
+    for row in tables["fxm_terra"]:
+        notice, reason = _notice(row, geo, antennas)
+        if notice is None:
+            skipped[reason] += 1
+        else:
+            notices.append(notice)
+    stem = mdb.stem
+    return {
+        "issue": stem[len("brific") :] if stem.startswith("brific") else stem,
+        "source": f"{mdb.name} sha256:{sha256_of(mdb)}",
         "notices": notices,
-        "skipped_invalid": skipped,
+        "intent_counts": dict(Counter(row["intent"] or "" for row in tables["fxm_terra"])),
+        "skipped_invalid": dict(skipped),
     }
 
 
@@ -207,23 +271,17 @@ def register_frequencies(path):
     return freqs
 
 
-def diff_issues(prev, curr):
-    before = {n["ntc_id"]: n for n in prev["notices"]}
-    after = {n["ntc_id"]: n for n in curr["notices"]}
-    changes = []
-    for ntc_id in sorted(before.keys() | after.keys()):
-        old, new = before.get(ntc_id), after.get(ntc_id)
-        if new is None:
-            changes.append({"ntc_id": ntc_id, "change": "withdrawn", "fields": [], "notice": old})
-        elif old is None:
-            changes.append({"ntc_id": ntc_id, "change": "new", "fields": [], "notice": new})
-        else:
-            fields = [key for key in DIFF_FIELDS if old.get(key) != new.get(key)]
-            if fields:
-                changes.append(
-                    {"ntc_id": ntc_id, "change": "modified", "fields": fields, "notice": new}
-                )
-    return changes
+def diff_intents(curr):
+    """Ilmoituksen tila `intent`-kentästä: IFIC ei ole kumulatiivinen kanta.
+
+    Lukee `intent_counts`-kentän, joka lasketaan kaikista fxm_terra-riveistä,
+    myös niistä joita ei voitu laskea. Palauttaa raa'at lukumäärät (`counts`)
+    sekä muutosnimet (`new`/`modified`/`withdrawn`) ja kannan (`recorded`).
+    """
+    counts = Counter(curr["intent_counts"])
+    summary = {change: counts[intent] for intent, change in INTENT_CHANGE.items()}
+    summary["recorded"] = counts["RECORDED"]
+    return {"counts": dict(counts), **summary}
 
 
 def select(notices, register, max_km=MAX_DIST_KM):
@@ -249,14 +307,16 @@ def _group_key(notice):
     return (notice["adm"], band_label(notice), notice["stn_cls"], round(width, 3))
 
 
-def trends(prev_notices, changes):
+def trends(prev_notices, curr_notices):
+    """Ryhmä (hallinto x kaista x luokka x kaistanleveys): muutokset vs. edellinen numero."""
     before = Counter(_group_key(n) for n in prev_notices)
-    after = {}
-    for change in changes:
-        group = after.setdefault(
-            _group_key(change["notice"]), {"new": 0, "modified": 0, "withdrawn": 0}
-        )
-        group[change["change"]] += 1
+    groups = {}
+    for notice in curr_notices:
+        change = INTENT_CHANGE.get(notice["intent"])
+        if change is None:
+            continue  # RECORDED on kanta, ei muutos
+        group = groups.setdefault(_group_key(notice), {"new": 0, "modified": 0, "withdrawn": 0})
+        group[change] += 1
     rows = [
         {
             "adm": key[0],
@@ -268,7 +328,7 @@ def trends(prev_notices, changes):
             "withdrawn": value["withdrawn"],
             "prev_count": before[key],
         }
-        for key, value in after.items()
+        for key, value in groups.items()
     ]
     rows.sort(key=lambda r: (-(r["new"] + r["modified"]), r["adm"], r["band"], r["stn_cls"]))
     return rows
@@ -282,7 +342,6 @@ def anomalies(rows, limit=5):
 
 def findings(prev, curr, register_path):
     register = register_frequencies(register_path)
-    changes = diff_issues(prev, curr)
     kept, dropped = select(curr["notices"], register)
     notices = []
     for notice, distance in kept:
@@ -299,8 +358,13 @@ def findings(prev, curr, register_path):
             extrapolated_any = extrapolated_any or extrapolated(centre, point_km, notice["ant_h_m"])
         notices.append(
             {
-                "ntc_id": notice["ntc_id"],
+                # Lähdeviite jokaiseen löydökseen: IFIC-numero, terrakey, adm, intent, taulut.
+                "ific": curr["issue"],
+                "terrakey": notice["terrakey"],
                 "adm": notice["adm"],
+                "stn_cls": notice["stn_cls"],
+                "intent": notice["intent"],
+                "tables": list(TABLES),
                 "band": band_label(notice),
                 "distance_to_finland_km": round(distance, 1),
                 "p_erp_kw": notice["p_erp_kw"],
@@ -309,12 +373,14 @@ def findings(prev, curr, register_path):
                 "extrapolated": extrapolated_any,
             }
         )
-    rows = trends(prev["notices"], changes)
-    synthetic = bool(prev.get("synthetic") or curr.get("synthetic"))
+    rows = trends(prev["notices"], curr["notices"])
+    skipped = Counter(prev.get("skipped_invalid") or {}) + Counter(
+        curr.get("skipped_invalid") or {}
+    )
     return {
-        "source": "synthetic_fixture" if synthetic else "ific_extract",
-        "synthetic": synthetic,
-        "issues": {"prev": prev.get("issue", "?"), "curr": curr.get("issue", "?")},
+        "source": curr["source"],
+        "prev_source": prev["source"],
+        "issues": {"prev": prev["issue"], "curr": curr["issue"]},
         "model": "P.1546-6 land, 50/50, no terrain",
         "params": {
             "rx_height_m": RX_HEIGHT_M,
@@ -325,21 +391,7 @@ def findings(prev, curr, register_path):
         },
         "protection_threshold_dbuVm": THRESHOLD_DBUV_M,
         "criterion": CRITERION,
-        "diff": {
-            "new": sum(1 for c in changes if c["change"] == "new"),
-            "modified": sum(1 for c in changes if c["change"] == "modified"),
-            "withdrawn": sum(1 for c in changes if c["change"] == "withdrawn"),
-            "changes": [
-                {
-                    "ntc_id": c["ntc_id"],
-                    "change": c["change"],
-                    "adm": c["notice"]["adm"],
-                    "band": band_label(c["notice"]),
-                    "fields": c["fields"],
-                }
-                for c in changes
-            ],
-        },
+        "diff": diff_intents(curr),
         "notices": notices,
         "trends": rows,
         "anomalies": anomalies(rows),
@@ -347,51 +399,50 @@ def findings(prev, curr, register_path):
             "max_distance_km": MAX_DIST_KM,
             "classes": sorted(LAND_MOBILE_CLASSES),
             "dropped": dropped,
-            "skipped_invalid": prev.get("skipped_invalid", 0) + curr.get("skipped_invalid", 0),
+            "skipped_invalid": dict(skipped),
         },
     }
 
 
 def render_md(doc):
     lines = [
-        "# TERRESTRIAL: 3076-tyyliset land-mobile-extractit",
+        "# TERRESTRIAL: BR IFIC -land-mobile-ilmoitukset",
         "",
-        f"- lähde: `{doc['source']}`"
-        + (" (synteettinen, ei oikeaa 3076-dataa)" if doc["synthetic"] else ""),
+        f"- lähde: `{doc['source']}` (issu {doc['issues']['curr']})",
+        f"- vertailupohja: `{doc['prev_source']}` (issu {doc['issues']['prev']})",
+        f"- taulut: {', '.join(TABLES)}",
         f"- mallinnus: {doc['model']}",
-        f"- issuet: {doc['issues']['prev']} -> {doc['issues']['curr']}",
         f"- suojelukynnys: `{doc['protection_threshold_dbuVm']}`",
         f"- kehys: {doc['criterion']}",
         "",
-        "## Diff",
+        "## Ilmoituksen tila (intent)",
         "",
-        "| muutos | ntc_id | hallinto | kaista | kentät |",
-        "|---|---|---|---|---|",
+        "| intent | muutos | lkm |",
+        "|---|---|---|",
     ]
-    for change in doc["diff"]["changes"]:
-        lines.append(
-            f"| {change['change']} | {change['ntc_id']} | {change['adm']} | {change['band']} "
-            f"| {', '.join(change['fields']) or '-'} |"
-        )
+    for intent, change in (*INTENT_CHANGE.items(), ("RECORDED", "kanta")):
+        lines.append(f"| {intent} | {change} | {doc['diff']['counts'].get(intent, 0)} |")
     lines += [
         "",
         f"Uudet {doc['diff']['new']}, muutetut {doc['diff']['modified']}, "
-        f"poistetut {doc['diff']['withdrawn']}.",
+        f"poistetut {doc['diff']['withdrawn']}, kanta {doc['diff']['recorded']}.",
         "",
         "## Kenttävoimakkuus suomalaisissa testipisteissä, dB(uV/m)",
         "",
-        "| ntc_id | hallinto | kaista | " + " | ".join(POINTS) + " |",
-        "|---|---|---|" + "---|" * len(POINTS),
+        "| terrakey | hallinto | tila | kaista | " + " | ".join(POINTS) + " |",
+        "|---|---|---|---|" + "---|" * len(POINTS),
     ]
     for notice in doc["notices"]:
         cells = [
             "-" if p["e_dbuv_m"] is None else f"{p['e_dbuv_m']:.1f}"
             for p in notice["points"].values()
         ]
-        head = f"| {notice['ntc_id']} | {notice['adm']} | {notice['band']} | "
+        head = (
+            f"| {notice['terrakey']} | {notice['adm']} | {notice['intent']} | {notice['band']} | "
+        )
         lines.append(head + " | ".join(cells) + " |")
     if not doc["notices"]:
-        lines.append("| - | - | - | " + " | ".join("-" for _ in POINTS) + " |")
+        lines.append("| - | - | - | - | " + " | ".join("-" for _ in POINTS) + " |")
     lines += [
         "",
         "## Trendit",
@@ -451,19 +502,19 @@ def run(prev, curr, register_path, out_dir):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Terrestriaalinen diff ja P.1546-kenttävoimakkuus")
-    parser.add_argument("--prev", required=True, help="edellinen extract (JSON)")
-    parser.add_argument("--curr", required=True, help="uusi extract (JSON)")
+    parser.add_argument("--prev", required=True, help="edellinen BR IFIC -MDB (3075)")
+    parser.add_argument("--curr", required=True, help="uusi BR IFIC -MDB (3076)")
     parser.add_argument("--register", required=True, help="Suomen rekisteri (CSV)")
     parser.add_argument("--out", default="out/", help="tulostehakemisto")
     args = parser.parse_args(argv)
     try:
-        doc = run(load_issue(args.prev), load_issue(args.curr), args.register, args.out)
+        doc = run(load_issue_mdb(args.prev), load_issue_mdb(args.curr), args.register, args.out)
     except (OSError, ValueError) as error:
         raise SystemExit(f"terrestrial: {error}") from error
     print(
         f"{doc['diff']['new']} new, {doc['diff']['modified']} modified, "
-        f"{doc['diff']['withdrawn']} withdrawn; {len(doc['notices'])} notices in reach; "
-        f"-> {args.out}"
+        f"{doc['diff']['withdrawn']} withdrawn, {doc['diff']['recorded']} recorded; "
+        f"{len(doc['notices'])} notices in reach; -> {args.out}"
     )
     return 0
 

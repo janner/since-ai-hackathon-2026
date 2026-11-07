@@ -35,7 +35,7 @@ flowchart LR
   API --> UI["app/static/index.html<br/>funnel, queue, selected card"]
 
   subgraph terr_side [Terrestrial side path]
-    T1["two 3076-style extracts<br/>(JSON)"] --> TERR["app/terrestrial.py<br/>diff, 1 000 km filter, P.1546-6"]
+    T1["two BR IFIC MDBs<br/>fxm_terra, fxm_geo, fxm_ant<br/>(3075, 3076)"] --> TERR["app/terrestrial.py<br/>intent diff, 1 000 km filter, P.1546-6"]
     I2 --> TERR
     TERR --> TOUT["out/<br/>terrestrial_findings.json,<br/>terrestrial_trends.csv, TERRESTRIAL.md"]
   end
@@ -58,7 +58,7 @@ calculation: without `out/` the page still loads and the API answers 503 with th
 | `app/prose.py` | Card prose. The LLM drafts it, the guard checks it, the deterministic template in `templates/` is the floor. Also holds the correspondence-letter template and function. |
 | `app/guard.py` | Numeric guard: scans the prose for numbers and rejects a sentence that carries a number the card does not have. |
 | `app/llm.py` | The single OpenAI-compatible chat call. The endpoint and key come from `.env` (`LLM_BASE_URL`, `LLM_API_KEY`), never from code. The model runs wherever that URL points: the OpenShift AI sandbox in the Red Hat setup, another endpoint, or nowhere at all when the variable is unset. |
-| `app/terrestrial.py` | The side path: diffs two 3076-style land-mobile extracts, keeps what is within 1 000 km of Finland and overlaps the register, and computes ITU-R P.1546-6 field strength at four Finnish test points. stdlib only, no network, writes its own three files. |
+| `app/terrestrial.py` | The side path: reads two real BR IFIC terrestrial MDBs (3075 and 3076) with `mdb-export`, takes each notice's change from the `intent` field, keeps land-mobile notices within 1 000 km of Finland that overlap the register, and computes ITU-R P.1546-6 field strength at four Finnish test points. stdlib only, no network, writes its own three files. |
 | `app/main.py` | Read-only FastAPI app: six endpoints (`/`, `/health`, `/api/funnel`, `/api/cases`, `/api/cases/{id}`, `/api/queue`) over the files in `out/`, plus the one page. `KAISTA_OUT` points it at another output directory. |
 
 Data flow goes one way. Nothing in the UI writes, and the deterministic path never reads the network.

@@ -33,9 +33,10 @@ letter. Every number comes from code, and a numeric guard rejects a sentence tha
 the card does not have. Letters land in `out/letters/<case_id>.md`, one per `exceeds` case; the
 deterministic template is the floor when no model answers.
 
-A side feature applies the same style to terrestrial land-mobile notices: it diffs two
-3076-style extracts, filters what is within 1 000 km of Finland and overlaps the register, and
-computes ITU-R P.1546-6 field strength at four Finnish test points.
+A side feature applies the same style to terrestrial land-mobile notices: it reads two real BR IFIC
+terrestrial databases (3075 and 3076), takes the change from each notice's `intent` field, filters
+what is within 1 000 km of Finland and overlaps the register, and computes ITU-R P.1546-6 field
+strength at four Finnish test points.
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
@@ -44,7 +45,7 @@ selected card 124545403.
 
 ## Verified numbers
 
-Measured 7 Nov 2026 on IFIC 3074: `make check` 125 tests passed, the slice run takes about 1.3 s,
+Measured 7 Nov 2026 on IFIC 3074: `make check` 128 tests passed, the slice run takes about 1.3 s,
 the seven-band run about 5.5 s. The deterministic pipeline is offline; the optional LLM prose step
 is the only part that opens a connection, and only when `LLM_BASE_URL` is set.
 
@@ -73,8 +74,9 @@ reference tool behind the plan read the register cell `0,1G` as 0.1 MHz; this co
 is written up in `docs/decisions.md`, and `tests/test_gates.py::test_all_bands_funnel` locks the
 numbers in this repository.
 
-The terrestrial side feature on the committed synthetic fixture reports 3 new, 1 modified,
-1 withdrawn, 12 notices in reach.
+The terrestrial side feature on the real BR IFIC 3076 against 3075 reports 2 905 new, 163 modified,
+413 withdrawn and 576 recorded notices, and 28 notices in reach (land mobile, within 1 000 km,
+overlapping the register).
 
 ## Run it
 
@@ -84,12 +86,13 @@ Prerequisites: [uv](https://docs.astral.sh/uv/), `make`, and `mdbtools` for `mdb
 sudo apt install mdbtools                 # mdb-export reads the IFIC Access database
 uv sync                                   # creates .venv from uv.lock
 cp <path>/Traficom_SinceAI_Frequencies_of_interest_v05112026.xlsx data/   # from the Since AI platform
-uv run python scripts/fetch_data.py       # downloads IFIC 3074 and the M4 table, converts everything to CSV
+uv run python scripts/fetch_data.py       # downloads IFIC 3074, terrestrial BR IFIC 3075+3076, M4; space tables to CSV
 ```
 
-`fetch_data.py` prints a SHA256 for every file it writes. Both source URLs answered on 6 Nov 2026
+`fetch_data.py` prints a SHA256 for every file it writes. The source URLs answered on 6 Nov 2026
 with the browser-style user agent the script sends; if ITU serves its challenge page instead of the
-zip, the script stops with a clear error instead of writing a broken file.
+zip, the script stops with a clear error instead of writing a broken file. The same `PK` check
+guards the two terrestrial zips.
 
 ```bash
 # the demo: the 3.47-3.78 GHz slice, six files into out/
@@ -102,8 +105,9 @@ uv run python -m app.pipeline --ific data/itu-ific-3074 \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json --out out/ --all
 
-# the terrestrial side feature (two extracts, one issue per file)
-uv run python -m app.terrestrial --prev prev.json --curr curr.json \
+# the terrestrial side feature (two BR IFIC MDBs, 3076 against 3075)
+uv run python -m app.terrestrial --prev data/itu-terr-ific/brific3075.mdb \
+  --curr data/itu-terr-ific/brific3076.mdb \
   --register data/frequencies_of_interest.csv --out out/
 
 # the web UI over whatever the last run wrote
@@ -111,8 +115,7 @@ uv run uvicorn app.main:app --reload      # http://localhost:8000
 ```
 
 `sh scripts/demo.sh` is the slice run plus the two files worth showing. `docs/demo.md` has the
-three-minute script and the two commands that split the terrestrial fixture into one issue per
-file.
+three-minute script and the terrestrial command.
 
 The deterministic pipeline is offline. The LLM is an optional extra step: without `LLM_BASE_URL`
 every card falls back to the deterministic template in `templates/`, and the run opens no
@@ -150,12 +153,12 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 125 passed |
-| Clean clone, no `data/` | 111 passed, 14 skipped |
+| With `data/` | 128 passed |
+| Clean clone, no `data/` | 111 passed, 17 skipped |
 
 `tests/fixtures/` holds the small committed inputs: a nine-notice synthetic IFIC package, an
-eight-station register, a five-row M4 table, and the synthetic terrestrial fixture. The tests that
-need the real package are marked `data` and skip themselves, so a clean clone runs green.
+eight-station register and a five-row M4 table. The tests that need the real package or the real
+BR IFIC MDBs are marked `data` and skip themselves, so a clean clone runs green.
 
 ## The web UI
 
@@ -194,10 +197,13 @@ row; the funnel endpoint carries their count.
    blank or whitespace answer falls back to the template, but a refusal or an answer in the wrong
    language is not detected: the guard checks numbers, not intent. The run behind the numbers above
    had no `LLM_BASE_URL`, so every card carries `prose.source = template`.
-8. No terrestrial IFIC 3076 extract was available. `app/terrestrial.py` runs on the synthetic
-   fixture marked `synthetic: true`, and the CLI reads the JSON shape documented in
-   `docs/features.md`. There is no converter from a real 3076 file, and the `--ific-terrestrial`
-   parameter in the plan is not implemented.
+8. The terrestrial path reads the real BR IFIC MDBs (3075 and 3076) with `mdb-export`. The IFIC is
+   not a cumulative database, so `new`/`modified`/`withdrawn` come from the `intent` field
+   (ADD / MODIFY / SUPPRESS) and 3075 is only the trend baseline. A row without power or location
+   (40 of the 4 057 `fxm_terra` rows in 3076: 31 without `pwr_dbw`, 9 whose `geo_type` is `ZONE`)
+   is counted in `skipped_invalid` with its reason and not computed. Mobile stations (`ML`) carry no
+   antenna height, so their field strength stays empty rather than guessed. The `--ific-terrestrial`
+   parameter in the plan is not implemented: the module takes `--prev` and `--curr` MDB paths.
 9. The P.1546 table in `rules/p1546_land.csv` is coarse: three frequencies (100, 600, 2000 MHz),
    eight antenna heights, 70 distances from 1 to 1 000 km, rounded to 0.01 dB. A query outside any
    of those three ranges clamps to the nearest node; the notice is then flagged `extrapolated: true`
@@ -248,7 +254,7 @@ app/            one module per feature, each with tests/test_<feature>.py
   pipeline.py   the CLI
   prose.py      prose from the LLM, template as the floor
   guard.py      every number in the prose must exist in the card
-  terrestrial.py  3076-style diff, filter, P.1546 field strength, trends
+  terrestrial.py  BR IFIC 3075/3076 intent diff, filter, P.1546 field strength, trends
   main.py       read-only API and the page
 rules/          rr21_table21_4.csv, p1546_land.csv
 templates/      the two Finnish templates (card summary, correspondence)
@@ -260,15 +266,15 @@ data/  out/     local only, ignored by git
 
 Configuration lives in `pyproject.toml` (dependencies, ruff, pytest) and `.env` (copy
 `.env.example`; never committed). The challenge data is not in the repository: `fetch_data.py`
-downloads the public ITU and Traficom files and prints their hashes, while the
-frequencies-of-interest table is Traficom's synthetic dataset from the Since AI platform and has to
-be copied in by hand.
+downloads the public ITU files (space IFIC 3074, terrestrial BR IFIC 3075 and 3076) and Traficom's
+table of frequency allocations and prints their hashes, while the frequencies-of-interest table is
+Traficom's synthetic dataset from the Since AI platform and has to be copied in by hand.
 
 ## Data, privacy and security
 
-- Inputs: ITU Space BR IFIC 3074 (public), Traficom open data table of frequency allocations
-  (public), the Traficom frequencies-of-interest table (synthetic, handed out for the challenge),
-  and ITU Radio Regulations 2024 for the limits.
+- Inputs: ITU Space BR IFIC 3074 (public), ITU terrestrial BR IFIC 3075 and 3076 (public), Traficom
+  open data table of frequency allocations (public), the Traficom frequencies-of-interest table
+  (synthetic, handed out for the challenge), and ITU Radio Regulations 2024 for the limits.
 - No personal data goes through the pipeline.
 - No secrets in the repository: configuration comes from `.env` (see `.env.example`), and the only
   credential any code reads is `LLM_API_KEY`, sent to the endpoint the user configured.
@@ -285,7 +291,7 @@ be copied in by hand.
 | FastAPI and uvicorn | web API and the page | MIT |
 | openpyxl | register xlsx to CSV | MIT |
 | pytest, ruff | tests, lint, format | MIT |
-| mdbtools | IFIC `.mdb` to CSV | GPL / LGPL, system tool, not bundled |
+| mdbtools | `mdb-export` reads the IFIC `.mdb`: the space tables and the terrestrial BR IFIC | GPL / LGPL, system tool, not bundled |
 | ITU-R P.1546-6 table | `rules/p1546_land.csv` | generated once from the ITU reference implementation, see `docs/decisions.md` |
 | any OpenAI-compatible chat endpoint | card and letter prose, optional | the user's choice |
 

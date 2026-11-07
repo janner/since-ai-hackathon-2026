@@ -4,8 +4,9 @@ Run from the repo root:  uv run python scripts/fetch_data.py
 Needs `mdb-export` (apt install mdbtools). Data is never committed (see .gitignore).
 
 1. ITU Space BR IFIC 3074 (zip -> mdb -> 15 CSV tables)
-2. Traficom open data, table of frequency allocations (Regulation M4 annex)
-3. Traficom frequencies-of-interest xlsx -> CSV (copy the xlsx into data/ first;
+2. ITU terrestrial BR IFIC 3075 and 3076 (zip -> mdb, read by app/terrestrial.py)
+3. Traficom open data, table of frequency allocations (Regulation M4 annex)
+4. Traficom frequencies-of-interest xlsx -> CSV (copy the xlsx into data/ first;
    it is on the Since AI platform and is not redistributed here)
 """
 
@@ -19,6 +20,8 @@ from pathlib import Path
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 IFIC_URL = "https://www.itu.int/sns/ific10/ific3074.zip"
+TERR_URL = "https://www.itu.int/en/ITU-R/terrestrial/brific/BRIFIC/MDB/brific{}.zip"
+TERR_NUMBERS = (3075, 3076)
 M4_URL = "https://opendata.traficom.fi/api/v13/Taajuusjakotaulukko"
 XLSX = "Traficom_SinceAI_Frequencies_of_interest_v05112026.xlsx"
 TABLES = [
@@ -76,23 +79,34 @@ def xlsx_rows(path: Path):
             yield ["" if c is None else c for c in r[: len(header)]]
 
 
+def fetch_mdb(directory: Path, url: str, stem: str) -> tuple[Path, Path]:
+    """Download a BR IFIC zip and extract its .mdb; returns (zip, mdb)."""
+    directory.mkdir(parents=True, exist_ok=True)
+    z = directory / f"{stem}.zip"
+    if not z.exists():
+        z.write_bytes(check_zip(get(url)))
+    check_zip(z.read_bytes()[:2])
+    with zipfile.ZipFile(z) as zf:
+        name = next(n for n in zf.namelist() if n.lower().endswith(".mdb"))
+        mdb = directory / Path(name).name
+        if not mdb.exists():
+            zf.extract(name, directory)
+            (directory / name).rename(mdb)
+    return z, mdb
+
+
 def main():
     ific = DATA / "itu-ific-3074"
+    z, mdb = fetch_mdb(ific, IFIC_URL, "ific3074")
     (ific / "csv").mkdir(parents=True, exist_ok=True)
-    z = ific / "ific3074.zip"
-    if not z.exists():
-        z.write_bytes(check_zip(get(IFIC_URL)))
-    with z.open("rb") as f:
-        check_zip(f.read(2))
-    with zipfile.ZipFile(z) as zf:
-        mdb_name = next(n for n in zf.namelist() if n.lower().endswith(".mdb"))
-        mdb = ific / Path(mdb_name).name
-        if not mdb.exists():
-            zf.extract(mdb_name, ific)
-            (ific / mdb_name).rename(mdb)
     for t in TABLES:
         with (ific / "csv" / f"{t}.csv").open("w") as f:
             subprocess.run(["mdb-export", str(mdb), t], stdout=f, check=True)
+
+    terrestrial = DATA / "itu-terr-ific"
+    terr_files = [
+        p for n in TERR_NUMBERS for p in fetch_mdb(terrestrial, TERR_URL.format(n), f"brific{n}")
+    ]
 
     m4 = DATA / "taajuusjakotaulukko.json"
     if not m4.exists():
@@ -109,7 +123,7 @@ def main():
             file=sys.stderr,
         )
 
-    for p in [z, mdb, m4, x, reg]:
+    for p in [z, mdb, *terr_files, m4, x, reg]:
         if p.exists():
             print(sha(p), p.relative_to(DATA.parent))
 

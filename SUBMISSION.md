@@ -27,11 +27,11 @@ The funnel is the whole point, so the tool shows it. On the demo slice (3,470 to
 
 Everything before the card text is deterministic. The pipeline reads CSV and JSON, uses standard-library math, and never opens a network connection. The PFD is an upper bound, not a claim of interference: max PSD plus max beam gain minus free-space loss, against Table 21-4. The one optional step is prose. If LLM_BASE_URL is set, a language model writes the card summary; if it is not, a template does. The model never supplies a number. A numeric guard reads every sentence and rejects it if it carries a number that is not already in the card, and the template takes over. The letter to the other administration has its own template and its own function. In the Red Hat award setup the drafting model runs in an OpenShift AI sandbox and the pipeline runs on the laptop, so with `LLM_BASE_URL` unset nothing leaves the machine.
 
-The tool is built as one module per feature, each with its own test file, 116 tests in all. A slice run takes about 1.3 seconds and the seven-band run about 5.5 seconds on the hackathon machine. The repository also carries a side feature for terrestrial land-mobile notices: it diffs two 3076-style extracts, keeps what is within 1,000 km of Finland and overlaps the register, and computes ITU-R P.1546-6 field strength at four Finnish test points.
+The tool is built as one module per feature, each with its own test file, 128 tests in all. A slice run takes about 1.3 seconds and the seven-band run about 5.5 seconds on the hackathon machine. The repository also carries a side feature for terrestrial land-mobile notices: it reads two real BR IFIC terrestrial databases (3075 and 3076), takes each notice's change from its intent field, keeps what is within 1,000 km of Finland and overlaps the register, and computes ITU-R P.1546-6 field strength at four Finnish test points.
 
 Two things the build met on the way. Beam geometry is empty in IFIC 3074, so the tool cannot decide whether a beam actually illuminates Finland; instead of guessing, every card carries that as a question and lists the missing fields. And the reference tool behind the plan read the register cell `0,1G` as 0.1 MHz, while this code reads the `Channel bandwidth` column as 0.1 GHz = 100 MHz; that is why the seven-band funnel sits one notice above the plan (101 against 100). The demo slice is identical either way, and the difference is written up in docs/decisions.md.
 
-What comes next: a labelled evaluation set, so the screening can be measured against a human decision; a converter for real 3076 extracts for the terrestrial path; and a machine-readable Article 21, Table 21-4, which today has to be transcribed by hand.
+What comes next: a labelled evaluation set, so the screening can be measured against a human decision; and a machine-readable Article 21, Table 21-4, which today has to be transcribed by hand.
 
 What was built during the hackathon, 6 to 8 Nov 2026, starts from a pre-event repository template (commit `6fe98b9`): a FastAPI skeleton, an OpenAI-compatible client and a test setup. Everything after that commit is new. The work was planned, implemented, documented and reviewed by Hermes Agent roles on a shared kanban board (planner, coder, writer, reviewer), with a human owner who chose the challenge, set the framing and makes the push decision.
 
@@ -127,7 +127,7 @@ Measured evidence, 7 Nov 2026, sandbox `janner-1-dev`. The raw output is in
   the local run. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
   the 17 drafts it saw. One call per card, 36.6 s to 120.3 s, median 86.9 s, whole run 25.6 min. The
   deterministic part of the same run took 1.19 s.
-- `make check` green: 116 tests passed. The tests never need the network.
+- `make check` green: 128 tests passed. The tests never need the network.
 - One card of 18 fell back to the template. The slowest call measured 120.3 s, right at the 120 s
   client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer.
 
@@ -151,8 +151,8 @@ Sandbox facts (verified 6 and 7 Nov 2026, namespace `janner-1-dev`):
 
 Automated, done in the repository
 
-- [x] `make check` green: ruff check, ruff format --check, 125 tests passed
-- [x] README run steps work in a clean clone (111 passed, 14 skipped without `data/`)
+- [x] `make check` green: ruff check, ruff format --check, 128 tests passed
+- [x] README run steps work in a clean clone (111 passed, 17 skipped without `data/`)
 - [x] Pre-existing work and outside assets stated in README and About (template commit `6fe98b9`)
 - [x] No secrets or challenge data committed; `data/` and `out/` are gitignored
 - [x] `make submission-zip` builds `dist/kaista-submission.zip`, tracked files at HEAD only, no data

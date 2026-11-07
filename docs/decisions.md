@@ -83,16 +83,21 @@ free text, so extraction is not the model's job either.
 
 Reopen if: Traficom says the model may decide. That is unlikely.
 
-### D7. Terrestrial side feature: synthetic fixture, no claim about 3076
+### D7. Terrestrial side feature reads the real BR IFIC MDBs
 
-Choice: two synthetic land-mobile extracts, ITU-R P.1546-6 field strength, a diff and trends, every
-output marked `synthetic: true`. A real 3076 extract would be run with the same command.
+Choice: `app/terrestrial.py` reads two real BR IFIC terrestrial databases (3075 and 3076) with
+`mdb-export`, takes each notice's change from `fxm_terra.intent` (ADD → new, MODIFY → modified,
+SUPPRESS → withdrawn, RECORDED → the stock), keeps land-mobile notices within 1 000 km of Finland
+that overlap the register, and computes ITU-R P.1546-6 field strength. 3075 is the trend baseline.
+No synthetic extract is used anywhere.
 
-Reason: the 3076 download was blocked on 6 Nov 2026 and no extract exists. The side feature is 25 %
-of the Traficom rubric. A marked synthetic fixture is honest; an unmarked one is not.
+Reason: the IFIC is not a cumulative database (3075 and 3076 share no `terrakey`), so the change is
+the `intent` field, not a key comparison. The 3076 package is a public ITU download
+(`brific3076.zip`), so the tool reads the real file directly; `tests/fixtures/` holds no terrestrial
+data. The side feature is 25 % of the Traficom rubric.
 
-Reopen if: Traficom hands over a 3076 extract, in which case the converter has to be written first
-(see limitation 8 in the README).
+Reopen if: a newer IFIC changes the `fxm_terra` schema, in which case `load_issue_mdb` needs the new
+columns.
 
 ### D8. UI: one page, three panels, no map
 
@@ -424,7 +429,7 @@ Test: `tests/test_terrestrial.py::test_field_strength_matches_p1546_table_node`.
 sample locations, so the filter and the report use one definition. A polygon border would be more
 accurate and is not worth the geometry for a screening filter at 1 000 km.
 
-Test: `tests/test_terrestrial.py::test_filter_drops_far_and_non_land_mobile`.
+Test: `tests/test_terrestrial.py::test_filter_keeps_land_mobile_in_reach`.
 
 ### T3. Register overlap counts RX and TX
 
@@ -433,7 +438,7 @@ Test: `tests/test_terrestrial.py::test_filter_drops_far_and_non_land_mobile`.
 The register columns are read as strings with their own unit suffix (`454.040 MHz`), unlike the
 space path, because the frequencies-of-interest file uses that form.
 
-Test: `tests/test_terrestrial.py::test_fixture_bands_overlap_the_real_register` (data).
+Test: `tests/test_terrestrial.py::test_register_counts_both_rx_and_tx_directions`.
 
 ### T4. Field strength is evaluated at the band centre
 
@@ -453,17 +458,18 @@ the challenge, and the ECC and national values are the two that are not confirme
 reports the calculated field strength and says nothing about pass or fail. A guessed threshold
 would turn a report into a false verdict.
 
-Test: `tests/test_terrestrial.py::test_findings_mark_synthetic_and_leave_threshold_open` (the
+Test: `tests/test_terrestrial.py::test_findings_leaves_threshold_open_and_cites_the_source` (the
 criterion still says "to be confirmed"), `test_run_writes_three_outputs` (the framework line lands
 in `TERRESTRIAL.md`).
 
-### T6. The terrestrial filter keeps `LM` and `MVV`
+### T6. The terrestrial filter keeps the land-mobile station classes
 
-`app/terrestrial.py`, `LAND_MOBILE_CLASSES = frozenset({"LM", "MVV"})`. Land mobile and mobile,
-the two classes that describe the 3076-style notices the side feature is about. Everything else is
-counted under `class` in the drop tally so the filtering is auditable.
+`app/terrestrial.py`, `LAND_MOBILE_CLASSES = frozenset({"FB", "ML", "FL"})`. In the BR IFIC station
+class code, `FB` is a base station, `ML` a land mobile station and `FL` a land mobile station
+(fixed); the 3076 file uses exactly these three. Everything else, `FX` included, is counted under
+`class` in the drop tally so the filtering is auditable.
 
-Test: `tests/test_terrestrial.py::test_filter_drops_far_and_non_land_mobile`.
+Test: `tests/test_terrestrial.py::test_filter_keeps_land_mobile_in_reach`.
 
 ### T7. An anomaly means a group with nothing before and at least three now
 
@@ -471,7 +477,7 @@ Test: `tests/test_terrestrial.py::test_filter_drops_far_and_non_land_mobile`.
 in a group that was empty is worth a look. The limit is a parameter and the output lists the rows
 rather than a count.
 
-Test: the fixture run reports the SVE 800-805 MHz group, visible in `docs/demo.md`.
+Test: the 3076 run reports the SVN 1770-1775 MHz group (49 new), visible in `docs/demo.md`.
 
 ## Part 3: decisions of this documentation pass
 

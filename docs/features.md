@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `26187c3`, verified on 7 Nov 2026 with `make check` (125 passed) and a clean clone
-(111 passed, 14 skipped).
+commit `26187c3`, verified on 7 Nov 2026 with `make check` (128 passed) and a clean clone
+(111 passed, 17 skipped).
 
 Read a feature row in the tables below as: the module that owns the job, the tests that would fail
 if the behaviour changed, and the number the tests lock in.
@@ -262,53 +262,64 @@ no test opens a connection.
 ## F9: terrestrial side feature
 
 `app/terrestrial.py` is independent of the space pipeline (no import from `app.gates` or
-`app.pfd`) and is standard-library only.
+`app.pfd`) and is standard-library only. It reads the real BR IFIC terrestrial databases with
+`mdb-export`, the same reader `scripts/fetch_data.py` uses.
 
 ```bash
-python -m app.terrestrial --prev prev.json --curr curr.json \
+python -m app.terrestrial --prev data/itu-terr-ific/brific3075.mdb \
+  --curr data/itu-terr-ific/brific3076.mdb \
   --register data/frequencies_of_interest.csv --out out/
 ```
 
-Input shape, one issue per file:
+Tables used, one row per `fxm_terra` notice:
 
-```json
-{"issue": "SYNTH-3076-B", "synthetic": true,
- "notices": [{"ntc_id": "1090011", "adm": "SVE", "stn_cls": "LM",
-              "freq_min_mhz": 800, "freq_max_mhz": 805,
-              "lat": 59.3, "lon": 18.1, "p_erp_kw": 30, "ant_h_m": 60, "act_code": "ADD"}]}
-```
+- `fxm_terra`: `terrakey`, `adm`, `stn_cls`, `freq_min`/`freq_max` (MHz), `geo_key`, `intent`.
+- `fxm_geo`: `geo_key` → `lat_dec`, `long_dec` (a `ZONE` row carries no point and is skipped).
+- `fxm_ant`: per `terrakey` and `ant_key` the `pwr_dbw`, `pwr_eiv` (`E` = ERP, `I` = EIRP),
+  `hgt_agl` and `tx_rx`. The antenna row is the TX row with the smallest `ant_key`.
 
-A row without `ntc_id` or without one of the frequency, position, power and height fields is
-skipped and counted in `skipped_invalid`.
+`pwr_dbw` is dBW; an EIRP value is converted to ERP by −2.15 dB. A row without frequency, location
+or power is counted in `skipped_invalid` under its reason (`frequency` / `location` / `power`) and
+not computed; a missing antenna height leaves the field strength empty rather than guessed.
 
 | Step | Behaviour |
 |---|---|
-| Diff | keyed by `ntc_id`; a change in band, position, power, height or class is `modified` |
-| Filter | keeps `stn_cls` in `{LM, MVV}`, within 1 000 km of the nearest of the four Finnish test points, and overlapping the register on RX or TX |
+| Diff | from `fxm_terra.intent`: ADD → `new`, MODIFY → `modified`, SUPPRESS → `withdrawn`, RECORDED → the stock, not a change. The IFIC is not a cumulative database (3075 and 3076 share no `terrakey`), so the change is this field, not a key comparison |
+| Filter | keeps `stn_cls` in `{FB, ML, FL}`, within 1 000 km of the nearest of the four Finnish test points, and overlapping the register on RX or TX |
 | Field strength | `field_strength_p1546(freq, dist, h_ant, p_erp_kw)` interpolates the P.1546-6 land table linearly in frequency, height and distance, then adds `10*log10(p)`. Model: land path, 50 % of time, 50 % of locations, no terrain, 10 m receiving antenna |
 | Extrapolation | a query outside any of the three table axes (frequency, antenna height, distance) clamps to the nearest node; the notice is flagged `extrapolated: true` when any of the four test points is outside |
-| Trends | grouped by administration, band label, class and bandwidth; counts of new, modified and withdrawn against the previous issue |
-| Anomalies | a group with nothing in the previous issue and three or more now |
+| Trends | grouped by administration, band label, class and bandwidth; new, modified and withdrawn against the same group in the previous number (3075) |
+| Anomalies | a group with nothing in the previous number and three or more now |
 | Threshold | `protection_threshold_dbuVm` is `null`; the criterion line names the three tiers (ITU RR Art. 21 Table 21-4 PFD → ECC T/R 25-08 trigger field strength → national M4 / Traficomin taajuusjakotaulukko) and marks the ECC and national values as not confirmed |
+
+Every finding carries its own source reference: the IFIC number, `terrakey`, `adm`, `intent` and
+the tables it came from, alongside `band`, `distance_to_finland_km`, `p_erp_kw`, `ant_h_m` and the
+four field-strength values. The report header carries the file name and SHA256 of both MDBs.
 
 The distance to Finland is the nearest of the four test points (Helsinki, Turku, Lappeenranta,
 Maarianhamina), not a polygon border. Both register directions count as overlap, because a channel
 is a pair: RX 464.04 MHz and TX 454.04 MHz belong to the same licence.
 
+Measured on the real pair: 3076 has 4 057 `fxm_terra` rows, `intent` ADD 2 905 / MODIFY 163 /
+SUPPRESS 413 / RECORDED 576, 313 Russian notices (FX 188, ML 68, FB 57); the filter leaves 28
+notices in reach of the register. 40 rows are skipped for a missing field (31 power, 9 location).
+
 Outputs: `terrestrial_findings.json`, `terrestrial_trends.csv`, `TERRESTRIAL.md`.
 
-Tests (`tests/test_terrestrial.py`, 17): `test_diff_finds_new_modified_withdrawn` (3 new, 1
-modified, 1 withdrawn), `test_diff_detects_moved_station`,
-`test_filter_drops_far_and_non_land_mobile`, `test_findings_mark_synthetic_and_leave_threshold_open`,
+Tests (`tests/test_terrestrial.py`, 20): `test_diff_intents_reads_the_intent_field`,
+`test_filter_keeps_land_mobile_in_reach`, `test_trends_group_by_adm_band_class_width`,
+`test_findings_leaves_threshold_open_and_cites_the_source`,
 `test_params_say_what_the_field_strength_is_computed_for`,
 `test_field_strength_matches_p1546_table_node`,
 `test_field_strength_falls_with_distance_and_follows_power`,
 `test_field_strength_rejects_unusable_input`, `test_extrapolated_flags_clamped_query`,
-`test_findings_flags_extrapolated_per_point`, `test_run_writes_three_outputs`,
-`test_load_issue_skips_rows_without_required_fields`, `test_load_issue_rejects_wrong_shape`,
-`test_empty_extract_still_produces_outputs`, `test_register_without_frequency_columns_is_rejected`,
-`test_cli_runs_and_fails_cleanly_on_missing_input`, and the data test
-`test_fixture_bands_overlap_the_real_register`.
+`test_findings_flags_extrapolated_per_point`, `test_a_notice_without_antenna_height_gets_no_value`,
+`test_run_writes_three_outputs`, `test_load_issue_mdb_rejects_a_missing_file`,
+`test_cli_fails_cleanly_on_missing_input`, `test_register_counts_both_rx_and_tx_directions`,
+`test_register_without_frequency_columns_is_rejected`, and the four data tests
+`test_real_3076_intent_distribution_and_source`, `test_real_3076_russian_federation_notices`,
+`test_real_mdb_prints_the_example_finding` and `test_cli_runs_on_the_real_mdb`, which read the real
+MDBs and skip when `data/itu-terr-ific` is missing.
 
 The P.1546 table in `rules/p1546_land.csv` was generated once, outside the runtime, with the ITU
 reference implementation; see `docs/decisions.md`.
@@ -389,5 +400,3 @@ Tests (`tests/test_fetch_data.py`, 2): `test_html_instead_of_zip_is_rejected`,
 | `tests/fixtures/ific_mini/csv/` | nine synthetic notices with frequency, group, emission, beam, GEO, non-GEO and orbit rows, including both plan test vectors and a case that cannot be decided |
 | `tests/fixtures/register_mini.csv` | nine rows, eight of which load as stations (one has no frequency); five rows lack the antenna gain, two the power, two the RX frequency |
 | `tests/fixtures/m4_mini.json` | four allocation rows, two of them inside the demo slice |
-| `tests/fixtures/terrestrial_fixture.json` | two synthetic land-mobile issues in one file, `synthetic: true`, split into `prev` and `curr` for the CLI |
-| `tests/fixtures/register_terrestrial_mini.csv` | a small register for the terrestrial filter |
