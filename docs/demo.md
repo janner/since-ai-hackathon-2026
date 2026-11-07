@@ -339,6 +339,8 @@ running the UI; a link a real channel could use needs the app on a hosted URL.
 Two data sets on the screen: IFIC 3074 is the accuracy material, IFIC 3075 is what the automatic
 search fetched. The first 30 seconds are the automatic check; the rest is one card of the run it
 produced. The two-minute video version, with narration and captions, is `docs/demo-video.md`.
+Traficom confirmed on 7 Nov 2026 (Q6) that the video may show the delivered table's rows and the
+unfinished prototype.
 
 | Time | On screen | What to say |
 |---|---|---|

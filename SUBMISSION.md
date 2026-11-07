@@ -120,6 +120,30 @@ filings chain (`ntc_lnk`) and the filing action (`notice.act_code`) have no comp
 `s_beam.gain` is the exception: it is used, and it is why the beam gain in every PFD is the notice's
 own peak gain rather than a worst-case guess.
 
+## Terrestrial side task
+
+The tool answers a second, smaller question Traficom asked: the terrestrial land-mobile notices in
+the BR IFIC packages. `python -m app.pipeline --terrestrial` runs it in the same pass and into the
+same output directory as the space funnel, and `out/TERRESTRIAL.md` is the readable report. The field
+strength from each foreign station is computed with ITU-R P.1546-6 (land, 50/50, no terrain) and
+compared with the ECC T/R 25-08 trigger level. Four answers of 7 Nov 2026 fixed the screen:
+
+- The field strength is computed at points on the border line, not at four cities (Q4). The border
+  line is the land borders with Sweden, Norway and Russia plus the 12 nautical mile territorial sea
+  outer limit, which also surrounds Åland (F2). The tool reports the nearest point to each
+  transmitter and the border section where the level is highest, and it flags the register's own
+  stations whose field strength passes the threshold.
+- The comparison uses the general land-mobile threshold in T/R 25-08 A.1.2.3, and above 470 MHz the
+  same 20 dBµV/m (F1). Most of the 3076 land-mobile rows sit above 470 MHz, past the recommendation's
+  own tables.
+- The side task covers the land-mobile classes only: FB, ML and FL (F3). Fixed (FX) records drop out
+  at the class filter, not at the threshold.
+- The margin is measured against the T/R 25-08 threshold, not against a national M4 value (F4). The
+  register rows' Class of licence labels the row; it does not pick the threshold.
+
+The national M4 value is the one tier that is not confirmed, so the report states the margin against
+the ECC threshold and claims no exceedance against the national one.
+
 ## Optional award: Red Hat OpenShift AI (1 000 €)
 
 **Claimed: the drafting model is served by OpenShift AI and the app called it.** Granite 3.3 2B
