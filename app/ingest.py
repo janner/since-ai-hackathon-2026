@@ -98,8 +98,8 @@ def watts(value, unit) -> float | None:
     return number * _POWER_FACTOR.get(str(unit or "").strip().lower(), 1.0)
 
 
-def rows(path: Path, required: tuple[str, ...] = ()) -> list[dict]:
-    """Read a CSV, or raise DataError naming the file and the missing column."""
+def iter_rows(path: Path, required: tuple[str, ...] = ()):
+    """Stream a CSV row by row; the same errors as `rows()`, without holding the file."""
     if not path.is_file():
         raise DataError(f"missing input file: {path}")
     with path.open(newline="", encoding="utf-8", errors="replace") as handle:
@@ -110,10 +110,17 @@ def rows(path: Path, required: tuple[str, ...] = ()) -> list[dict]:
         for column in required:
             if column not in header:
                 raise DataError(f"{path.name}: missing column {column!r}")
-        data = list(reader)
-    if not data:
-        raise DataError(f"{path.name}: header only, no data rows")
-    return data
+        seen = 0
+        for row in reader:
+            seen += 1
+            yield row
+        if not seen:
+            raise DataError(f"{path.name}: header only, no data rows")
+
+
+def rows(path: Path, required: tuple[str, ...] = ()) -> list[dict]:
+    """Read a CSV, or raise DataError naming the file and the missing column."""
+    return list(iter_rows(path, required))
 
 
 @dataclass(frozen=True)
@@ -253,12 +260,18 @@ class IficData:
         return sorted(out)
 
 
-def load_register(path: Path) -> tuple[list[Station], dict[str, int]]:
-    """Register rows as Stations, plus counters for the rows that were skipped."""
-    data = rows(path, REGISTER_REQUIRED)
+def load_register(
+    path: Path, bands: tuple[tuple[float, float], ...] | None = None
+) -> tuple[list[Station], dict[str, int]]:
+    """Register rows as Stations, plus counters for the rows that were skipped.
+
+    `bands` (lo, hi MHz) keeps only the stations whose channel touches one of them. The file
+    is streamed, so a register far larger than memory still loads.
+    """
     stations: list[Station] = []
-    no_freq = no_position = 0
-    for row in data:
+    no_freq = no_position = total = 0
+    for row in iter_rows(path, REGISTER_REQUIRED):
+        total += 1
         rx_mhz, tx_mhz = mhz(row["RX frequency"]), mhz(row["TX frequency"])
         if rx_mhz is None and tx_mhz is None:
             no_freq += 1
@@ -278,6 +291,11 @@ def load_register(path: Path) -> tuple[list[Station], dict[str, int]]:
             bandwidth = min(channel, transmission)
         else:
             bandwidth = channel or transmission or 0.0
+        centre = rx_mhz if rx_mhz is not None else (tx_mhz or 0.0)
+        if bands is not None and not any(
+            lo <= centre + bandwidth / 2 and hi >= centre - bandwidth / 2 for lo, hi in bands
+        ):
+            continue
         stations.append(
             Station(
                 id=row["Station number"].strip(),
@@ -295,7 +313,7 @@ def load_register(path: Path) -> tuple[list[Station], dict[str, int]]:
                 directivity=row.get("Directivity", "").strip(),
             )
         )
-    counts = {"rows": len(data), "stations": len(stations), "skipped_no_freq": no_freq}
+    counts = {"rows": total, "stations": len(stations), "skipped_no_freq": no_freq}
     if no_position:
         counts["skipped_no_position"] = no_position
     return stations, counts

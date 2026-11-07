@@ -91,7 +91,7 @@ def test_run_log_records_the_source_and_the_counts(slice_out):
     assert "source_file=ific3074.mdb" in log
     assert "g1=41 g2=21 g3=20 cannot_decide=1" in log
     assert "territory_points=552" in log
-    assert "register_rows=871" in log
+    assert "register_rows=7" in log  # the register rows on the demo slice, not all 871
     assert "mode=slice" in log
 
 

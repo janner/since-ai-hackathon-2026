@@ -313,9 +313,10 @@ at all: open `out/teams_message.html`.
     rather than a worst-case guess.
 18. The register has 874 rows (871 stations load; three rows carry no frequency). It is a reference:
     the run reads it for the card's `Reference` line and does not bound the analysis by it. The
-    sample's own cover note says a real dataset would be "tens of millions of rows", and the code
-    reads the whole file into memory, so that size needs a band filter before the load; the tool does
-    not claim to handle it as it stands (see "Next steps" in `docs/features.md`).
+    sample's own cover note says a real dataset would be "tens of millions of rows"; the file is
+    now streamed and filtered by the run's bands before the stations are built, so 1 M rows load in
+    3.2 s at a 19 MB peak (the old whole-file read: 8.0 s, 1 154 MB). Only the 84 rows on the seven
+    space bands (7 on the demo slice) become `Station` objects, and the funnel is unchanged.
 19. What is not built, and what each piece would take, is listed in `docs/features.md` under "Next
     steps": the AP30 plan path,
     RR Art. 22 / EPFD, space-side trends, Resolution 35 deadline ordering, the M15 cross-check

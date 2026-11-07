@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (170 passed) and a clean clone
-(124 passed, 46 skipped).
+commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (172 passed) and a clean clone
+(126 passed, 46 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
@@ -37,8 +37,9 @@ that means.
 | `_export()` | `mdb-export <mdb> <table>` through `subprocess` (no shell); a missing `mdb-export` or a failing table raises `DataError` |
 | `mhz()` | `'3 520.500 MHz'` to 3520.5, `'300k'` to 0.3, `'0,1G'` to 100.0, `''` to `None`; understands `GHz`, `kHz`, `Hz` and the single letters, plus the Finnish comma decimal |
 | `watts()` | `'145'` + `'W'` to 145.0, `'2'` + `'kW'` to 2000.0, `'mW'` scaled down |
-| `rows()` | `csv.DictReader` for the register CSV; an empty file, a missing column or a header-only file raises `DataError` naming the file and the column |
-| `load_register()` | `Station` records; a row without RX and TX is skipped and counted, a row without coordinates likewise; the bandwidth is the smaller of `Channel bandwidth` and `Transmission bandwidth`, with either column as the fallback |
+| `iter_rows()` | streams a CSV row by row with `csv.DictReader`; an empty file, a missing column or a header-only file raises `DataError` naming the file and the column |
+| `rows()` | `list(iter_rows())`, for the callers that want the whole file |
+| `load_register()` | `Station` records, streamed from `iter_rows()`; a row without RX and TX is skipped and counted, a row without coordinates likewise; the bandwidth is the smaller of `Channel bandwidth` and `Transmission bandwidth`, with either column as the fallback; an optional `bands` argument keeps only the stations whose channel touches one of the run's bands |
 | `load_m4()` | accepts `{"value": [...]}` or a bare array; anything else raises `DataError` |
 | `load_ific()` | reads the MDB with `mdb-export` and builds `IficData` (notices, freq rows, beams, emission power per group, GEO, non-GEO, orbits, links, counts); `file` is the MDB name and `input_sha256` its SHA256 |
 | `sha256()` | one file's SHA256; `input_digest()` (used by the terrestrial path) one SHA256 over several files |
@@ -48,10 +49,13 @@ plus or minus half the channel bandwidth. `Notice.prov` carries the regulatory s
 and `Station.directivity` the register's `Directivity` code (`D`, `ND` or empty); neither is read by
 a gate, and only the card uses them.
 
-Tests (`tests/test_ingest.py`, 24 collected): `test_mhz_normalises_units` (parametrised over nine
+Tests (`tests/test_ingest.py`, 26 collected): `test_mhz_normalises_units` (parametrised over nine
 unit forms), `test_watts_converts_units`, `test_load_register_skips_rows_without_frequency`,
 `test_station_uses_tx_when_rx_is_missing`,
 `test_bandwidth_is_the_smaller_of_channel_and_transmission`,
+`test_load_register_keeps_only_the_bands_asked_for` (the band filter, with the skip counters still
+counting the dropped rows), `test_register_streams_a_million_rows` (1 M synthetic rows: 1 000 kept,
+`tracemalloc` peak under 20 MB),
 `test_exported_rows_are_mapped_to_ific_data` (the mapping from exported rows to `IficData`, with
 `mdb-export` stubbed), `test_ntc_lnk_maps_a_filing_to_the_notice_it_follows` (the same stub: the
 links, and an `ntc_lnk` row without a target), and the seven error paths (`test_empty_file_is_a_clear_error`,
@@ -521,7 +525,6 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 
 | Step | What it would take | Estimate |
 |---|---|---|
-| Register pre-filter | Filter the register by the run's bands before loading it into memory; one change in `load_register()` | Small change, blocked on the real register |
 | Res 35 deadline ordering | Fold the `grp_res35` deadlines into the queue order; 26 groups fall due on 19 Dec 2026 | Small to medium |
 | Scheduled cadence | The monitor is built (`scripts/monitor.py`) and the issue number is no longer given by hand, but nothing is installed: the cadence needs one line in whatever scheduler the operator already runs | Small |
 | M15 cross-check | The brief lists it; the tool does not use it | Medium |
@@ -530,21 +533,22 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 | AP30 / AP30A / AP30B | Open `SPS_ALL_IFIC3083.zip` (72 MB) and `30B_3083.zip` (22 MB) with `mdb-export` and build a plan path | Large |
 | RR Art. 22 / EPFD | A calculation and a criterion for protecting Finnish satellites; `epfd_param` is already read | Large |
 
-Register scale, measured 7 Nov 2026 with the register duplicated and `--all`:
+Register scale, measured 7 Nov 2026 with `load_register()` alone on a synthetic register (1 M rows,
+65 MB on disk, every 1000th row on the demo slice):
 
 | Register rows | Time | Peak memory |
 |---|---|---|
-| 874 | 5.7 s | 262 MB |
-| 8 740 | 6.6 s | 262 MB |
-| 87 400 | 17.3 s | 307 MB |
-| 874 000 | 272 s | 1 840 MB |
+| 1 000 000 | 3.2 s | 19 MB |
 
-The register has 874 rows covering 872 station numbers; three rows carry no frequency, so 871
-stations load. Only 84 of them sit on the seven space bands, so
-the full register does not change the result when it is filtered by band first. A real dataset is
-"tens of millions of rows" by the sample's own cover note; at that size the current code would need
-about 20 GB of memory, because `ingest.rows()` reads the whole file into a list and the gates loop
-over every station. The figure for ten million rows is an extrapolation, not a measurement.
+The same file through the old whole-file read took 8.0 s and 1 154 MB, because `rows()` built a
+list of every row before the first `Station`. `load_register()` now streams the file with
+`iter_rows()` and keeps only the stations whose channel touches one of the run's bands, so the
+memory is the kept stations, not the file. The register has 874 rows covering 872 station numbers;
+three rows carry no frequency, so 871 stations load, and only 84 of them sit on the seven space
+bands (7 on the demo slice). The run passes its bands to `load_register()`, so the other rows are
+never built: the funnel is unchanged (196 → 41 → 21 → 20 + 1) and `run.log` reports
+`register_rows=7` for the slice. A real dataset of "tens of millions of rows" by the sample's own
+cover note now costs time, not memory.
 
 ## Tooling: fetching and converting the data
 

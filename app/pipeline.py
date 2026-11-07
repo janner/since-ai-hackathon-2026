@@ -78,14 +78,15 @@ def run(
 ) -> int:
     started = time.monotonic()
     ific = ingest.load_ific(ific_mdb)
-    stations, _ = ingest.load_register(register)
+    scope = SPACE_BANDS_MHZ if all_bands else (DEMO_SLICE_MHZ,)
+    # Only the register rows on the run's bands can be a reference; the rest never reach a gate.
+    stations, _ = ingest.load_register(register, scope)
     m4_rows = ingest.load_m4(m4)
     try:
         limits_rows = pfd.load_limits(limits)
     except (OSError, KeyError, ValueError) as error:
         raise ingest.DataError(f"cannot read limits {limits}: {error}") from error
 
-    scope = SPACE_BANDS_MHZ if all_bands else (DEMO_SLICE_MHZ,)
     # The run's bands come from the scope, not from the register: the Excel list is a
     # reference, and the bands nobody listed are exactly the ones a satellite should not use.
     bands = [

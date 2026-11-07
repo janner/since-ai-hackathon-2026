@@ -1,5 +1,6 @@
 """Ingest: unit normalisation, the register, the IFIC tables and the error paths."""
 
+import tracemalloc
 from pathlib import Path
 
 import pytest
@@ -88,6 +89,43 @@ def test_bandwidth_is_the_smaller_of_channel_and_transmission(tmp_path):
     stations, _ = ingest.load_register(path)
     assert stations[0].bw_mhz == pytest.approx(2.5)  # 118,6 MHz is the data-entry artefact
     assert stations[1].bw_mhz == pytest.approx(0.3)  # only one column carries a value
+
+
+def test_load_register_keeps_only_the_bands_asked_for(tmp_path):
+    """The band filter drops the rows no gate can use, and the skip counters still count them."""
+    path = _register(
+        tmp_path / "register.csv",
+        "1,MVV,60.0,24.0,100.000 MHz,3600.0 MHz,3600.0 MHz,10,50,W",  # on the slice
+        "2,MVV,60.0,24.0,100.000 MHz,100.0 MHz,100.0 MHz,10,50,W",  # far below it
+        "3,MVV,60.0,24.0,100.000 MHz,,,10,50,W",  # no frequency
+        "4,MVV,,,100.000 MHz,100.0 MHz,100.0 MHz,10,50,W",  # no position
+    )
+    stations, counts = ingest.load_register(path, ((3470.0, 3780.0),))
+    assert [s.id for s in stations] == ["1"]
+    assert counts == {
+        "rows": 4,
+        "stations": 1,
+        "skipped_no_freq": 1,
+        "skipped_no_position": 1,
+    }
+
+
+def test_register_streams_a_million_rows(tmp_path):
+    """1 M rows: only the in-band stations are kept and the file is never held as a list."""
+    path = tmp_path / "big.csv"
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        handle.write(REGISTER_HEADER)
+        for i in range(1_000_000):
+            freq = "3 600.000 MHz" if i % 1000 == 0 else "100.000 MHz"
+            handle.write(f"{i},MVV,60.0,24.0,100.000 MHz,{freq},{freq},10,50,W\n")
+    tracemalloc.start()
+    stations, counts = ingest.load_register(path, ((3470.0, 3780.0),))
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert counts["rows"] == 1_000_000
+    assert counts["stations"] == 1000
+    # The whole file as a list of dicts is ~1 GB; streaming keeps the peak under 20 MB.
+    assert peak < 20 * 1024 * 1024
 
 
 def test_empty_file_is_a_clear_error(tmp_path):
