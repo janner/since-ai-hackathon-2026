@@ -19,7 +19,7 @@ cd ~/since-ai-hackathon-2026
 Toisessa terminaalissa:
 
 ```bash
-tailscale serve --bg --https=8452 http://127.0.0.1:8322
+sudo tailscale serve --bg --https=8452 http://127.0.0.1:8322
 ```
 
 Tarkista:
