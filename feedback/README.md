@@ -2,7 +2,7 @@
 
 Lomake on pieni käyttäjätesti, ei pelkkä palautelomake. Asiakas tekee tehtävät
 itse demo auki. Älä selitä demoa etukäteen. Lomake ohjaa; sinä istut vieressä ja
-kirjaat havainnot. Aikaa noin 15 minuuttia.
+kirjaat havainnot.
 
 Asiakas kirjoittaa vastaukset suoraan lomakkeeseen. Vastaukset tallentuvat
 Hermeksen kotihakemistoon, eivät repoon eivätkä kolmannelle osapuolelle.
