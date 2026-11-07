@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (168 passed) and a clean clone
-(123 passed, 45 skipped).
+commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (170 passed) and a clean clone
+(124 passed, 46 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
@@ -24,7 +24,7 @@ locally.
 
 ## F1: ingest and normalisation
 
-Reads the 15 IFIC tables straight from the BR IFIC Access database with `mdb-export`, the Finnish
+Reads the 16 IFIC tables straight from the BR IFIC Access database with `mdb-export`, the Finnish
 register from the frequencies-of-interest file, and the M4 allocation table, and normalises every
 unit. Nothing here computes a gate: a value that is missing stays `None` and the caller decides what
 that means.
@@ -33,14 +33,14 @@ that means.
 
 | Piece | Behaviour |
 |---|---|
-| `TABLES`, `REQUIRED_TABLES` | 15 table names; only `notice` and `freq` are mandatory, the rest may be absent |
+| `TABLES`, `REQUIRED_TABLES` | 16 table names; only `notice` and `freq` are mandatory, the rest may be absent |
 | `_export()` | `mdb-export <mdb> <table>` through `subprocess` (no shell); a missing `mdb-export` or a failing table raises `DataError` |
 | `mhz()` | `'3 520.500 MHz'` to 3520.5, `'300k'` to 0.3, `'0,1G'` to 100.0, `''` to `None`; understands `GHz`, `kHz`, `Hz` and the single letters, plus the Finnish comma decimal |
 | `watts()` | `'145'` + `'W'` to 145.0, `'2'` + `'kW'` to 2000.0, `'mW'` scaled down |
 | `rows()` | `csv.DictReader` for the register CSV; an empty file, a missing column or a header-only file raises `DataError` naming the file and the column |
 | `load_register()` | `Station` records; a row without RX and TX is skipped and counted, a row without coordinates likewise; the bandwidth is the smaller of `Channel bandwidth` and `Transmission bandwidth`, with either column as the fallback |
 | `load_m4()` | accepts `{"value": [...]}` or a bare array; anything else raises `DataError` |
-| `load_ific()` | reads the MDB with `mdb-export` and builds `IficData` (notices, freq rows, beams, emission power per group, GEO, non-GEO, orbits, counts); `file` is the MDB name and `input_sha256` its SHA256 |
+| `load_ific()` | reads the MDB with `mdb-export` and builds `IficData` (notices, freq rows, beams, emission power per group, GEO, non-GEO, orbits, links, counts); `file` is the MDB name and `input_sha256` its SHA256 |
 | `sha256()` | one file's SHA256; `input_digest()` (used by the terrestrial path) one SHA256 over several files |
 
 `Station.centre_mhz` is RX when it exists and TX otherwise, `lo_mhz` and `hi_mhz` are the centre
@@ -48,12 +48,13 @@ plus or minus half the channel bandwidth. `Notice.prov` carries the regulatory s
 and `Station.directivity` the register's `Directivity` code (`D`, `ND` or empty); neither is read by
 a gate, and only the card uses them.
 
-Tests (`tests/test_ingest.py`, 23 collected): `test_mhz_normalises_units` (parametrised over nine
+Tests (`tests/test_ingest.py`, 24 collected): `test_mhz_normalises_units` (parametrised over nine
 unit forms), `test_watts_converts_units`, `test_load_register_skips_rows_without_frequency`,
 `test_station_uses_tx_when_rx_is_missing`,
 `test_bandwidth_is_the_smaller_of_channel_and_transmission`,
 `test_exported_rows_are_mapped_to_ific_data` (the mapping from exported rows to `IficData`, with
-`mdb-export` stubbed), and the seven error paths (`test_empty_file_is_a_clear_error`,
+`mdb-export` stubbed), `test_ntc_lnk_maps_a_filing_to_the_notice_it_follows` (the same stub: the
+links, and an `ntc_lnk` row without a target), and the seven error paths (`test_empty_file_is_a_clear_error`,
 `test_missing_column_names_the_column`, `test_header_only_file_is_a_clear_error`,
 `test_missing_mdb_is_a_clear_error`, `test_missing_mdb_export_is_a_clear_error`,
 `test_unreadable_table_is_a_clear_error`, `test_m4_without_value_array_is_a_clear_error`).
@@ -203,7 +204,8 @@ target. The card shows them; every notice is still decided on its own.
 
 `missing_fields()` names every empty input, beam geometry (`s_beam.*`) included. `_blocking()`
 keeps the ones that decide a case: since Traficom's Q3 answer the beam geometry is not among them,
-because the worst case covers it. `render_card_md()` and `render_queue_md()`
+because the worst case covers it. `render_card_md()` writes the card (its `filing_follows` links
+become a "This filing follows <ntc_id> (<reason>)" line) and `render_queue_md()`
 write the Markdown, `results_rows()` writes the CSV rows, `render_run_log()` the log. In the CSV,
 `results_rows()` leaves `class` empty for a notice dropped at G1 or G2 and writes `cannot_decide`
 only for a case that reached G3 and could not be computed; the `regulatory_stage` column carries the
@@ -211,14 +213,16 @@ provision for every notice (dropped included); `dropped_at` and `reason` carry t
 cause. `render_run_log()` writes the IFIC number, the input file name and the hash alongside the
 counts.
 
-Tests (`tests/test_cards.py`, 9): `test_card_has_the_whole_schema`,
+Tests (`tests/test_cards.py`, 10): `test_card_has_the_whole_schema`,
 `test_m4_lookup_names_the_service_and_the_downlink`, `test_missing_register_field_is_reported`,
 `test_results_rows_cover_every_notice` (asserts one row per notice, the empty `class` for a gate
 drop and the `dropped_at` plus `reason`), `test_a_too_large_victim_power_is_flagged`,
 `test_a_normal_victim_power_has_no_warning`, `test_directive_antenna_gets_a_threshold_note`, and the
 data tests `test_golden_case_103500417`, which locks every field of the plan's test vector including
-the band label 3 442–3 478 MHz and the `source` block, and `test_prov_distribution_and_the_card_stage`,
-which locks the `prov` distribution (50 / 76 / 65 / 5) and the card stage block.
+the band label 3 442–3 478 MHz and the `source` block, `test_prov_distribution_and_the_card_stage`,
+which locks the `prov` distribution (50 / 76 / 65 / 5) and the card stage block, and
+`test_card_carries_the_filing_chain_and_the_queue_action`, which locks the `filing_follows` link and
+the `action` column of `queue.md`.
 
 ## F7: the output files and the CLI
 
@@ -384,8 +388,10 @@ The page is English, three panels wide (Funnel, Queue, Card), styled with plain 
 external request. Every value from `out/` is written with `textContent`, so a case id or a
 satellite name cannot inject markup. The queue row and the card show the regulatory stage with
 the ITU short name (`No. 9.1` advance publication, API; `No. 9.6` coordination request, CRC;
-`No. 11.2` MIFR), and the card names the protected station and its coordinates: that is where the
-worst case is calculated. The queue endpoint reads `cases.json`, which holds cards only, so a
+`No. 11.2` MIFR), the queue row spells out the filing action it reads from `filing_action`
+(`A` New filing, `M` Modification, `S` Suppression), and the card names the protected station and
+its coordinates: that is where the worst case is calculated. The queue endpoint reads `cases.json`,
+which holds cards only, so a
 `cannot_decide` notice has no row there; the funnel panel lists each one from
 `funnel.json::undecided_detail` with the missing field and the value it would need to reach the
 limit. The fetch line names the document series (`space`), so an IFIC number alone cannot be
@@ -475,10 +481,16 @@ would make the order margin plus deadline; over the whole run 26 groups fall due
 is implemented, so the rows are read and dropped.
 
 `ntc_lnk` (43 rows, 12 of which concern one of our 20 case notices) links a filing to the notice it
-follows. It is not read. A filings series on the card is a next step, below.
+follows. `load_ific()` reads it into `IficData.links` (a row without a target is skipped; its
+`ntf_rsn` only repeats the filing's own `notice.ntf_rsn`, so the link carries `lnkntf_rsn`), and
+`build_card()` carries it as `filing_follows`, one entry per link. `render_card_md()` writes "This
+filing follows <ntc_id> (<reason>)"; the reason is the linked notice's nature (`N` notification,
+`C` coordination request, `A` advance publication, `U` Resolution 49 -- in IFIC 3074 each code pairs
+one-to-one with `notice.prov`, so `app/config.py::NTF_REASONS` uses the stage labels).
 
-`notice.act_code` is read in `app/ingest.py` and used nowhere. The distribution in 3074 is A 117
-(new), M 77 (modified), S 2 (suppressed). Carrying it to the card is a next step, below.
+`notice.act_code` is the action the filing takes on the record: A new, M modified, S suppressed
+(117 / 77 / 2 in IFIC 3074). It is carried to the card as `filing_action` and to `queue.md` as its
+own `action` column; the web UI spells the three codes out on the queue row.
 
 `s_beam.gain` is the one column here that is used. `app/gates.py::_beam_gain()` takes the peak gain
 of the beams that cover the notified band, so the beam gain in every PFD is the notice's own peak
@@ -509,8 +521,6 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 
 | Step | What it would take | Estimate |
 |---|---|---|
-| Filings chain on the card | Read `ntc_lnk` and add "this filing follows <ntc_id> (<reason>)"; the table has to be added to `scripts/fetch_data.py` first | Small |
-| Filing action on the card | Read `notice.act_code` into a `filing_action` field and a queue column | Small |
 | Register pre-filter | Filter the register by the run's bands before loading it into memory; one change in `load_register()` | Small change, blocked on the real register |
 | Res 35 deadline ordering | Fold the `grp_res35` deadlines into the queue order; 26 groups fall due on 19 Dec 2026 | Small to medium |
 | Scheduled cadence | The monitor is built (`scripts/monitor.py`) and the issue number is no longer given by hand, but nothing is installed: the cadence needs one line in whatever scheduler the operator already runs | Small |

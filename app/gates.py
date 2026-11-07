@@ -82,6 +82,7 @@ class QueueItem:
     band_use: str = ""
     unknown_field: str = ""  # "psd" or "gain" when the case cannot be computed
     required_db: float | None = None  # value of that field at which margin reaches 0
+    filing_action: str = ""  # notice.act_code: A new, M modified, S suppressed
 
 
 @dataclass
@@ -440,6 +441,7 @@ def gate4(
     def item(ntc_id, klass, reason, margin, case=None) -> QueueItem:
         stage = stages.get(ntc_id, unknown)
         field_name, value = required.get(ntc_id, ("", None))
+        notice = notices.get(ntc_id)
         return QueueItem(
             ntc_id,
             klass,
@@ -451,6 +453,7 @@ def gate4(
             case.band_use if case is not None else "",
             unknown_field=field_name,
             required_db=value,
+            filing_action=notice.act_code if notice is not None else "",
         )
 
     items = [

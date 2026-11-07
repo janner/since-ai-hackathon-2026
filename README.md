@@ -70,7 +70,7 @@ Two runs are on record and their numbers are not interchangeable. The auto-fetch
 the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 4 near, 2 `cannot_decide`,
 9 queue rows and the first card `3075-108501259`. The accuracy dataset is the challenge's IFIC 3074
 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026: `make check`
-168 tests (123 passed, 45 skipped without `data/`). The deterministic pipeline is offline; the
+170 tests (124 passed, 46 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
@@ -187,8 +187,8 @@ under a `kaista/` prefix, plus the accuracy files from the last run under `resul
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 168 passed |
-| Clean clone, no `data/` | 123 passed, 45 skipped |
+| With `data/` | 170 passed |
+| Clean clone, no `data/` | 124 passed, 46 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
@@ -305,9 +305,9 @@ at all: open `out/teams_message.html`.
     It does not compare the station's azimuth with the direction of the satellite: the register
     carries an azimuth but no beam width, so a direction-to-source claim would be a guess (I18 in
     `docs/decisions.md`).
-17. The ingest reads 15 IFIC tables and ten of them reach no gate on IFIC 3074 (`c_pfd`, the
+17. The ingest reads 16 IFIC tables and eight of them reach no gate on IFIC 3074 (`c_pfd`, the
     `s_beam.pwr_max_4k` / `pwr_avg_4k` power columns, `coord_agree_ntw`, `res49_sel`, `hist_notice`,
-    `e_stn`, `grp_res35`, `epfd_param`, `ntc_lnk`, `notice.act_code`). Each is a measured negative
+    `e_stn`, `grp_res35`, `epfd_param`). Each is a measured negative
     result, written up table by table in `docs/features.md` under "Data we read and did not use".
     `s_beam.gain` is the one column that is used: it gives every PFD the notice's own peak gain
     rather than a worst-case guess.
@@ -317,7 +317,7 @@ at all: open `out/teams_message.html`.
     reads the whole file into memory, so that size needs a band filter before the load; the tool does
     not claim to handle it as it stands (see "Next steps" in `docs/features.md`).
 19. What is not built, and what each piece would take, is listed in `docs/features.md` under "Next
-    steps": the filings chain (`ntc_lnk`), the filing action (`notice.act_code`), the AP30 plan path,
+    steps": the AP30 plan path,
     RR Art. 22 / EPFD, space-side trends, Resolution 35 deadline ordering, the M15 cross-check
     and the CEPT/ECC DocDB tier.
 

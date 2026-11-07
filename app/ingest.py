@@ -33,6 +33,7 @@ TABLES = (
     "e_as_stn",
     "assgn",
     "ant_type",
+    "ntc_lnk",
 )
 # Without notice and freq there is no analysis at all; the other tables may be absent.
 REQUIRED_TABLES = ("notice", "freq")
@@ -202,6 +203,14 @@ class Orbit:
 
 
 @dataclass(frozen=True)
+class Link:
+    """One ntc_lnk row: the filing follows `ntc_id`, a notice of the nature `reason`."""
+
+    ntc_id: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class IficData:
     notices: dict[str, Notice]
     freqs: list[Freq]
@@ -210,6 +219,7 @@ class IficData:
     geo: dict[str, Geo]
     nongeo: dict[str, NonGeo]
     orbits: dict[str, list[Orbit]]
+    links: dict[str, list[Link]]  # ntc_id -> the notices it follows (ntc_lnk)
     counts: dict[str, int]
     file: str
     input_sha256: str
@@ -427,6 +437,15 @@ def load_ific(mdb_path: Path) -> IficData:
             )
         )
 
+    # ntc_lnk: the notice a filing follows. A row without a target is not a link.
+    links: dict[str, list[Link]] = {}
+    for row in table("ntc_lnk", ("ntc_id", "lnk_ntc_id", "lnkntf_rsn")):
+        followed = row["lnk_ntc_id"].strip()
+        if followed:
+            links.setdefault(row["ntc_id"], []).append(
+                Link(ntc_id=followed, reason=row["lnkntf_rsn"].strip())
+            )
+
     counts = {name: len(data) for name, data in tables.items()}
     counts["notice"] = len(notices)
     counts["freq"] = len(freqs)
@@ -440,6 +459,7 @@ def load_ific(mdb_path: Path) -> IficData:
         geo=geo,
         nongeo=nongeo,
         orbits=orbits,
+        links=links,
         counts=counts,
         file=mdb.name,
         input_sha256=sha256(mdb),

@@ -199,6 +199,32 @@ def test_exported_rows_are_mapped_to_ific_data(tmp_path, monkeypatch):
     assert len(ific.input_sha256) == 64
 
 
+def test_ntc_lnk_maps_a_filing_to_the_notice_it_follows(tmp_path, monkeypatch):
+    """ntc_lnk rows become `links`; a row without a target is not a link."""
+    mdb = tmp_path / "ific3074.mdb"
+    mdb.write_bytes(b"x")
+    tables = {
+        "notice": [{"ntc_id": "1", "adm": "CHN", "ntc_type": "G", "act_code": "M"}],
+        "freq": [
+            {
+                "ntc_id": "1",
+                "emi_rcp": "E",
+                "freq_min": "3 600 MHz",
+                "freq_max": "3 610 MHz",
+            }
+        ],
+        "ntc_lnk": [
+            {"ntc_id": "1", "lnk_ntc_id": "100543885", "ntf_rsn": "N", "lnkntf_rsn": "A"},
+            {"ntc_id": "1", "lnk_ntc_id": "", "ntf_rsn": "N", "lnkntf_rsn": "A"},
+        ],
+    }
+    monkeypatch.setattr(ingest, "_export", lambda path, table: tables.get(table, []))
+    ific = ingest.load_ific(mdb)
+    assert ific.links == {"1": [ingest.Link(ntc_id="100543885", reason="A")]}
+    assert ific.notices["1"].act_code == "M"
+    assert ific.counts["ntc_lnk"] == 2  # the raw rows; only one of them is a link
+
+
 @pytest.mark.data
 def test_real_mdb_row_counts(challenge):
     counts = challenge.slice.ific.counts

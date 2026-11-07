@@ -73,6 +73,16 @@ REGULATORY_STAGES = {
 
 M4_SOURCE = "opendata.traficom.fi/api/v13/Taajuusjakotaulukko"
 
+# ntc_lnk.lnkntf_rsn: the nature of the notice a filing follows. The code set is the same as
+# notice.ntf_rsn, which pairs one-to-one with notice.prov in IFIC 3074, so the labels are the
+# stage labels above. A code outside the set is shown as it stands, never guessed.
+NTF_REASONS = {
+    "N": "notification, No. 11.2",
+    "C": "coordination request, No. 9.6",
+    "A": "advance publication, No. 9.1",
+    "U": "Resolution 49 filing",
+}
+
 # Table of frequency allocations (M4) sub-band columns, in Hz.
 M4_SUB_LO = "Sub_band_lower_limit__Hz_"
 M4_SUB_HI = "Sub_band_upper_limit__Hz_"

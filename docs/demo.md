@@ -108,14 +108,14 @@ check finds nothing new.
 
 Funnel: 196 → 41 → 21 → 20 + 1
 
-| # | case | class | stage | margin dB | reason |
-|---|---|---|---|---|---|
-| 1 | 124545403 | exceeds | No. 9.1 | 60,44 | exceeds |
-| 2 | 124520183 | exceeds | No. 9.6 | 3,66 | exceeds |
-| 3 | 124520184 | exceeds | No. 9.6 | 1,74 | exceeds |
-| 4 | 125500066 | exceeds | No. 11.2 | 21,32 | exceeds |
-| 5 | 125500277 | exceeds | No. 11.2 | 16,33 | exceeds |
-| 6 | 103500417 | exceeds | No. 11.2 | 3,25 | exceeds |
+| # | case | class | stage | action | margin dB | reason |
+|---|---|---|---|---|---|---|
+| 1 | 124545403 | exceeds | No. 9.1 | M | 60,44 | exceeds |
+| 2 | 124520183 | exceeds | No. 9.6 | A | 3,66 | exceeds |
+| 3 | 124520184 | exceeds | No. 9.6 | A | 1,74 | exceeds |
+| 4 | 125500066 | exceeds | No. 11.2 | A | 21,32 | exceeds |
+| 5 | 125500277 | exceeds | No. 11.2 | A | 16,33 | exceeds |
+| 6 | 103500417 | exceeds | No. 11.2 | M | 3,25 | exceeds |
 ```
 
 (13 more rows follow; the file lists all 19.) Inside a class the stage comes first, then the margin:
@@ -132,6 +132,7 @@ MIFR notifications, whose margins do not put them second.
 - **PFD:** -184,78 dB(W/m²/Hz) vs limit -188,02 dB(W/m²/Hz) → margin 3,25 dB
 - **Limit:** ITU RR 2024 Art. 21 Table 21-4, 3 400-4 200 MHz, FSS (space-to-Earth), GSO, p. 287
 - **Finland allocation:** MOBILE AND FIXED (no space-to-Earth service)
+- This filing follows 100543885 (advance publication, No. 9.1)
 - **Reference:** station 986805 (MVV), directive, 58 dBi
 - **Coverage:** beam name CDN; worst case assumed: peak beam gain toward the Finnish territory
 - **Missing:** nothing

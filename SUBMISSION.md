@@ -110,13 +110,15 @@ confidential), so no personal ticks are needed.
   channel.
 
 The write-up of what the tool reads and does not use, and what would come next, is in
-`docs/features.md` ("Data we read and did not use", "Next steps"). Ten of the 15 IFIC tables reach
+`docs/features.md` ("Data we read and did not use", "Next steps"). Eight of the 16 IFIC tables reach
 no gate on IFIC 3074: the notifier's own PFD limit (`c_pfd`) and the beam power columns
 (`s_beam.pwr_max_4k`, `pwr_avg_4k`) carry no value on any of the seven space bands, the coordination
 tables (`coord_agree_ntw`, `res49_sel`, `hist_notice`) are empty in this issue, the earth-station
 table (`e_stn`) lists 12 stations in five countries and none in Finland, the Resolution 35 deadlines
-(`grp_res35`) touch one of the 20 demo cases, and the Article 22 EPFD data (`epfd_param`), the
-filings chain (`ntc_lnk`) and the filing action (`notice.act_code`) have no computation path.
+(`grp_res35`) touch one of the 20 demo cases, and the Article 22 EPFD data (`epfd_param`) has no
+computation path. The filings chain (`ntc_lnk`) and the filing action (`notice.act_code`) do: the
+card carries the notice it follows and the queue says whether the filing is new, modified or
+suppressed.
 `s_beam.gain` is the exception: it is used, and it is why the beam gain in every PFD is the notice's
 own peak gain rather than a worst-case guess.
 

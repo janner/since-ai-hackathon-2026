@@ -24,6 +24,7 @@ def _ific(freqs: list[Freq], notices: dict[str, Notice]) -> IficData:
         geo={},
         nongeo={},
         orbits={},
+        links={},
         counts={},
         file="x.mdb",
         input_sha256="0" * 64,

@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from app.cards import build_card, m4_lookup, render_card_md, results_rows
+from app.cards import build_card, m4_lookup, render_card_md, render_queue_md, results_rows
 from app.config import DIRECTIVE_GAIN_DB
 
 CARD_FIELDS = (
@@ -22,6 +22,8 @@ CARD_FIELDS = (
     "class",
     "adjacent",
     "regulatory_stage",
+    "filing_action",
+    "filing_follows",
     "threshold_note",
     "missing",
     "next_action",
@@ -245,3 +247,17 @@ def test_prov_distribution_and_the_card_stage(challenge):
         "label": "notification recorded in the MIFR",
         "source": "ITU RR 2024, Vol 1, No. 11.2",
     }
+
+
+@pytest.mark.data
+def test_card_carries_the_filing_chain_and_the_queue_action(challenge):
+    """103500417 is a modification (act_code M) and follows 100543885, an Art. 9.1 filing."""
+    case = challenge.slice.result.case_by_id()["103500417"]
+    card = build_card(case, challenge.slice.ific, challenge.slice.m4, _audit())
+    assert card["filing_action"] == "M"
+    assert card["filing_follows"] == [{"ntc_id": "100543885", "reason": "A"}]
+    assert "This filing follows 100543885 (advance publication, No. 9.1)" in render_card_md(card)
+
+    queue = render_queue_md(challenge.slice.result)
+    assert "| # | case | class | stage | action |" in queue
+    assert "| 103500417 | exceeds | No. 11.2 | M |" in queue

@@ -47,7 +47,8 @@
   button.queue-item[aria-current="true"] { border-left-color: var(--accent); background: var(--accent-tint); }
   .q-title { display: block; font-size: 16px; font-weight: 600; line-height: 1.5; }
   .q-status { display: block; margin-top: 4px; font-size: 14px; line-height: 1.4; }
-  .q-stage { display: block; margin-top: 4px; font-size: 14px; line-height: 1.4; color: var(--muted); }
+  .q-stage, .q-action { display: block; margin-top: 4px; font-size: 14px; line-height: 1.4; }
+  .q-stage { color: var(--muted); }
   .q-id { display: block; margin-top: 4px; font: 400 12px/1.33 var(--mono); color: var(--muted); }
   .tag { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 24px; font-size: 12px; line-height: 1.33; }
   .tag.t-exceeds { background: var(--accent-tint); color: var(--accent); }
@@ -149,6 +150,8 @@ const CLASS_EN = {
   exceeds: "Exceeds limit", near: "Near limit",
   clear: "Clear", cannot_decide: "Cannot decide", not_space: "No satellite use in Finland",
 };
+// notice.act_code: what the filing does to the record.
+const ACTION_EN = { A: "New filing", M: "Modification", S: "Suppression" };
 const STAGE_EN = {
   "No. 9.1": { name: "Advance publication", short: "API", meaning: "Can still be influenced." },
   "No. 9.6": { name: "Coordination request", short: "CRC", meaning: "Can still be influenced." },
@@ -461,6 +464,8 @@ function renderQueue(items) {
 
       const stage = stageOf(item);
       button.append(el("span", [stage.name, stage.meaning].filter(Boolean).join(". "), "q-stage"));
+      const action = ACTION_EN[item.filing_action];
+      if (action) button.append(el("span", action, "q-action"));
       button.append(el("span", item.case_id, "q-id"));
 
       button.addEventListener("click", () => showCase(item.case_id));

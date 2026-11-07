@@ -15,6 +15,7 @@ from app.allocation import m4_lookup
 from app.config import (
     ADM_NAMES,
     DIRECTIVE_GAIN_DB,
+    NTF_REASONS,
     THRESHOLD_NOTE,
     fmt_mhz,
     fmt_num,
@@ -63,7 +64,7 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
             # The run's input digest; the terrestrial path carries the same key in
             # its own `source` block. Same contract, different calculation path.
             "sha256": audit["input_sha256"],
-            "tables": ["notice", "freq", "emiss", "s_beam", "geo", "orbit"],
+            "tables": ["notice", "freq", "emiss", "s_beam", "geo", "orbit", "ntc_lnk"],
             "keys": {"ntc_id": case.ntc_id, "grp_id": case.grp_id, "beam_name": case.beam},
         },
         "parties": {
@@ -131,6 +132,11 @@ def build_card(case: Case, ific: IficData, m4_rows: list[dict], audit: dict) -> 
         "class": case.klass,
         "adjacent": case.adjacent,
         "regulatory_stage": _regulatory_stage(notice),
+        "filing_action": notice.act_code,
+        "filing_follows": [
+            {"ntc_id": link.ntc_id, "reason": link.reason}
+            for link in ific.links.get(case.ntc_id, [])
+        ],
         "threshold_note": _threshold_note(victim),
         "missing": missing_fields(case, geometry),
         "next_action": {
@@ -203,6 +209,9 @@ def render_card_md(card: dict) -> str:
         f"- **Finland allocation:** {card['m4']['services_in_finland']}"
         + ("" if card["m4"]["space_to_earth"] else " (no space-to-Earth service)"),
     ]
+    for link in card["filing_follows"]:
+        reason = NTF_REASONS.get(link["reason"], link["reason"])
+        lines.append(f"- This filing follows {link['ntc_id']} ({reason})")
     if victim.get("station"):
         bits = [f"station {victim['station']} ({victim['class']})"]
         if victim.get("directivity") in ("D", "ND"):
@@ -231,11 +240,12 @@ def render_queue_md(result: GateResult) -> str:
         f"# Queue ({len(result.queue)})\n\n"
         f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
         f"{counts['g3']} + {counts['cannot_decide']}\n\n"
-        f"| # | case | class | stage | margin dB | Finland band | settles at | reason |\n"
-        "|---|---|---|---|---|---|---|---|\n"
+        f"| # | case | class | stage | action | margin dB | Finland band | settles at | reason |\n"
+        "|---|---|---|---|---|---|---|---|---|\n"
     )
     rows = [
         f"| {index} | {item.ntc_id} | {item.klass} | {item.stage} | "
+        f"{item.filing_action or '-'} | "
         f"{'-' if item.margin_db is None else fmt_num(item.margin_db)} | "
         f"{item.band_use or '-'} | {_settles(item)} | {item.reason} |"
         for index, item in enumerate(result.queue, start=1)
