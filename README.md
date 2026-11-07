@@ -1,4 +1,14 @@
-# Kaista: IFIC triage for the Finnish frequency register
+# Kaista
+
+Seulontatyökalu ITU:n BR IFIC -ilmoituksille: mikä 196 ilmoituksesta voi osua Suomen taajuuksiin.
+
+Kaista lukee yhden BR IFIC -paketin, johtaa suojellut kaistat Traficomin taajuusrekisteristä ja
+laskee jokaiselle osumalle PFD:n ylärajan ITU RR Art. 21 Table 21-4 -rajaa vasten. Jokainen luku
+tulee koodista. Kielimalli kirjoittaa selosteen ja kirjeluonnoksen, ja numerovartija hylkää lauseen,
+jossa on luku jota kortilla ei ole. Ihminen päättää.
+
+**Et ole kehittäjä?** [docs/kaytto.md](docs/kaytto.md): viisi askelta, ei komentoriviä.
+**Olet kehittäjä?** Asennus ja ajo: [Run it](#run-it). Sanasto: [docs/sanasto.md](docs/sanasto.md).
 
 Since AI Hackathon 2026 · Challenge: Traficom, "Saving Earth from Space Interferers Using Radio
 Frequencies" · Team: Greedy Decoding (Janne Rosama, solo)
@@ -41,8 +51,8 @@ and overlaps the register, and computes ITU-R P.1546-6 field strength at four Fi
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
-The screenshot above is the demo slice after the run: the funnel, the queue of 18 cards and the
-selected card 124545403.
+The screenshot above is the demo slice after the run: the funnel, the queue and the selected card
+3074-103500417 (COMPASS-80E, over the limit by 3,24 dB).
 
 ## Verified numbers
 

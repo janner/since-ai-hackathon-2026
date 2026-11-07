@@ -4,58 +4,90 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kaista - IFIC-triage</title>
 <style>
+  /* IBM Carbon: white canvas, one blue accent, 8px rhythm, no shadows, no radius. */
   :root {
-    --bg: #10161d; --panel: #18212b; --line: #2b3a49;
-    --fg: #edf3f8; --muted: #9db0c2; --accent: #7fd1a8;
-    --exceeds: #ff8a7a; --near: #ffcf70; --cannot: #9db0c2; --clear: #7fd1a8;
+    --bg: #ffffff; --fg: #161616; --muted: #525252; --line: #e0e0e0;
+    --surface: #f4f4f4; --accent: #0f62fe; --accent-hover: #0043ce; --accent-tint: #edf5ff;
+    --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  html { font-size: 19px; }
+  html { font-size: 16px; }
   body {
     margin: 0; height: 100vh; display: flex; flex-direction: column;
     background: var(--bg); color: var(--fg);
-    font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+    font: 400 16px/1.5 var(--sans); font-variant-numeric: tabular-nums;
   }
-  header { padding: .6rem 1rem; border-bottom: 2px solid var(--line); }
-  header h1 { margin: 0; font-size: 1.5rem; letter-spacing: .02em; }
-  .funnel-line { margin: .2rem 0 0; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
-  .status { margin: .2rem 0 0; min-height: 1.2rem; color: var(--near); font-size: .95rem; }
-  main { flex: 1; display: grid; grid-template-columns: 19rem 21rem 1fr; min-height: 0; }
-  section { padding: .7rem 1rem; overflow: auto; border-right: 1px solid var(--line); min-height: 0; }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.3; }
+  .sub { margin: 8px 0 0; font-size: 14px; line-height: 1.4; color: var(--muted); }
+  .funnel-line { margin: 8px 0 0; font-size: 14px; line-height: 1.4; }
+  .status { margin: 8px 0 0; font-size: 14px; line-height: 1.4; color: var(--accent); }
+  .status:empty { display: none; }
+  main { flex: 1; display: grid; grid-template-columns: 20rem 24rem 1fr; min-height: 0; }
+  section { padding: 16px 24px; overflow: auto; border-right: 1px solid var(--line); min-height: 0; }
   section:last-child { border-right: 0; }
-  h2 { margin: 0 0 .5rem; font-size: 1rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-  dl { display: grid; grid-template-columns: auto 1fr; gap: .15rem .6rem; margin: 0; }
-  dt { color: var(--muted); font-size: .85rem; }
-  dd { margin: 0; font-size: .95rem; overflow-wrap: anywhere; }
+  h2 { margin: 0 0 8px; font-size: 20px; font-weight: 600; line-height: 1.3; }
+  h3 { margin: 24px 0 8px; font-size: 14px; font-weight: 600; line-height: 1.4; }
+  p { margin: 0 0 8px; }
+  .rows { margin: 0 0 8px; }
+  .row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.4; }
+  .row .k { color: var(--muted); }
+  .row .v { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  .note { margin: 0 0 8px; font-size: 12px; line-height: 1.33; color: var(--muted); }
   ul { list-style: none; margin: 0; padding: 0; }
-  li + li { margin-top: .35rem; }
   button.queue-item {
-    width: 100%; text-align: left; cursor: pointer; font: inherit;
-    background: var(--panel); color: inherit; border: 1px solid var(--line);
-    border-radius: .35rem; padding: .4rem .6rem; display: grid;
-    grid-template-columns: 1fr auto; gap: 0 .6rem;
+    width: 100%; display: block; text-align: left; cursor: pointer; font: inherit;
+    background: var(--bg); color: inherit; border: 0; border-bottom: 1px solid var(--line);
+    border-left: 2px solid transparent; padding: 8px 8px 8px 10px;
   }
-  button.queue-item > :first-child { grid-column: 1 / -1; white-space: nowrap; }
-  button.queue-item[aria-current="true"] { border-color: var(--accent); }
-  .klass { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
-  .exceeds { color: var(--exceeds); } .near { color: var(--near); }
-  .cannot_decide { color: var(--cannot); } .clear { color: var(--clear); }
-  .margin { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .85rem; }
-  h3 { margin: 1rem 0 .3rem; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-  pre { white-space: pre-wrap; font-size: .85rem; line-height: 1.45; margin: 0; }
-  .note { margin: .8rem 0 0; color: var(--muted); font-size: .8rem; }
+  button.queue-item:hover { background: var(--surface); }
+  button.queue-item[aria-current="true"] { border-left-color: var(--accent); background: var(--accent-tint); }
+  .q-title { display: block; font-size: 16px; font-weight: 600; line-height: 1.5; }
+  .q-status { display: block; margin-top: 4px; font-size: 14px; line-height: 1.4; }
+  .q-stage { display: block; margin-top: 4px; font-size: 14px; line-height: 1.4; color: var(--muted); }
+  .q-id { display: block; margin-top: 4px; font: 400 12px/1.33 var(--mono); color: var(--muted); }
+  .tag { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 24px; font-size: 12px; line-height: 1.33; }
+  .tag.t-exceeds { background: var(--accent-tint); color: var(--accent); }
+  .tag.t-near { background: var(--surface); color: var(--fg); }
+  .tag.t-clear { background: var(--surface); color: var(--muted); }
+  .m { font-weight: 600; }
+  .card { max-width: 840px; }
+  .card .card-title { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.3; }
+  .card .card-sub { margin: 8px 0 0; font-size: 14px; line-height: 1.4; color: var(--muted); }
+  .card ol { margin: 0 0 8px; padding-left: 24px; }
+  .card li { margin-bottom: 4px; }
+  .prose p { margin: 0 0 8px; }
+  .src { font-size: 12px; line-height: 1.6; color: var(--muted); }
+  .btn { font: inherit; font-size: 14px; font-weight: 600; min-height: 40px; padding: 8px 16px; background: var(--accent); color: #fff; border: 0; cursor: pointer; }
+  .btn:hover { background: var(--accent-hover); }
+  details.calc { margin-top: 8px; border-top: 1px solid var(--line); }
+  details.calc summary { cursor: pointer; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--accent); }
+  details.calc pre { margin: 0 0 8px; white-space: pre-wrap; font: 400 14px/1.45 var(--mono); color: var(--fg); }
+  footer { padding: 16px 24px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.33; color: var(--muted); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media print {
+    body { display: block; background: #fff; color: #000; }
+    header, #queue-section { display: none; }
+    main { display: block; }
+    section { border: 0; padding: 0; overflow: visible; }
+    .tag { background: #fff; border: 1px solid #000; color: #000; }
+    a { color: #000; }
+  }
 </style>
 <header>
   <h1>Kaista</h1>
+  <p class="sub">ITU:n taajuusilmoitusten seulonta</p>
   <p class="funnel-line" id="funnel-line">ladataan...</p>
   <p class="status" id="status" role="status" aria-live="polite"></p>
 </header>
 <main>
-  <section aria-labelledby="h-funnel">
+  <section id="funnel-section" aria-labelledby="h-funnel">
     <h2 id="h-funnel">Suppilo</h2>
     <div id="funnel"></div>
   </section>
-  <section aria-labelledby="h-queue">
+  <section id="queue-section" aria-labelledby="h-queue">
     <h2 id="h-queue">Jono</h2>
     <p class="note">Ei päätettävissä olevat ilmoitukset eivät tuota korttia, joten ne näkyvät vain suppilossa.</p>
     <ul id="queue"></ul>
@@ -65,6 +97,7 @@
     <div id="card">Valitse kortti jonosta.</div>
   </section>
 </main>
+<footer>Työkalu ei tee päätöstä. Jokainen luku tulee koodista, ei kielimallista.</footer>
 <script>
 "use strict";
 
@@ -76,22 +109,142 @@ function el(tag, text, cls) {
   return node;
 }
 
+// Finnish number formatting; values stay exactly as the files carry them.
 function num(value, unit) {
   if (value === null || value === undefined || value === "") return "ei tiedossa";
-  return String(value).replace(".", ",") + (unit ? " " + unit : "");
+  const n = Number(value);
+  if (!isFinite(n)) return String(value);
+  return n.toLocaleString("fi-FI", { maximumFractionDigits: 6 }) + (unit ? " " + unit : "");
 }
 
-function list(rows) {
-  const dl = el("dl");
-  for (const [label, value] of rows) {
+function signed(value, unit) {
+  const n = Number(value);
+  if (!isFinite(n)) return num(value, unit);
+  return (n >= 0 ? "+" : "") + num(n, unit);
+}
+
+function rows(pairs) {
+  const box = el("div", null, "rows");
+  for (const [label, value] of pairs) {
     if (value === undefined || value === null || value === "") continue;
-    dl.append(el("dt", label), el("dd", value));
+    const row = el("div", null, "row");
+    row.append(el("span", label, "k"), el("span", value, "v"));
+    box.append(row);
   }
-  return dl;
+  return box;
+}
+
+// UI-only Finnish words. The data keeps its own English labels (cases.json is untouched).
+const ADMIN_FI = { CHN: "Kiina", USA: "Yhdysvallat", RUS: "Venäjä", EST: "Viro" };
+const CLASS_FI = {
+  exceeds: "Ylittää rajan", near: "Lähellä rajaa",
+  clear: "Selvä", cannot_decide: "Ei voi päättää",
+};
+const STAGE_FI = {
+  "No. 9.1": { name: "Etujulkaisu", meaning: "Voi vielä vaikuttaa." },
+  "No. 9.6": { name: "Koordinaatiopyyntö", meaning: "Voi vielä vaikuttaa." },
+  "No. 11.2": { name: "MIFR-kirjattu", meaning: "Ei enää vaikutettavissa." },
+  "Resolution 49": { name: "Resolution 49 -ilmoitus", meaning: "" },
+};
+const MISSING_LABEL = {
+  "s_beam.bore_long": "keilan suunta", "s_beam.bore_lat": "keilan suunta",
+  "s_beam.maj_axis": "keilan leveys", "s_beam.min_axis": "keilan leveys",
+};
+
+function adminName(code) {
+  return ADMIN_FI[code] || code || "tuntematon hallinto";
+}
+
+function stageOf(item) {
+  const prov = item.regulatory_stage && item.regulatory_stage.provision;
+  return STAGE_FI[prov] || { name: prov || "tuntematon vaihe", meaning: "" };
+}
+
+function bandText(band) {
+  if (!band || band.freq_min_mhz === undefined) return "kaista ei tiedossa";
+  return num(band.freq_min_mhz) + "\u2013" + num(band.freq_max_mhz) + " MHz";
+}
+
+function fmtRun(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return iso || "ei tiedossa";
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getDate() + "." + (d.getMonth() + 1) + "." + d.getFullYear() +
+    " klo " + d.getHours() + "." + p(d.getMinutes());
+}
+
+function hasBeamMissing(item) {
+  return (item.missing || []).some((field) => String(field).startsWith("s_beam."));
+}
+
+function missingText(item) {
+  const missing = item.missing || [];
+  if (!missing.length) return "Ei puuttuvia tietoja.";
+  const labels = [...new Set(missing.map((field) => MISSING_LABEL[field] || field))];
+  let text = "Ilmoituksesta puuttuu " + labels.join(" ja ") + " (" + missing.join(", ") + ").";
+  if (hasBeamMissing(item)) {
+    text += " Siksi työkalu ei voi sanoa, osuuko keila Suomeen. Se kysyy sen sijaan.";
+  }
+  return text;
+}
+
+// The floor when the pipeline wrote no prose: same sentences the card would carry anyway.
+function deterministicProse(item) {
+  const coverage = item.coverage || {};
+  const over = Number(item.calculation && item.calculation.margin_db) >= 0;
+  return "Satelliitti " + (coverage.sat_name || item.case_id) + " (" +
+    adminName(item.parties && item.parties.admin) + ") ilmoittaa lähettävänsä kaistalla " +
+    bandText(item.band) + " alas Suomeen päin. Laskettu yläraja on " +
+    signed(item.calculation && item.calculation.margin_db, "dB") +
+    (over ? " ITU:n rajan yläpuolella" : " ITU:n rajan alapuolella") +
+    ". Tämä ei ole häiriö eikä päätös, vaan syy katsoa tapaus tarkemmin.";
+}
+
+// prose.text is Markdown; drop the "# ..." heading lines and keep the paragraphs.
+function proseParagraphs(text) {
+  const kept = String(text).split("\n").filter((line) => !line.trim().startsWith("#")).join("\n");
+  return kept.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+}
+
+function calculationText(item) {
+  const c = item.calculation || {};
+  const coverage = item.coverage || {};
+  return [
+    "Lähetysteho " + num(c.psd_dbw_hz, "dBW/Hz") + " + keilan vahvistus " +
+      num(c.beam_gain_db, "dBi") + " - vapaan tilan vaimennus " + num(c.fspl_db, "dB"),
+    "= PFD " + num(c.pfd_dbw_m2_hz, "dB(W/m\u00b2/Hz)"),
+    "Raja " + num(c.limit_dbw_m2_hz, "dB(W/m\u00b2/Hz)") + ", marginaali " + signed(c.margin_db, "dB"),
+    "Etäisyys " + num(c.distance_km, "km") + ", korkeuskulma " + num(coverage.elevation_deg, "\u00b0"),
+    "Rajan lähde: " + (c.limit_source || "ei tiedossa"),
+  ].join("\n");
+}
+
+function sourceLine(item) {
+  const s = item.source || {};
+  const a = item.audit || {};
+  const sha = s.sha256 || a.input_sha256 || "";
+  const shortSha = sha ? sha.slice(0, 12) + "\u2026" + sha.slice(-4) : "ei tiedossa";
+  return "Ilmoitus " + ((s.keys && s.keys.ntc_id) || "ei tiedossa") + " \u00b7 tiedosto " +
+    (s.file || "ei tiedossa") + " \u00b7 SHA256 " + shortSha + " \u00b7 säännöt " +
+    (a.rules_version || "ei tiedossa") + " \u00b7 ajettu " + fmtRun(a.run_at);
 }
 
 function setStatus(message) {
   document.getElementById("status").textContent = message || "";
+}
+
+function copyText(text, button) {
+  if (!text) return;
+  const done = () => {
+    button.textContent = "Kopioitu";
+    setStatus("Kysymys kopioitu leikepöydälle.");
+  };
+  const fail = () => setStatus("Kopiointi ei onnistunut. Valitse kysymys käsin.");
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, fail);
+  } else {
+    fail();
+  }
 }
 
 async function get(url) {
@@ -104,24 +257,25 @@ async function get(url) {
 function renderFunnel(data) {
   const c = data.counts;
   document.getElementById("funnel-line").textContent =
-    c.notices + " \u2192 " + c.g1 + " \u2192 " + c.g2 + " \u2192 " + c.g3 + " + " + c.cannot_decide;
+    c.notices + " \u2192 " + c.g1 + " \u2192 " + c.g2 + " \u2192 " + c.g3 + " + " +
+    c.cannot_decide + " \u00b7 jono " + ((data.queue && data.queue.shown) || 0);
   document.getElementById("funnel").replaceChildren(
-    list([
+    rows([
       ["Ilmoituksia", c.notices],
       ["G1 kaistaosuma", c.g1],
-      ["G2 n\u00e4kyy Suomesta", c.g2],
+      ["G2 näkyy Suomesta", c.g2],
       ["G3 laskettu", c.g3],
-      ["Ei p\u00e4\u00e4tett\u00e4viss\u00e4", c.cannot_decide],
-      ["Rajanylitys", c.exceeds],
-      ["L\u00e4hell\u00e4 rajaa", c.near],
-      ["Selv\u00e4t", c.clear],
+      ["Ei päätettävissä", c.cannot_decide],
+      ["Ylittää rajan", c.exceeds],
+      ["Lähellä rajaa", c.near],
+      ["Selviä", c.clear],
     ]),
     el("h3", "Pudotukset"),
-    list(Object.entries(data.drops)),
+    rows(Object.entries(data.drops)),
     el("h3", "Ajo"),
-    list([
+    rows([
       ["Tila", data.mode],
-      ["S\u00e4\u00e4nn\u00f6t", data.rules_version],
+      ["Säännöt", data.rules_version],
       ["Aika", data.run_at],
       ["Aineiston SHA256", data.input_sha256],
     ]),
@@ -131,7 +285,7 @@ function renderFunnel(data) {
 function renderQueue(items) {
   const ul = document.getElementById("queue");
   if (!items.length) {
-    ul.replaceChildren(el("li", "Jono on tyhj\u00e4."));
+    ul.replaceChildren(el("li", "Jono on tyhjä."));
     return;
   }
   ul.replaceChildren(
@@ -140,16 +294,29 @@ function renderQueue(items) {
       const button = el("button", null, "queue-item");
       button.type = "button";
       button.dataset.caseId = item.case_id;
-      button.append(
-        el("span", item.case_id),
-        el("span", item["class"], "klass " + item["class"]),
-        el(
-          "span",
-          item.regulatory_stage && item.regulatory_stage.provision,
-          "margin",
-        ),
-        el("span", num(item.calculation && item.calculation.margin_db, "dB"), "margin"),
+
+      const coverage = item.coverage || {};
+      button.append(el(
+        "span",
+        [
+          coverage.sat_name || item.case_id,
+          adminName(item.parties && item.parties.admin),
+          bandText(item.band),
+        ].join(" \u00b7 "),
+        "q-title",
+      ));
+
+      const status = el("span", null, "q-status");
+      status.append(
+        el("span", CLASS_FI[item["class"]] || item["class"], "tag t-" + item["class"]),
+        el("span", signed(item.calculation && item.calculation.margin_db, "dB"), "m"),
       );
+      button.append(status);
+
+      const stage = stageOf(item);
+      button.append(el("span", [stage.name, stage.meaning].filter(Boolean).join(". "), "q-stage"));
+      button.append(el("span", item.case_id, "q-id"));
+
       button.addEventListener("click", () => showCase(item.case_id));
       li.append(button);
       return li;
@@ -165,39 +332,63 @@ function markCurrent(caseId) {
 
 function renderCard(item) {
   const c = item.calculation || {};
-  const band = item.band || {};
   const coverage = item.coverage || {};
-  const victim = item.victim || {};
-  document.getElementById("card").replaceChildren(
-    list([
-      ["Tunniste", item.case_id],
-      ["Luokka", item["class"]],
-      [
-        "S\u00e4\u00e4ntelyvaihe",
-        item.regulatory_stage && item.regulatory_stage.provision
-          ? item.regulatory_stage.provision + " \u2014 " + item.regulatory_stage.label
-          : null,
-      ],
-      ["Hallinto", item.parties && item.parties.admin],
-      ["Satelliitti", [coverage.sat_name, coverage.orbit].filter(Boolean).join(" / ")],
-      ["Keila", coverage.beam],
-      ["Kaista", num(band.freq_min_mhz) + " - " + num(band.freq_max_mhz) + " MHz"],
-      ["Suunta", item.direction],
-      ["Peitto", coverage.coverage_hint],
-      ["Vastaanottoasema", victim.station ? victim.station + " (" + victim["class"] + ")" : null],
-      ["PFD", num(c.pfd_dbw_m2_hz, "dB(W/m\u00b2/Hz)")],
-      ["Raja", num(c.limit_dbw_m2_hz, "dB(W/m\u00b2/Hz)")],
-      ["Marginaali", num(c.margin_db, "dB")],
-      ["Et\u00e4isyys", num(c.distance_km, "km")],
-      ["Perigeum", num(c.perigee_km, "km")],
-      ["Suomessa M4", item.m4 && item.m4.services_in_finland],
-      ["Puuttuu", (item.missing || []).join(", ")],
-    ]),
-    el("h3", "Kysymys vastapuolelle"),
-    el("p", item.next_action && item.next_action.question),
-    el("h3", "Seloste"),
-    el("pre", item.prose && item.prose.text),
-  );
+  const klass = item["class"];
+  const verb = klass === "exceeds" ? "ylittää rajan"
+    : klass === "near" ? "on lähellä rajaa" : "on selvästi rajan alla";
+  const card = el("article", null, "card");
+
+  card.append(el(
+    "h3",
+    (coverage.sat_name || item.case_id) + ", " + adminName(item.parties && item.parties.admin) +
+      ": " + verb + " " + signed(c.margin_db, "dB"),
+    "card-title",
+  ));
+  card.append(el("p", [
+    bandText(item.band),
+    coverage.orbit,
+    coverage.beam ? "keila " + coverage.beam : "",
+  ].filter(Boolean).join(" \u00b7 "), "card-sub"));
+
+  card.append(el("h3", "Mitä tämä tarkoittaa"));
+  const prose = item.prose || {};
+  if (prose.text) {
+    const box = el("div", null, "prose");
+    for (const paragraph of proseParagraphs(prose.text)) box.append(el("p", paragraph));
+    card.append(box, el("p", "Seloste: " + (prose.source === "llm" ? "kielimalli" : "malli") +
+      " (" + (prose.source || "template") + ")", "src"));
+  } else {
+    card.append(el("p", deterministicProse(item)), el("p", "Seloste: malli (deterministinen)", "src"));
+  }
+
+  card.append(el("h3", "Mitä sinun pitää päättää"));
+  const questions = el("ol");
+  questions.append(el("li", "Osuuko keila Suomen alueelle?" +
+    (hasBeamMissing(item) ? " Tieto puuttuu ilmoituksesta." : "")));
+  questions.append(el("li", "Vastaako kaista sitä käyttöä, jota M4:ssä on Suomessa?"));
+  questions.append(el("li", (item.next_action && item.next_action.question) || "Ei kysymystä."));
+  card.append(questions);
+
+  card.append(el("h3", "Mitä tietoa puuttuu"), el("p", missingText(item)));
+
+  card.append(el("h3", "Mitä kaistalla on Suomessa"));
+  card.append(el("p", (item.m4 && item.m4.services_in_finland) || "ei tietoa"));
+  if (item.m4 && item.m4.source) card.append(el("p", "M4: " + item.m4.source, "src"));
+
+  card.append(el("h3", "Kysymys toiselle hallinnolle"));
+  const question = (item.next_action && item.next_action.question) || "";
+  card.append(el("p", question || "Ei kysymystä."));
+  const copy = el("button", "Kopioi kysymys", "btn");
+  copy.type = "button";
+  copy.addEventListener("click", () => copyText(question, copy));
+  card.append(copy);
+
+  const details = el("details", null, "calc");
+  details.append(el("summary", "Näytä laskelma"), el("pre", calculationText(item)));
+  card.append(details);
+
+  card.append(el("p", sourceLine(item), "src"));
+  document.getElementById("card").replaceChildren(card);
 }
 
 async function showCase(caseId) {
