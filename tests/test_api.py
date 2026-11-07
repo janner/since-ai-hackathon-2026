@@ -196,10 +196,18 @@ def test_unknown_case_id_is_404(client):
 
 @pytest.mark.data
 @needs_data
-def test_queue_is_ordered_by_class(client):
+def test_queue_orders_stage_then_class(client):
     body = client.get("/api/queue").json()
     assert len(body) == 20  # cases.json in queue order: every card, clear included
-    ranks = [CLASSES.index(item["class"]) for item in body]
-    assert ranks == sorted(ranks)
-    exceeds = [item["calculation"]["margin_db"] for item in body if item["class"] == "exceeds"]
-    assert exceeds == sorted(exceeds, reverse=True)
+    stages = [(item.get("regulatory_stage") or {}).get("rank", 9) for item in body]
+    assert stages == sorted(stages)
+    for rank in set(stages):
+        ranks = [
+            CLASSES.index(item["class"])
+            for item in body
+            if (item.get("regulatory_stage") or {}).get("rank", 9) == rank
+        ]
+        assert ranks == sorted(ranks)
+    # the margin does not order: 124545403 (+60,44 dB) sits behind the 9.6 cases (S1)
+    assert body[0]["case_id"] == "3074-124520183"
+    assert body[2]["case_id"] == "3074-124545403"

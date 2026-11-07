@@ -101,9 +101,10 @@ def test_notice_deadlines_pick_the_earliest_upcoming():
     }
 
 
-def test_queue_orders_by_stage_then_deadline_then_margin():
-    """Inside a class: the stage first, then the soonest upcoming deadline, then the margin.
-    A passed deadline is behind every upcoming one; a notice with no deadline comes last."""
+def test_queue_orders_by_stage_then_class_then_deadline():
+    """The stage first, then the class, then the soonest upcoming deadline. The margin does
+    not order. A passed deadline is behind every upcoming one; a notice with no deadline comes
+    last."""
     notices = {str(i): _notice(str(i)) for i in range(1, 5)}  # all 11.2, one stage rank
     deadlines = {
         "1": (date(2031, 1, 19), False),
@@ -137,6 +138,7 @@ def test_demo_slice_funnel(challenge):
     assert field == "psd"
     row = {item.ntc_id: item for item in result.queue}["126590032"]
     assert (row.unknown_field, row.required_db) == ("psd", required)
+    assert "MOBILE AND FIXED" in row.band_use  # the band is on the row even without a card
     assert (result.geo_visible, result.ngso_visible) == (18, 3)
     assert len(result.queue) == 19  # 11 exceeds + 5 near + 2 not_space + 1 cannot_decide
     assert len(result.cases) == 20
@@ -145,31 +147,32 @@ def test_demo_slice_funnel(challenge):
 
 @pytest.mark.data
 def test_all_bands_funnel(challenge):
-    """All seven bands, with the territory edge as the PFD anchor.
+    """Every Finnish allocation, with the territory edge as the PFD anchor.
 
-    G1 now passes every notice that has a space-to-Earth row in one of the seven allocations,
-    whether or not the register lists a station there: that is the point of the customer rule
-    that the Excel list is only a reference. The register still supplies the reference row.
+    G1 passes every notice that has a space-to-Earth row in any Finnish allocation, whether or
+    not the register lists a station there and whether or not the allocation is a satellite one:
+    that is the point of the customer rule that the Excel list is only a reference and a band
+    without satellite use is a finding. The register still supplies the reference row.
     """
     result = challenge.all.result
     assert result.counts == {
         "notices": 196,
-        "g1": 113,
-        "g2": 84,
-        "g3": 69,
-        "cannot_decide": 15,
+        "g1": 176,
+        "g2": 138,
+        "g3": 73,
+        "cannot_decide": 65,
         "exceeds": 30,
-        "near": 18,
+        "near": 19,
         "not_space": 2,
-        "clear": 19,
+        "clear": 22,
     }
     assert result.drops == {
-        "no_band_overlap": 82,
-        "earth_station_notice": 1,
-        "geo_below_horizon": 28,
-        "ngso_never_visible": 1,
+        "no_band_overlap": 12,
+        "earth_station_notice": 8,
+        "geo_below_horizon": 35,
+        "ngso_never_visible": 3,
     }
-    assert len(result.queue) == 65  # 30 + 18 + 2 + 15 cannot_decide; 19 clear stay out
+    assert len(result.queue) == 116  # 30 + 19 + 2 + 65 cannot_decide; 22 clear stay out
 
 
 @pytest.mark.data
@@ -229,34 +232,30 @@ def test_a_clear_margin_on_a_non_satellite_band_is_still_a_finding(challenge):
     not_space = [case for case in result.cases if case.klass == "not_space"]
     assert not_space, "the demo band 3 470-3 780 MHz is not a satellite allocation in Finland"
     for case in not_space:
-        assert case.band_space is False
+        assert case.band_satellite is False
         assert case.margin_db <= NEAR_DB
         assert case.ntc_id in {item.ntc_id for item in result.queue}
     # a clear case on a band Finland does allocate to a downlink stays out of the queue
     clear = [case for case in result.cases if case.klass == "clear"]
     for case in clear:
-        assert case.band_space is True
+        assert case.band_satellite is True
         assert case.ntc_id not in {item.ntc_id for item in result.queue}
 
 
 @pytest.mark.data
 def test_queue_order(challenge):
-    """Class first; inside a class stage, then deadline, then margin descending."""
+    """Stage first, then class, then the deadline; the margin does not order (Traficom, S1)."""
     queue = challenge.slice.result.queue
     assert {item.klass for item in queue} == {"exceeds", "near", "not_space", "cannot_decide"}
-    ranks = [gates.CLASS_ORDER.index(item.klass) for item in queue]
-    assert ranks == sorted(ranks)
-    for klass in gates.CLASS_ORDER:
-        keys = [gates.queue_key(item) for item in queue if item.klass == klass]
-        assert keys == sorted(keys)
-    # with the deadline out of the way, the margin still decides inside one stage
-    for stage_rank in {item.stage_rank for item in queue if item.klass == "exceeds"}:
-        margins = [
-            item.margin_db
-            for item in queue
-            if item.klass == "exceeds" and item.stage_rank == stage_rank and not item.deadline
+    keys = [gates.queue_key(item) for item in queue]
+    assert keys == sorted(keys)
+    stage_ranks = [item.stage_rank for item in queue]
+    assert stage_ranks == sorted(stage_ranks)
+    for stage_rank in {item.stage_rank for item in queue}:
+        ranks = [
+            gates.CLASS_ORDER.index(item.klass) for item in queue if item.stage_rank == stage_rank
         ]
-        assert margins == sorted(margins, reverse=True)
+        assert ranks == sorted(ranks)
     assert [item.reason for item in queue if item.klass == "cannot_decide"] == ["no_power"]
 
 
@@ -280,10 +279,9 @@ def test_only_one_demo_case_carries_a_res35_deadline(challenge):
 def test_queue_puts_coordination_before_notification(challenge):
     """The stage another administration can still influence comes before a recorded filing."""
     queue = challenge.slice.result.queue
-    assert queue[0].stage == "No. 9.1"  # advance publication, rank 0
-    for klass in ("exceeds", "near"):
-        ranks = [item.stage_rank for item in queue if item.klass == klass]
-        assert ranks == sorted(ranks)
+    assert queue[0].stage_rank == 0  # advance publication or coordination request
+    ranks = [item.stage_rank for item in queue]
+    assert ranks == sorted(ranks)
 
 
 @pytest.mark.data

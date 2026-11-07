@@ -69,7 +69,7 @@ def template(card: dict, template_name: str = "case_en.md") -> str:
         "margin": f"{calc['margin_db']:+.2f}".replace(".", ","),
         "class": card["class"],
         "allocation": card["m4"]["services_in_finland"]
-        + ("" if card["m4"]["space_to_earth"] else " (no space-to-Earth service)"),
+        + ("" if card["m4"]["satellite_use"] else " (no satellite service)"),
         "question": card["next_action"]["question"],
     }
     return (TEMPLATES / template_name).read_text(encoding="utf-8").format(**values)

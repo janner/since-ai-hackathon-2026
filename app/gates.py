@@ -19,9 +19,9 @@ CLASS_ORDER = ("exceeds", "near", "not_space", "cannot_decide")
 STAGES = ("G1", "G2")
 
 
-def classify(margin_db: float, adjacent: bool = False, band_space: bool = True) -> str:
-    """exceeds above 0 dB, near above -3 dB, not_space on a band Finland does not use for
-    satellite downlinks, clear otherwise.
+def classify(margin_db: float, adjacent: bool = False, band_satellite: bool = True) -> str:
+    """exceeds above 0 dB, near above -3 dB, not_space on a band Finland does not allocate
+    to satellite use, clear otherwise.
 
     An adjacent-channel case is capped at `near`: the Table 21-4 limit is a property of the
     notified band and does not apply outside it, so a guard-only case must not read as `exceeds`.
@@ -30,7 +30,7 @@ def classify(margin_db: float, adjacent: bool = False, band_space: bool = True) 
         klass = "exceeds"
     elif margin_db > NEAR_DB:
         klass = "near"
-    elif not band_space:
+    elif not band_satellite:
         klass = "not_space"
     else:
         klass = "clear"
@@ -61,7 +61,7 @@ class Case:
     perigee_km: float | None
     limit: pfd.LimitRow
     klass: str
-    band_space: bool
+    band_satellite: bool
     band_use: str
     adjacent: bool = False
     lat: float | None = None
@@ -99,6 +99,7 @@ class GateResult:
     counts: dict[str, int] = field(default_factory=dict)
     drops: dict[str, int] = field(default_factory=dict)
     reference_stations: int = 0
+    band_uses: dict[str, str] = field(default_factory=dict)
     places: list[Place] = field(default_factory=list)
     bands: list[Band] = field(default_factory=list)
     geo_visible: int = 0
@@ -140,16 +141,18 @@ def notice_deadlines(ific: IficData, today: date) -> dict[str, tuple[date, bool]
 
 
 def queue_key(item: QueueItem) -> tuple:
-    """Order inside a class: stage rank, then the earliest upcoming Resolution 35 deadline, then
-    margin descending, then the notice id. A passed deadline comes after every upcoming one
-    (most recent first), a notice with no deadline last."""
+    """Order the queue: regulatory stage, then class, then the earliest upcoming Resolution 35
+    deadline, then the notice id. A passed deadline comes after every upcoming one (most recent
+    first), a notice with no deadline last. The margin does not order: the expert reviews every
+    case the filter passes (Traficom, S1, 7 Nov 2026)."""
     if item.deadline is None:
         deadline_rank, ordinal = 2, 0
     elif item.deadline_passed:
         deadline_rank, ordinal = 1, -item.deadline.toordinal()
     else:
         deadline_rank, ordinal = 0, item.deadline.toordinal()
-    return (item.stage_rank, deadline_rank, ordinal, -(item.margin_db or 0.0), item.ntc_id)
+    class_rank = CLASS_ORDER.index(item.klass) if item.klass in CLASS_ORDER else len(CLASS_ORDER)
+    return (item.stage_rank, class_rank, deadline_rank, ordinal, item.ntc_id)
 
 
 def run(
@@ -171,7 +174,15 @@ def run(
     )
     cases.sort(key=lambda case: -case.margin_db)
     dropped = {**g1_dropped, **g2_dropped}
-    queue = gate4(cases, undecided, ific.notices, required, deadlines)
+    # A notice that cannot be decided still has a band, and the band is what the customer
+    # reads: carry it into the queue row even when there is no card.
+    band_uses: dict[str, str] = {}
+    for ntc_id in undecided:
+        freqs = visible.get(ntc_id) or []
+        if freqs:
+            band = allocation.m4_lookup(m4_rows, freqs[0].freq_min_mhz, freqs[0].freq_max_mhz)
+            band_uses[ntc_id] = band["services_in_finland"]
+    queue = gate4(cases, undecided, ific.notices, required, deadlines, band_uses)
 
     counts = {
         "notices": len(ific.notices),
@@ -191,6 +202,7 @@ def run(
         queue=queue,
         counts=counts,
         reference_stations=len(stations),
+        band_uses=band_uses,
         places=list(places),
         bands=bands,
         geo_visible=sum(1 for ntc_id in visible if ntc_id in ific.geo),
@@ -203,8 +215,10 @@ def run(
 
 
 def gate1(ific: IficData, bands: list[Band]) -> tuple[dict[str, list[Freq]], dict, set[str]]:
-    """Do the notice's space-to-Earth rows overlap a protected band?
+    """Does the notice's space-to-Earth row overlap a Finnish allocation at all?
 
+    The bands are the run's scope. On the full run they are every Finnish allocation, so a
+    notice in a band with no satellite service still passes: G3 turns it into `not_space`.
     With `GUARD_MHZ > 0` a row that only comes within that distance of a band also passes, and
     the notice is returned in `adjacent` so its case can be capped at class `near`.
     """
@@ -426,8 +440,8 @@ def _worst_for_notice(
                 offset_db=round(offset, 2),
                 perigee_km=perigee,
                 limit=limit,
-                klass=classify(margin, adjacent, band["space_to_earth"]),
-                band_space=band["space_to_earth"],
+                klass=classify(margin, adjacent, band["satellite_use"]),
+                band_satellite=band["satellite_use"],
                 band_use=band["services_in_finland"],
                 adjacent=adjacent,
                 lat=lat,
@@ -480,19 +494,21 @@ def gate4(
     notices: dict[str, Notice],
     required: dict[str, tuple[str, float]] | None = None,
     deadlines: dict[str, tuple[date, bool]] | None = None,
+    band_uses: dict[str, str] | None = None,
 ) -> list[QueueItem]:
-    """Queue every concern: class, then stage, then the earliest upcoming Resolution 35 deadline,
-    then margin descending; clear stays out.
+    """Queue every concern: regulatory stage first, then class, then the earliest upcoming
+    Resolution 35 deadline. Clear stays out; the margin does not order (Traficom, S1).
 
     Every case is a concern unless the margin is clear *and* Finland allocates the band to a
-    satellite downlink: a satellite transmitting where Finland has no such use is a finding on
-    its own, whatever the PFD says. No cap: the challenge brief names no target number.
+    satellite service: a satellite transmitting where Finland has no satellite use is a finding
+    on its own, whatever the PFD says. No cap: the challenge brief names no target number.
     """
     stages = {ntc_id: config.regulatory_stage(notice.prov) for ntc_id, notice in notices.items()}
     unknown = config.regulatory_stage("")
 
     required = required or {}
     deadlines = deadlines or {}
+    band_uses = band_uses or {}
 
     def item(ntc_id, klass, reason, margin, case=None) -> QueueItem:
         stage = stages.get(ntc_id, unknown)
@@ -507,7 +523,7 @@ def gate4(
             case,
             stage["rank"],
             stage["provision"],
-            case.band_use if case is not None else "",
+            case.band_use if case is not None else band_uses.get(ntc_id, ""),
             unknown_field=field_name,
             required_db=value,
             filing_action=notice.act_code if notice is not None else "",
@@ -521,8 +537,4 @@ def gate4(
         if case.klass != "clear"
     ]
     items += [item(ntc_id, "cannot_decide", reason, None) for ntc_id, reason in undecided.items()]
-    queue: list[QueueItem] = []
-    for klass in CLASS_ORDER:
-        same = [row for row in items if row.klass == klass]
-        queue += sorted(same, key=queue_key)
-    return queue
+    return sorted(items, key=queue_key)

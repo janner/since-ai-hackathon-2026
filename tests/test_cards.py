@@ -75,21 +75,21 @@ def test_card_has_the_whole_schema(challenge):
 
 
 @pytest.mark.data
-def test_m4_lookup_names_the_service_and_the_downlink(challenge):
+def test_m4_lookup_names_the_service_and_satellite_use(challenge):
     # 3 642-3 678 MHz overlaps the 3 400-3 800 MHz M4 allocation -> both rows, one service list
     overlapping = m4_lookup(challenge.slice.m4, 3642.0, 3678.0)
     assert overlapping["rows"] == [4060, 4091]
     assert overlapping["band_mhz"] == [3400.0, 3800.0]
     assert overlapping["services_in_finland"] == "MOBILE AND FIXED"
-    assert overlapping["space_to_earth"] is False  # a downlink is not a Finnish satellite use
+    assert overlapping["satellite_use"] is False  # no satellite service in Finland on the band
     space = m4_lookup(challenge.slice.m4, 18_000.0, 18_100.0)  # FSS space-to-Earth
-    assert space["space_to_earth"] is True
+    assert space["satellite_use"] is True
     uplink_only = m4_lookup(challenge.slice.m4, 6_000.0, 6_010.0)  # FSS Earth-to-space only
-    assert uplink_only["space_to_earth"] is False
+    assert uplink_only["satellite_use"] is True  # any direction counts (D18)
     not_allocated = m4_lookup(challenge.slice.m4, 500_000.0, 500_100.0)  # above the table
     assert not_allocated["rows"] == []
     assert not_allocated["services_in_finland"] == "not allocated"
-    assert not_allocated["space_to_earth"] is False
+    assert not_allocated["satellite_use"] is False
 
 
 @pytest.mark.data
@@ -210,7 +210,7 @@ def test_golden_case_103500417(challenge):
         "rows": [4060, 4091],
         "band_mhz": [3400.0, 3800.0],
         "services_in_finland": "MOBILE AND FIXED",
-        "space_to_earth": False,
+        "satellite_use": False,
         "source": "opendata.traficom.fi/api/v13/Taajuusjakotaulukko",
     }
     assert card["missing"] == [
@@ -265,6 +265,7 @@ def test_prov_distribution_and_the_card_stage(challenge):
         "provision": "No. 11.2",
         "label": "notification recorded in the MIFR",
         "source": "ITU RR 2024, Vol 1, No. 11.2",
+        "rank": 1,
     }
 
 

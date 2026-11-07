@@ -75,10 +75,10 @@ the 254 `grp_res35` rows, the MDB SHA256, and the 294 register rows that carry n
 frequency is hardcoded: a band is a register row whose channel overlaps one of the seven space
 allocations (`derive_bands()` merges touching channels, `select_bands()` narrows to the demo slice,
 `stations_on()` returns the rows in register order, `groups()` counts the allocations that protect
-something). The run does not call it: the run's bands come from `app/config.py`, and the register is
-a reference (D17). The module stays for that question and for its tests. On the real register it
-finds 84 rows, 26 bands in 7 groups; in the demo slice, 7 stations and 2 bands, because a 13,1 MHz
-hole splits the slice.
+something). The run does not call it: the run's bands come from the Finnish allocation (D18), and
+the register is a reference (D17). The module stays for that question and for its tests. On the real
+register it finds 84 rows, 26 bands in 7 groups; in the demo slice, 7 stations and 2 bands, because a
+13,1 MHz hole splits the slice.
 
 Tests (`tests/test_bands.py`, 9): `test_overlaps_rejects_touching_bands`,
 `test_derive_bands_merges_touching_channels_but_not_the_hole`,
@@ -90,8 +90,8 @@ Tests (`tests/test_bands.py`, 9): `test_overlaps_rejects_touching_bands`,
 ## F3: G1 band overlap and G2 visibility
 
 `app/gates.py::gate1()` keeps a frequency row when `emi_rcp == "E"` (space transmits, Earth
-receives) and the row overlaps one of the run's scope bands (the seven space allocations with
-`--all`, the demo slice otherwise; `app/config.py`). With `GUARD_MHZ > 0` (`app/config.py`, default
+receives) and the row overlaps one of the run's scope bands (every Finnish allocation with
+`--all`, the demo slice otherwise; `app/allocation.py`). With `GUARD_MHZ > 0` (`app/config.py`, default
 0.0) a row that only comes within that distance of a band also passes, and the notice is returned in
 an `adjacent` set: its card is marked `adjacent: true` and its class is capped at `near`. A notice
 whose `ntc_type` is `S` (an earth station) is removed again: when such a notice sends "E" it is the
@@ -110,8 +110,8 @@ Tests (`tests/test_gates.py`, 14): `test_class_boundaries`, `test_guard_mhz_zero
 and `test_guard_mhz_lets_an_adjacent_notice_through` walk the adjacent-channel guard both ways on a
 two-row input, `test_a_notice_type_s_sending_E_is_dropped` covers the earth-station reason, and the
 data tests `test_demo_slice_funnel`, `test_all_bands_funnel`, `test_missing_perigee_cannot_be_decided`
-and `test_case_126590032_cannot_be_decided` lock the real counts (41 from 196 in the slice, 113 in
-the full run, 1 earth-station drop in the full run) and the `ngso_never_visible` case 124520197.
+and `test_case_126590032_cannot_be_decided` lock the real counts (41 from 196 in the slice, 176 in
+the full run, 8 earth-station drops in the full run) and the `ngso_never_visible` case 124520197.
 
 ## F4: PFD geometry and the Table 21-4 limit
 
@@ -159,16 +159,16 @@ which is a worst case over every latitude and needs no location.
 A notice with nothing computable lands in `undecided` with one reason: `no_orbit`, `no_perigee`,
 `no_limit_for_band`, `no_power`, `no_gain` or `x_needs_nv`. Classification uses the margin rounded to
 two decimals: `exceeds` above 0 dB, `near` between −3 and 0 dB, `not_space` at or below −3 dB when
-the band has no space-to-Earth satellite service in Finland, `clear` otherwise. An adjacent-channel
+the band has no satellite service in Finland, `clear` otherwise. An adjacent-channel
 case (see F3) keeps its margin but is capped at `near`: the Table 21-4 limit belongs to the notified
 band and does not apply outside it. The register's rows on the band are a reference only: the block
 names the one with the highest margin, and the number itself is taken at the territory edge.
 
-`gate4()` orders the queue `exceeds`, `near`, `not_space`, `cannot_decide`, and inside a class by
-stage rank (advance publication and coordination request before the MIFR notification, then
-Resolution 49), then by the notice's earliest upcoming Resolution 35 deadline, then by margin. A
-stage another administration can still influence therefore comes before a filing already recorded,
-and a filing whose group falls due soonest comes first inside its stage. A notice whose groups carry
+`gate4()` orders the queue by regulatory stage (advance publication and coordination request before
+the MIFR notification, then Resolution 49), then by class (`exceeds`, `near`, `not_space`,
+`cannot_decide`), then by the notice's earliest upcoming Resolution 35 deadline. The margin does not
+order: the specialist reviews every case the filter passes (D18). A filing whose group falls due
+soonest comes first inside its stage and class. A notice whose groups carry
 no `grp_res35` deadline sorts behind one that has one; a passed deadline behind every upcoming one
 (most recent first). The deadline is chosen per notice by `notice_deadlines()`: the earliest
 upcoming date over the groups of the notice, else the latest one that has passed. `clear` cases stay
@@ -223,10 +223,10 @@ anchor of the number (D17).
 
 M4 (`app/allocation.py::m4_lookup()`) is a finding, not only context: it lists the sub-band IDs that
 overlap the notified band, the merged band range in MHz, the Finnish services from the open data
-table, `space_to_earth` and the source URL. `space_to_earth` is true only when an overlapping row
-names a satellite service with the space-to-Earth direction (or no direction); an uplink-only or
-inter-satellite row does not count. A band with no M4 row gets `rows: []`,
-`services_in_finland: "not allocated"` and the same `not_space` finding.
+table, `satellite_use` and the source URL. `satellite_use` is true when any overlapping row names a
+satellite service, in either direction; only a band with no satellite service at all is a finding
+(D18). A band with no M4 row gets `rows: []`, `services_in_finland: "not allocated"` and the same
+`not_space` finding.
 
 `same_network()` lists other notices of the same satellite and administration, or a notified
 target. The card shows them; every notice is still decided on its own.
@@ -468,7 +468,7 @@ type, the card type). No test opens a connection.
 
 ## Data we read and did not use
 
-`app/ingest.py` reads 17 IFIC tables. Each was checked against the seven space bands and the
+`app/ingest.py` reads 17 IFIC tables. Each was checked against the Finnish allocation and the
 Finnish side, and the ones that reach no gate are recorded here as measured negative results rather
 than left as gaps nobody noticed. Every count below was read from IFIC 3074 on 7 Nov 2026. The
 Resolution 35 table `grp_res35` used to be one of them; it now feeds the queue order and the card
@@ -477,7 +477,7 @@ Resolution 35 table `grp_res35` used to be one of them; it now feeds the queue o
 `c_pfd` (119 rows; `ntc_id, seq_no, freq_min, freq_max, pfd, bdwdth, ra_stn_type`) is the
 notifier's own PFD limit. Measured on IFIC 3074, the four frequency ranges it covers are
 1 164–1 215, 4 990–5 000, 5 030–5 150 and 42 500–43 500 MHz, and zero rows cover 3 000–4 400 MHz, so
-not one of the seven space bands has a notifier PFD limit to compare against. The limit therefore
+no Finnish allocation in the run has a notifier PFD limit to compare against. The limit therefore
 stays ITU RR Art. 21 Table 21-4 (decision D4).
 
 `srv_area` (930 rows; `grp_id, ctry, f_excl_api`) is the service area a group claims. The
@@ -576,9 +576,9 @@ The same file through the old whole-file read took 8.0 s and 1 154 MB, because `
 list of every row before the first `Station`. `load_register()` now streams the file with
 `iter_rows()` and keeps only the stations whose channel touches one of the run's bands, so the
 memory is the kept stations, not the file. The register has 874 rows covering 872 station numbers;
-three rows carry no frequency, so 871 stations load, and only 84 of them sit on the seven space
-bands (7 on the demo slice). The run passes its bands to `load_register()`, so the other rows are
-never built: the funnel is unchanged (196 → 41 → 21 → 20 + 1) and `run.log` reports
+three rows carry no frequency, so 871 stations load, and with the full allocation scope all 871 sit
+on some Finnish allocation (7 on the demo slice). The run passes its bands to `load_register()`, so
+the other rows are never built: the funnel is unchanged (196 → 41 → 21 → 20 + 1) and `run.log` reports
 `register_rows=7` for the slice. A real dataset of "tens of millions of rows" by the sample's own
 cover note now costs time, not memory.
 

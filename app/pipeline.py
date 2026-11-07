@@ -23,8 +23,9 @@ from pathlib import Path
 
 from app import cards as card_writer
 from app import gates, ingest, pfd, prose, terrestrial
-from app.bands import Band, groups
-from app.config import DEMO_SLICE_MHZ, RULES_VERSION, SPACE_BANDS_MHZ
+from app.allocation import finnish_bands
+from app.bands import Band
+from app.config import DEMO_SLICE_MHZ, RULES_VERSION
 from app.territory import places as territory_places
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -49,7 +50,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="screen all seven space bands instead of the 3,47-3,78 GHz demo slice",
+        help="screen every Finnish allocation instead of the 3,47-3,78 GHz demo slice",
     )
     parser.add_argument(
         "--terrestrial",
@@ -78,10 +79,12 @@ def run(
 ) -> int:
     started = time.monotonic()
     ific = ingest.load_ific(ific_mdb)
-    scope = SPACE_BANDS_MHZ if all_bands else (DEMO_SLICE_MHZ,)
+    m4_rows = ingest.load_m4(m4)
+    # The full run covers every Finnish allocation, not a hand-picked band list: a band with
+    # no satellite service is exactly where a satellite should not transmit (D18).
+    scope = tuple(finnish_bands(m4_rows)) if all_bands else (DEMO_SLICE_MHZ,)
     # Only the register rows on the run's bands can be a reference; the rest never reach a gate.
     stations, _ = ingest.load_register(register, scope)
-    m4_rows = ingest.load_m4(m4)
     try:
         limits_rows = pfd.load_limits(limits)
     except (OSError, KeyError, ValueError) as error:
@@ -131,8 +134,8 @@ def run(
     )
     print(
         f"exceeds {counts['exceeds']}, near {counts['near']}, not_space {counts['not_space']}, "
-        f"clear {counts['clear']}, {len(result.queue)} in the queue ({groups(bands)} groups, "
-        f"{len(bands)} bands, {result.elapsed_s:.2f} s)"
+        f"clear {counts['clear']}, {len(result.queue)} in the queue "
+        f"({len(bands)} bands, {result.elapsed_s:.2f} s)"
     )
     results = f"{card_writer.ifact_tag(ific)}_results.csv"
     print(f"wrote {out}/cases.json, cases.md, queue.md, funnel.json, {results}, run.log, letters/")

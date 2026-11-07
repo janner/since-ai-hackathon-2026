@@ -34,9 +34,9 @@ WORST_CASE = "worst case assumed: peak beam gain toward the Finnish territory"
 
 
 def _regulatory_stage(notice) -> dict:
-    """The stage a filing stands in, for the card (no `rank`; that is a queue concern)."""
+    """The stage a filing stands in, for the card and the queue."""
     stage = regulatory_stage(notice.prov)
-    return {key: stage[key] for key in ("provision", "label", "source")}
+    return {key: stage[key] for key in ("provision", "label", "source", "rank")}
 
 
 def _threshold_note(victim) -> str | None:
@@ -219,7 +219,7 @@ def render_card_md(card: dict) -> str:
         f"{fmt_num(calc['limit_dbw_m2_hz'])} dB(W/m²/Hz) → margin {fmt_num(calc['margin_db'])} dB",
         f"- **Limit:** {calc['limit_source']}",
         f"- **Finland allocation:** {card['m4']['services_in_finland']}"
-        + ("" if card["m4"]["space_to_earth"] else " (no space-to-Earth service)"),
+        + ("" if card["m4"]["satellite_use"] else " (no satellite service)"),
     ]
     for link in card["filing_follows"]:
         reason = NTF_REASONS.get(link["reason"], link["reason"])
@@ -345,7 +345,7 @@ def results_rows(result: GateResult, ific: IficData, cards: list[dict]) -> list[
                 "limit_source": case.limit.cite() if case is not None else "",
                 "m4_services": card["m4"]["services_in_finland"] if card else "",
                 "m4_space": (
-                    "yes" if case is not None and case.band_space else ("no" if case else "")
+                    "yes" if case is not None and case.band_satellite else ("no" if case else "")
                 ),
                 "missing": ";".join(card["missing"]) if card else "",
             }

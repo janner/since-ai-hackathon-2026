@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -49,11 +50,6 @@ def load(name: str) -> Any:
         raise HTTPException(503, f"{path}: {exc}. {NEED_PIPELINE}") from exc
 
 
-def margin_db(case: dict) -> float:
-    value = case.get("calculation", {}).get("margin_db")
-    return float(value) if isinstance(value, int | float) else 0.0
-
-
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
@@ -84,21 +80,30 @@ def case(case_id: str) -> Any:
 
 @app.get("/api/queue")
 def queue() -> Any:
-    """cases.json in queue order: class order, biggest margin first.
+    """cases.json in queue order: regulatory stage, then class, then the deadline.
 
     shortcut: cannot_decide notices have no card in cases.json, so they are absent
     from this list; the funnel endpoint carries their count. Upgrade if the UI must
     show them as queue rows (then read out/queue.md instead).
     """
     order = {klass: i for i, klass in enumerate(CLASS_ORDER)}
-    return sorted(
-        load("cases.json"),
-        key=lambda case: (
-            order.get(case.get("class"), len(order)),
-            -margin_db(case),
-            case["case_id"],
-        ),
-    )
+
+    def key(case: dict) -> tuple:
+        stage_info = case.get("regulatory_stage")
+        stage = 9
+        if isinstance(stage_info, dict) and isinstance(stage_info.get("rank"), int):
+            stage = stage_info["rank"]
+        klass = order.get(case.get("class"), len(order))
+        deadline = case.get("deadline")
+        if not deadline:
+            deadline_rank, ordinal = 2, 0
+        else:
+            day, month, year = (int(part) for part in deadline.split("."))
+            stamp = date(year, month, day).toordinal()
+            deadline_rank, ordinal = (1, -stamp) if case.get("deadline_passed") else (0, stamp)
+        return (stage, klass, deadline_rank, ordinal, case["case_id"])
+
+    return sorted(load("cases.json"), key=key)
 
 
 def run_monitor() -> None:

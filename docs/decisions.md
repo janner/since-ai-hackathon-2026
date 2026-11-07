@@ -30,14 +30,14 @@ geometry that IFIC 3074 does not carry.
 Reopen if: Traficom says they already screen the filings themselves (then the value is comparing
 results), or that the input is documents rather than structured tables.
 
-### D2. Demo slice 3.47 to 3.78 GHz, engine runs all seven bands
+### D2. Demo slice 3.47 to 3.78 GHz, engine runs every Finnish allocation
 
-Choice: the demo locks the 3.47 to 3.78 GHz slice; `--all` runs the seven space allocations into the
+Choice: the demo locks the 3.47 to 3.78 GHz slice; `--all` runs every Finnish allocation into the
 accuracy file.
 
 Reason: the slice is the only group where the register also carries the fields the calculation
-needs. The full scope is the seven space bands and its queue is 65 rows, which does not fit a
-three-minute demo. Both numbers are in the README.
+needs. The full scope is every Finnish allocation (D18) and its queue is 116 rows, which does not
+fit a three-minute demo. Both numbers are in the README.
 
 Reopen if: Traficom supplies calculation parameters for the other bands.
 
@@ -59,7 +59,7 @@ only the filter and the receiver side change.
 
 Choice: a 13-row limit table in `rules/rr21_table21_4.csv` covering GSO, non-GSO and HEO, per Hz.
 
-Reason: `c_pfd` covers four frequency ranges and none of the seven space bands. An I/N criterion
+Reason: `c_pfd` covers four frequency ranges and none of the Finnish allocations the run screens. An I/N criterion
 needs a receiver noise figure and a bandwidth that the register does not carry. Table 21-4 is public,
 citable and a function of elevation. Traficom confirmed Table 21-4 as the internationally agreed
 limit and the primary source; CEPT may elaborate the European concern thresholds, and the −3 dB
@@ -71,8 +71,9 @@ bound produces too many false flags.
 
 ### D5. Queue without a cap, not padded, everything in the files
 
-Choice: order `exceeds`, `near`, `not_space`, `cannot_decide`; leave `clear` cases out of the queue;
-keep every notice in `cases.json` and `3074_results.csv`.
+Choice: within a stage, order `exceeds`, `near`, `not_space`, `cannot_decide`; the stage orders
+first (D18); leave `clear` cases out of the queue; keep every notice in `cases.json` and
+`3074_results.csv`.
 
 Reason: the written challenge brief names no target number, and the task is to find the problems and
 report them rather than shorten the list. The queue holds every case that needs a human decision,
@@ -213,9 +214,8 @@ Reopen if: Traficom wants results at network level.
 
 ### D17. Baseline: the Finnish allocation and the territory edge, not the register's stations (7 Nov 2026)
 
-Choice: the run's bands come from the space scope in `app/config.py`, the PFD is taken at the edge
-of Finnish territory, and a band with no space-to-Earth satellite service in Finland is a class of
-its own (`not_space`).
+Choice: the baseline is the Finnish allocation (D18) and the edge of Finnish territory, and a band
+with no satellite service in Finland is a class of its own (`not_space`).
 
 Reason: Traficom's answer of 7 Nov 2026 (`docs/traficom-qa.md` F5) moved the criterion. A PFD
 above Table 21-4 is not enough on its own: if a frequency is, in Finland, one that does not relate
@@ -227,36 +227,74 @@ important thing; the frequency band is what matters and the location is secondar
 What it changed:
 
 - G1 (`app/gates.py::gate1`) matches a notice against the run's scope bands, not against the bands
-  the register happens to declare. A notice whose band nobody listed is now screened: 113 notices
-  pass G1 in `--all` mode where 101 did before, and 41 in the demo slice where 41 did (two more of
-  those reach G2, both inside the register's 13,1 MHz hole).
+  the register happens to declare. The full run covers every Finnish allocation (D18): 176 notices
+  pass G1, 138 are visible from Finland, 73 get a computed case and 65 cannot be decided. The demo
+  slice 3,47-3,78 GHz passes 41 notices, two more of them inside the register's 13,1 MHz hole.
 - G3 takes the worst case at the edge of Finnish territory (`rules/finland_border.csv`: the land
   borders with Sweden, Norway and Russia plus the territorial sea outer limit,
   `app/territory.py`). The worst case over an area lies on its edge: the slant range grows away from
   the sub-satellite point and the Table 21-4 limit does not rise faster, so the vertices are enough
   and no polygon or grid is needed. The register's rows stay on the card as a `Reference` line.
 - `app/allocation.py` reads the Finnish allocation table (M4) and answers one question: does the
-  band carry a satellite service with the space-to-Earth direction? An uplink-only or an
-  inter-satellite row does not. A band that fails is class `not_space`, queued even when its margin
-  is clear. `clear` now means that both the margin and the allocation are unremarkable. The demo
-  slice is 3,47-3,78 GHz, which in Finland is `MOBILE AND FIXED`: every demo case carries at least
-  the frequency finding.
+  band carry a satellite service, in any direction (D18)? A band that fails is class `not_space`,
+  queued even when its margin is clear. `clear` now means that both the margin and the allocation
+  are unremarkable. The demo slice is 3,47-3,78 GHz, which in Finland is `MOBILE AND FIXED`: every
+  demo case carries at least the frequency finding.
 
 Alternatives: keep the register as the gate and add a separate "possible use" report (rejected: the
 queue would still hide the filings the customer wants to act on); sample a territorial grid or a
-polygon (rejected: the edge is exact for a monotone worst case and needs no new data); treat any
-allocation row as satellite use regardless of direction (rejected: an Earth-to-space allocation
-does not license a downlink).
+polygon (rejected: the edge is exact for a monotone worst case and needs no new data); keep the
+seven-band scope (rejected: the customer requires every Finnish allocation, D18).
 
 Cost: `--all` takes about 20 s instead of 4 s, because every GSO notice is evaluated at 552 edge
 points instead of a handful of stations. The demo slice stays at about 4 s.
 
 Test: `tests/test_gates.py::test_a_clear_margin_on_a_non_satellite_band_is_still_a_finding`,
-`tests/test_cards.py::test_m4_lookup_names_the_service_and_the_downlink`,
+`tests/test_cards.py::test_m4_lookup_names_the_service_and_satellite_use`,
 `tests/test_pipeline.py::test_the_register_is_only_a_reference`.
 
 Reopen if: Traficom says the register's station set should bound the analysis again, or supplies the
 declared service areas; then the territory edge can be replaced by the real footprint.
+
+### D18. Every Finnish allocation, any satellite service, stage-first queue (7 Nov 2026)
+
+Choice: `--all` screens every Finnish allocation (299 merged M4 intervals); a band is satellite use
+if any overlapping M4 row names a satellite service, in either direction; `not_space` is only a band
+with no satellite service at all. The queue orders by regulatory stage, then class, then the
+Resolution 35 deadline; the margin does not order.
+
+Reason: the customer's answers after the Q&A (7 Nov 2026): the screen must cover every band with a
+Finnish space allocation, because Finnish interests are also under supervision, and every satellite
+allocation counts as satellite use. The specialists' S1 answer puts the regulatory stage first and
+says the margin is no longer a priority once a case passes the filter. Q2 keeps Table 21-4 as the
+primary limit; CEPT may elaborate and national limits are not relevant, so the tool invents no
+second criterion. Communication with the administration is out of scope for this build; the letter
+stays a minimal draft.
+
+What it changed:
+
+- The full run 196 → 176 → 138 → 73 + 65; 30 exceeds, 19 near, 2 not_space, 22 clear; queue 116.
+  The seven-band list remains only as the `app.bands` reference set (F2), not as the run's scope.
+- `app/allocation.py::satellite_use` accepts any service containing `SATELLITE`; the 5 925-6 425 MHz
+  uplink-only band is no longer `not_space`, and an inter-satellite allocation counts.
+- `app/allocation.py::finnish_bands` merges the M4 sub-bands into 299 intervals, so G1 stays linear.
+- `app/gates.py::queue_key` is stage → class → deadline; `gate4` no longer groups by class first.
+- The 65 cannot_decide are mostly `no_limit_for_band`: Table 21-4 has no row for their band, so the
+  level cannot be computed. The queue keeps them with the reason.
+
+Alternatives: keep the seven bands (rejected: the customer requires every allocation); keep the
+space-to-Earth direction test (rejected: an uplink allocation is still satellite use for the
+customer's rule); sort by margin (rejected: S1 says the margin does not order).
+
+Cost: `--all` 22 s (299 bands, 552 edge points); the demo slice 4 s.
+
+Test: `tests/test_gates.py::test_all_bands_funnel`, `test_queue_order`,
+`tests/test_territory.py::test_any_satellite_allocation_counts`,
+`test_the_allocation_is_merged_into_intervals`,
+`tests/test_cards.py::test_m4_lookup_names_the_service_and_satellite_use`.
+
+Reopen if: Traficom wants a second level criterion (CEPT), or wants the no-limit bands reported as
+band findings without a level.
 
 ## Part 2: decisions taken while writing the code
 
@@ -349,7 +387,7 @@ Tests: `tests/test_ingest.py::test_bandwidth_is_the_smaller_of_channel_and_trans
 
 `app/gates.py::gate1()`. A notice with `ntc_type = S` that sends `emi_rcp = E` is the station
 transmitting, not a downlink, so it leaves with reason `earth_station_notice` rather than
-`no_band_overlap`. One notice in the full run takes this path. The distinction matters when reading
+`no_band_overlap`. Eight notices in the full run take this path. The distinction matters when reading
 the drop counts.
 
 Tests: `tests/test_gates.py::test_a_notice_type_s_sending_E_is_dropped` and the
@@ -358,11 +396,11 @@ Tests: `tests/test_gates.py::test_a_notice_type_s_sending_E_is_dropped` and the
 ### I10. M4 is a finding, not only context
 
 `app/allocation.py::m4_lookup()`. The Finnish allocation is looked up per notified band, shown on
-the card, and it decides one class: a band with no space-to-Earth satellite service is `not_space`,
-queued even when the PFD is clear (D17). A band without an allocation row gets
+the card, and it decides one class: a band with no satellite service is `not_space`, queued even
+when the PFD is clear (D17, D18). A band without an allocation row gets
 `services_in_finland: "not allocated"` and the same finding.
 
-Test: `tests/test_cards.py::test_m4_lookup_names_the_service_and_the_downlink`.
+Test: `tests/test_cards.py::test_m4_lookup_names_the_service_and_satellite_use`.
 
 ### I11. The guard compares signed values
 

@@ -198,11 +198,12 @@ territory is the most important thing. The delivered data is particularly intere
 secondary; the frequency band is what matters.
 
 **What changed.** The baseline moved from the register to the allocation table and from the
-register's stations to Finnish territory: G1 takes its bands from the run's space scope
-(`app/config.py`) instead of the register, G3 takes the PFD at the edge of the territory
+register's stations to Finnish territory: G1 takes its bands from the Finnish allocation (D18),
+not from the register, G3 takes the PFD at the edge of the territory
 (`rules/finland_border.csv`, `app/territory.py`) and keeps the register's row as a `Reference` line,
-and a new M4 finding makes a band with no space-to-Earth satellite service a class of its own
-(`not_space`, queued even when the margin is clear; `app/allocation.py`). Recorded in
+and a new M4 finding makes a band with no satellite service a class of its own
+(`not_space`, queued even when the margin is clear; `app/allocation.py`). The scope was widened to
+every Finnish allocation and every satellite direction on the same day (D18). Recorded in
 `docs/decisions.md` D17 and I10. The demo slice 3,47-3,78 GHz is `MOBILE AND FIXED` in Finland, so
 every demo case now carries at least the frequency finding.
 
@@ -220,8 +221,8 @@ tuotokset eivät ole enää niin tärkeitä. Vaiheen priorisointi on tärkein fi
 **What changed.** The product is a filter, not a ranking. Once a notice passes the filter, the
 expert reviews all of them; the size of the margin does not change the action. The one ordering
 that matters is the regulatory stage: a filing another administration can still influence comes
-before one already recorded in the MIFR. Pending after the freeze: order the queue by stage first,
-then class, then the Resolution 35 deadline; do not sort by margin.
+before one already recorded in the MIFR. Applied 7 Nov 2026 (D18): the queue orders by stage, then
+class, then the Resolution 35 deadline, and the margin does not order.
 
 ### S2. False positive or false negative
 

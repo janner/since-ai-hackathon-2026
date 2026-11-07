@@ -24,14 +24,15 @@ notices and 95 865 frequency rows, and the check is done by hand.
 ## What this does
 
 A deterministic filtering pipeline that shows its work. `scripts/monitor.py` fetches the IFIC package
-from ITU on the two-week cadence. The run screens the space-to-Earth notices of the run's bands,
-keeps the ones a satellite can bring over Finnish territory, and computes an upper-bound power flux
+from ITU on the two-week cadence. The run screens every space-to-Earth notice, keeps the ones a
+satellite can bring over Finnish territory, and computes an upper-bound power flux
 density (PFD) at the edge of that territory against the ITU Radio Regulations Article 21, Table 21-4
 limit. Every band is also checked against Finland's own allocation (Regulation M4): a band with no
-space-to-Earth satellite service is a finding on its own, even when the PFD is below the limit. The
+satellite service at all is a finding on its own, even when the PFD is below the limit. The
 delivered register is a reference, not the boundary of the analysis. That is Traficom's rule of
 7 Nov 2026 (`docs/traficom-qa.md` F5): a limit exceedance alone is not enough, the level over
-Finnish territory is what matters, and the band is what a case is about.
+Finnish territory is what matters, and the band is what a case is about. The full run covers every
+Finnish allocation, not a hand-picked band list (D18).
 
 Every notice that survives the gates and gets a number becomes a case card with the source rows,
 the calculation, the Finnish allocation, the regulatory stage of the filing, the missing data, and one
@@ -39,11 +40,12 @@ question for the other administration. A notice that passes G1 and G2 but cannot
 a card: it keeps its row in `queue.md` and `3074_results.csv` under class `cannot_decide`, and its
 count is in `funnel.json`. The accuracy slice (IFIC 3074) therefore has 20 cards and one notice
 without (limitation 14); the auto-fetch demo (IFIC 3075) has 7 cards and two undecidables. The queue
-lists every case a human should look at: exceedances first, then the near-limit cases, then the
-bands Finland has not allocated to satellite downlinks, then the ones that cannot be decided, and
-inside a class the stage another administration can still influence (advance publication,
-coordination request) comes before a filing already recorded in the MIFR. It is not capped. A
-separate accuracy file covers all 196 notices, the dropped ones included (it ships as
+lists every case a human should look at. It orders by regulatory stage first: a filing another
+administration can still influence (advance publication, coordination request) comes before one
+already recorded in the MIFR. Inside a stage it orders by class (exceedance, near-limit, band without
+satellite use, cannot decide), then by the earliest upcoming Resolution 35 deadline. The margin does
+not order, because the specialist reviews every case the filter passes (Traficom, S1). It is not
+capped. A separate accuracy file covers all 196 notices, the dropped ones included (it ships as
 `results/3074_results.csv` inside the submission zip, not in the repository). A human decides.
 
 The language model writes the card summary and, for each case above the limit, the correspondence
@@ -60,35 +62,36 @@ and overlaps the register, and computes ITU-R P.1546-6 field strength at points 
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
-The screenshot above is the auto-fetch run: the funnel and the status line for IFIC 3075, the queue
-of the seven cards it computed, and the APSTAR-92E card with its territory point, the Finnish
-allocation and the register's reference row.
+The screenshot above is the auto-fetch run: the funnel and the status line for IFIC 3075, the queue of
+the nine cases it found, and a selected card with its territory point, the Finnish allocation and the
+register's reference row.
 
 ## Verified numbers
 
 Two runs are on record and their numbers are not interchangeable. The auto-fetch demo is IFIC 3075,
 the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 4 near, 2 `cannot_decide`,
-9 queue rows and the first card `3075-108501259`. The accuracy dataset is the challenge's IFIC 3074
-(`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026: `make check`
-170 tests (124 passed, 46 skipped without `data/`). The deterministic pipeline is offline; the
+9 queue rows; the first queue row is `125520114`, a coordination-stage near case, and the APSTAR-92E
+exceedance is fifth because its filing is already in the MIFR. The accuracy dataset is the challenge's
+IFIC 3074 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026:
+`make check` 180 tests (132 passed, 48 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
 
-| | Accuracy slice 3 470–3 780 MHz (IFIC 3074) | All seven space bands (`--all`) |
+| | Accuracy slice 3 470–3 780 MHz (IFIC 3074) | Every Finnish allocation (`--all`) |
 |---|---|---|
 | Notices in | 196 | 196 |
 | Territory points (edge) | 552 | 552 |
-| Bands in scope | 1 | 7 |
-| G1 band overlap | 41 | 113 |
-| G2 visible from Finland | 21 (18 GEO, 3 non-GSO) | 84 |
-| G3 computed | 20 | 69 |
-| cannot_decide | 1 (`no_power`) | 15 |
-| exceeds / near / not_space / clear | 11 / 5 / 2 / 2 | 30 / 18 / 2 / 19 |
-| Queue | 19 | 65 |
+| Bands in scope | 1 | 299 |
+| G1 band overlap | 41 | 176 |
+| G2 visible from Finland | 21 (18 GEO, 3 non-GSO) | 138 |
+| G3 computed | 20 | 73 |
+| cannot_decide | 1 (`no_power`) | 65 |
+| exceeds / near / not_space / clear | 11 / 5 / 2 / 2 | 30 / 19 / 2 / 22 |
+| Queue | 19 | 116 |
 
-`not_space` is the frequency finding of `docs/decisions.md` D17: the band is not a satellite
-allocation in Finland, so a satellite transmitting there is a case even when the margin is clear.
+`not_space` is the frequency finding of `docs/decisions.md` D17 and D18: the band has no satellite
+service in Finland, so a satellite transmitting there is a case even when the margin is clear.
 The demo slice is `MOBILE AND FIXED` in Finland, so all 20 demo cases carry it.
 
 Two test vectors reproduce to the digit:
@@ -99,13 +102,13 @@ Two test vectors reproduce to the digit:
 | 124545403 | −137,56 dB(W/m²/Hz) | −198,00 | +60,44 dB | 5,0° | 2 310 km |
 
 The plan's own funnel (100 / 74 / 10) came from screening against the register's bands; this code
-screens the run's space scope and reaches 113 / 84 / 69 (D17), so the two are not comparable. The
+screens every Finnish allocation and reaches 176 / 138 / 73 (D18), so the two are not comparable. The
 reference tool behind the plan also read the register cell `0,1G` as 0.1 MHz; this code reads the
 `Channel bandwidth` column as 0.1 GHz = 100 MHz. The demo slice is identical either way, and the
 differences are written up in `docs/decisions.md`; `tests/test_gates.py` locks these numbers in.
 
-The auto-fetch run in `runs/3075/` was produced before the 7 Nov criterion change (D17), so its
-counts are the earlier ones; run `scripts/monitor.py --check` again to refresh that demo directory.
+The auto-fetch run in `runs/3075/` is the current code's demo; its counts were unchanged by D18
+(the slice is one band), but the queue order puts the coordination-stage cases first.
 
 The terrestrial side feature on the real BR IFIC 3076 against 3075 reports 2 905 new, 163 modified,
 413 withdrawn and 576 recorded notices, and 28 notices in reach (land mobile, within 1 000 km,
@@ -137,7 +140,7 @@ uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --terrestrial-prev data/itu-terr-ific/brific3075.mdb \
   --out out/
 
-# the whole register: all seven space bands (add the same --terrestrial flags if wanted)
+# every Finnish allocation (add the same --terrestrial flags if wanted)
 uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
   --m4 data/taajuusjakotaulukko.json --out out/ --all
@@ -161,7 +164,7 @@ preparation that downloads the fixed packages by hand.
 |---|---|
 | `cases.json` | One card per computed case, full schema, plus the prose block |
 | `cases.md` | The same cards as Markdown |
-| `queue.md` | The queue in decision order: class first, then stage, then the earliest upcoming Resolution 35 deadline, then margin |
+| `queue.md` | The queue in decision order: regulatory stage first, then class, then the earliest upcoming Resolution 35 deadline |
 | `funnel.json` | Counts per gate, drop reasons, queue state, input hash, rules version, mode |
 | `3074_results.csv` | Named after the IFIC number. One row per notice in the input, 26 columns starting with `ific`, `case_id`, `ntc_id`, dropped notices with stage and reason, plus the regulatory stage of every notice |
 | `run.log` | Timestamp, input SHA256, rules version, the `ific=` id of the package, mode, counts, GEO and non-GSO visibility, the letter count, elapsed time |
@@ -316,8 +319,8 @@ at all: open `out/teams_message.html`.
     the run reads it for the card's `Reference` line and does not bound the analysis by it. The
     sample's own cover note says a real dataset would be "tens of millions of rows"; the file is
     now streamed and filtered by the run's bands before the stations are built, so 1 M rows load in
-    3.2 s at a 19 MB peak (the old whole-file read: 8.0 s, 1 154 MB). Only the 84 rows on the seven
-    space bands (7 on the demo slice) become `Station` objects, and the funnel is unchanged.
+    3.2 s at a 19 MB peak (the old whole-file read: 8.0 s, 1 154 MB). With the full allocation scope
+    all 871 rows become `Station` objects (7 on the demo slice), and the funnel is unchanged.
 19. What is not built, and what each piece would take, is listed in `docs/features.md` under "Next
     steps": the AP30 plan path,
     RR Art. 22 / EPFD, space-side trends, the M15 cross-check
@@ -327,11 +330,11 @@ at all: open `out/teams_message.html`.
 
 ```
 app/            one module per feature, each with tests/test_<feature>.py
-  config.py     space bands, demo slice, rules version, adjacent guard, stages, formatting
+  config.py     reference bands for app.bands, demo slice, rules version, adjacent guard, stages
   ingest.py     IFIC tables read from the BR IFIC MDB (mdb-export), register, M4, unit parsing
   bands.py      the register's own bands (utility, not in the run path)
   territory.py  the Finnish territory edge the PFD is evaluated at
-  allocation.py the Finnish allocation (M4) and the space-to-Earth question
+  allocation.py the Finnish allocation (M4), satellite_use, the full run's band intervals
   pfd.py        geometry, free-space loss, Table 21-4 limits
   gates.py      G1 to G4, reason codes, classes, queue
   cards.py      card schema, M4 lookup, Markdown, CSV, run log

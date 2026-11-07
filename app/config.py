@@ -1,15 +1,16 @@
 """Static configuration for Kaista.
 
-The seven space bands below are the ITU space allocations the challenge covers; they are
-config, not data. The *protected* bands themselves are always derived from the Finnish
-register (see app.bands) -- no channel frequency is hardcoded anywhere in this repo.
+The seven bands below are the reference set for `app.bands` (the register's own bands, F2);
+the full run's scope is every Finnish allocation, derived from M4 at run time (D18), and the
+demo slice is config. No protected band is hardcoded from the register anywhere in this repo.
 """
 
 from __future__ import annotations
 
 from datetime import date
 
-# ITU space allocations (MHz) that the Finnish register is screened against.
+# The reference bands for `app.bands`, the register's own-band question (F2). The run's full
+# scope comes from M4 (`app.allocation.finnish_bands`), not from this list.
 SPACE_BANDS_MHZ: tuple[tuple[float, float], ...] = (
     (3470.0, 3780.0),
     (5900.0, 6400.0),

@@ -50,6 +50,15 @@
   .q-stage, .q-action { display: block; margin-top: 4px; font-size: 14px; line-height: 1.4; }
   .q-stage { color: var(--muted); }
   .q-id { display: block; margin-top: 4px; font: 400 12px/1.33 var(--mono); color: var(--muted); }
+  .queue-controls { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; line-height: 1.4; }
+  .queue-controls label { color: var(--muted); }
+  .queue-controls select { font: inherit; font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); min-height: 32px; padding: 4px 8px; }
+  .q-group-head { width: 100%; display: block; text-align: left; background: var(--surface); border: 0; border-left: 2px solid var(--accent); border-bottom: 1px solid var(--line); padding: 8px 8px 8px 10px; cursor: pointer; font: inherit; }
+  .q-group-head:hover { background: var(--accent-tint); }
+  .q-group-title { display: block; font-size: 14px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+  .q-group-meta { display: block; margin-top: 2px; font-size: 12px; line-height: 1.33; color: var(--muted); }
+  .q-children { margin: 0; padding: 0; list-style: none; border-left: 2px solid var(--line); }
+  .q-children button.queue-item { padding-left: 16px; }
   .tag { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 24px; font-size: 12px; line-height: 1.33; }
   .tag.t-exceeds { background: var(--accent-tint); color: var(--accent); }
   .tag.t-near { background: var(--surface); color: var(--fg); }
@@ -99,7 +108,18 @@
   </section>
   <section id="queue-section" aria-labelledby="h-queue">
     <h2 id="h-queue">Queue</h2>
-    <p class="note">Notices that cannot be decided do not produce a card; they are listed in the funnel with the missing value.</p>
+    <div class="queue-controls">
+      <label for="group-by">Group by</label>
+      <select id="group-by">
+        <option value="network">Network</option>
+        <option value="admin">Administration</option>
+        <option value="band">Band</option>
+        <option value="stage">Stage</option>
+        <option value="victim">Victim station</option>
+        <option value="none">None</option>
+      </select>
+    </div>
+    <p class="note">Notices that cannot be decided do not produce a card; they keep a row in queue.md and the CSV with the missing value.</p>
     <ul id="queue"></ul>
   </section>
   <section aria-labelledby="h-card">
@@ -400,9 +420,8 @@ function renderFunnel(data) {
   );
 }
 
-// The queue order mirrors scripts/notify.py: class, then stage (a stage another
-// administration can still influence before one already recorded in the MIFR),
-// then margin descending, then case id.
+// The queue order mirrors app/gates.py::queue_key: regulatory stage, then class, then the
+// earliest upcoming Resolution 35 deadline. The margin does not order (Traficom, S1).
 const QUEUE_CLASS = ["exceeds", "near", "not_space", "cannot_decide", "clear"];
 const QUEUE_STAGE = { "No. 9.1": 0, "No. 9.6": 0, "No. 11.2": 1, "Resolution 49": 2 };
 const QUEUE_STAGE_UNKNOWN = 9;
@@ -410,12 +429,20 @@ const QUEUE_STAGE_UNKNOWN = 9;
 function queueKey(item) {
   const klass = QUEUE_CLASS.indexOf(item["class"]);
   const stage = item.regulatory_stage && item.regulatory_stage.provision;
-  const margin = Number(item.calculation && item.calculation.margin_db);
+  let deadlineRank = 2;
+  let ordinal = 0;
+  if (item.deadline) {
+    const [day, month, year] = item.deadline.split(".").map(Number);
+    const stamp = Date.UTC(year, month - 1, day);
+    if (item.deadline_passed) { deadlineRank = 1; ordinal = -stamp; }
+    else { deadlineRank = 0; ordinal = stamp; }
+  }
   return [
-    klass < 0 ? QUEUE_CLASS.length : klass,
     QUEUE_STAGE[stage] === undefined ? QUEUE_STAGE_UNKNOWN : QUEUE_STAGE[stage],
-    -(isFinite(margin) ? margin : 0),
-    item.case_id,
+    klass < 0 ? QUEUE_CLASS.length : klass,
+    deadlineRank,
+    ordinal,
+    item.ntc_id || item.case_id,
   ];
 }
 
@@ -429,7 +456,147 @@ function compareQueue(a, b) {
   return 0;
 }
 
+function queueRow(item) {
+  const li = el("li");
+  const button = el("button", null, "queue-item");
+  button.type = "button";
+  button.dataset.caseId = item.case_id;
+
+  const coverage = item.coverage || {};
+  button.append(el(
+    "span",
+    [
+      coverage.sat_name || item.case_id,
+      adminName(item.parties && item.parties.admin),
+      bandText(item.band),
+    ].join(" \u00b7 "),
+    "q-title",
+  ));
+
+  const status = el("span", null, "q-status");
+  status.append(
+    el("span", CLASS_EN[item["class"]] || item["class"], "tag t-" + item["class"]),
+    el("span", signed(item.calculation && item.calculation.margin_db, "dB"), "m"),
+  );
+  button.append(status);
+
+  const stage = stageOf(item);
+  button.append(el("span", [stage.name, stage.meaning].filter(Boolean).join(". "), "q-stage"));
+  const action = ACTION_EN[item.filing_action];
+  if (action) button.append(el("span", action, "q-action"));
+  button.append(el("span", item.case_id, "q-id"));
+
+  button.addEventListener("click", () => showCase(item.case_id));
+  li.append(button);
+  return li;
+}
+
+function groupKeyOf(item, by) {
+  if (by === "admin") return (item.parties && item.parties.admin) || "";
+  if (by === "band") return [item.band && item.band.freq_min_mhz, item.band && item.band.freq_max_mhz].join("-");
+  if (by === "stage") return (item.regulatory_stage && item.regulatory_stage.provision) || "";
+  if (by === "victim") return (item.victim && item.victim.station) || "";
+  return "";
+}
+
+function groupTitle(items, by) {
+  const first = items[0];
+  const unique = (values) => [...new Set(values.filter(Boolean))];
+  if (by === "network") {
+    const sats = unique(items.map((item) => item.coverage && item.coverage.sat_name));
+    const admins = unique(items.map((item) => adminName(item.parties && item.parties.admin)));
+    return [sats.join(" + ") || first.case_id, admins.join(", ")].filter(Boolean).join(" \u00b7 ");
+  }
+  if (by === "admin") return unique(items.map((item) => adminName(item.parties && item.parties.admin))).join(", ") || "Unknown administration";
+  if (by === "band") return unique(items.map((item) => bandText(item.band))).join(" / ");
+  if (by === "stage") {
+    const stage = stageOf(first);
+    return [stage.name, stage.meaning].filter(Boolean).join(". ");
+  }
+  if (by === "victim") {
+    const victim = first.victim || {};
+    return victim.station ? "Station " + victim.station + (victim.class ? " (" + victim.class + ")" : "") : "No victim station";
+  }
+  return "All cases";
+}
+
+function groupQueue(queue, by) {
+  if (by === "network") {
+    const parent = new Map(queue.map((item) => [item.case_id, item.case_id]));
+    const find = (id) => {
+      let root = id;
+      while (parent.get(root) !== root) root = parent.get(root);
+      while (parent.get(id) !== id) {
+        const next = parent.get(id);
+        parent.set(id, root);
+        id = next;
+      }
+      return root;
+    };
+    const union = (a, b) => {
+      const rootA = find(a);
+      const rootB = find(b);
+      if (rootA !== rootB) parent.set(rootB, rootA);
+    };
+    for (const item of queue) {
+      const prefix = item.case_id.slice(0, item.case_id.lastIndexOf("-") + 1);
+      for (const sibling of item.same_network || []) {
+        const other = queue.find((row) => row.case_id === prefix + sibling);
+        if (other) union(item.case_id, other.case_id);
+      }
+    }
+    const groups = new Map();
+    for (const item of queue) {
+      const root = find(item.case_id);
+      if (!groups.has(root)) groups.set(root, []);
+      groups.get(root).push(item);
+    }
+    return [...groups.values()].map((items) => items.sort(compareQueue));
+  }
+  const groups = new Map();
+  for (const item of queue) {
+    const key = groupKeyOf(item, by);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  return [...groups.values()].map((items) => items.sort(compareQueue));
+}
+
+function groupRow(items, by) {
+  const li = el("li");
+  const head = el("button", null, "q-group-head");
+  head.type = "button";
+  head.setAttribute("aria-expanded", "true");
+  head.append(el("span", groupTitle(items, by), "q-group-title"));
+
+  const meta = el("span", null, "q-group-meta");
+  const worst = items[0];
+  meta.append(el("span", CLASS_EN[worst["class"]] || worst["class"], "tag t-" + worst["class"]));
+  meta.append(document.createTextNode(
+    items.length + (items.length === 1 ? " case" : " cases") + " \u00b7 " +
+    signed(worst.calculation && worst.calculation.margin_db, "dB"),
+  ));
+  const deadline = items.find((item) => item.deadline);
+  if (deadline) meta.append(document.createTextNode(" \u00b7 DL " + deadline.deadline));
+  head.append(meta);
+
+  const children = el("ul", null, "q-children");
+  for (const item of items) children.append(queueRow(item));
+  head.addEventListener("click", () => {
+    const open = children.hidden;
+    children.hidden = !open;
+    head.setAttribute("aria-expanded", String(open));
+  });
+  li.append(head, children);
+  return li;
+}
+
+let queueItems = [];
+let queueGroup = "network";
+let currentCaseId = null;
+
 function renderQueue(items) {
+  queueItems = items;
   const ul = document.getElementById("queue");
   // Clear cases are not the queue: the queue is the cases a human looks at.
   const queue = items.filter((item) => item["class"] !== "clear").sort(compareQueue);
@@ -437,42 +604,13 @@ function renderQueue(items) {
     ul.replaceChildren(el("li", "The queue is empty."));
     return;
   }
-  ul.replaceChildren(
-    ...queue.map((item) => {
-      const li = el("li");
-      const button = el("button", null, "queue-item");
-      button.type = "button";
-      button.dataset.caseId = item.case_id;
-
-      const coverage = item.coverage || {};
-      button.append(el(
-        "span",
-        [
-          coverage.sat_name || item.case_id,
-          adminName(item.parties && item.parties.admin),
-          bandText(item.band),
-        ].join(" \u00b7 "),
-        "q-title",
-      ));
-
-      const status = el("span", null, "q-status");
-      status.append(
-        el("span", CLASS_EN[item["class"]] || item["class"], "tag t-" + item["class"]),
-        el("span", signed(item.calculation && item.calculation.margin_db, "dB"), "m"),
-      );
-      button.append(status);
-
-      const stage = stageOf(item);
-      button.append(el("span", [stage.name, stage.meaning].filter(Boolean).join(". "), "q-stage"));
-      const action = ACTION_EN[item.filing_action];
-      if (action) button.append(el("span", action, "q-action"));
-      button.append(el("span", item.case_id, "q-id"));
-
-      button.addEventListener("click", () => showCase(item.case_id));
-      li.append(button);
-      return li;
-    }),
-  );
+  if (queueGroup === "none") {
+    ul.replaceChildren(...queue.map(queueRow));
+  } else {
+    const groups = groupQueue(queue, queueGroup).sort((a, b) => compareQueue(a[0], b[0]));
+    ul.replaceChildren(...groups.map((group) => group.length === 1 ? queueRow(group[0]) : groupRow(group, queueGroup)));
+  }
+  if (currentCaseId) markCurrent(currentCaseId);
 }
 
 function markCurrent(caseId) {
@@ -540,8 +678,8 @@ function renderCard(item) {
 
   card.append(el("h3", "What is on the band in Finland"));
   card.append(el("p", (item.m4 && item.m4.services_in_finland) || "no information"));
-  if (item.m4 && item.m4.space_to_earth === false) {
-    card.append(el("p", "No space-to-Earth service in Finland's allocation: a satellite " +
+  if (item.m4 && item.m4.satellite_use === false) {
+    card.append(el("p", "No satellite service in Finland's allocation: a satellite " +
       "transmitting here is a finding on its own, whatever the PFD says.", "note"));
   }
   if (item.m4 && item.m4.source) card.append(el("p", "M4: " + item.m4.source, "src"));
@@ -563,6 +701,7 @@ function renderCard(item) {
 }
 
 async function showCase(caseId) {
+  currentCaseId = caseId;
   markCurrent(caseId);
   setStatus("Loading card " + caseId + "...");
   try {
@@ -586,6 +725,11 @@ async function start() {
 }
 
 document.getElementById("fetch-check").addEventListener("click", checkNow);
+document.getElementById("group-by").addEventListener("change", (event) => {
+  queueGroup = event.target.value;
+  renderQueue(queueItems);
+  setStatus("");
+});
 start();
 </script>
 </html>

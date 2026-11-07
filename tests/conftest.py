@@ -5,8 +5,9 @@ from types import SimpleNamespace
 import pytest
 
 from app import gates, ingest, pfd
+from app.allocation import finnish_bands
 from app.bands import Band
-from app.config import DEMO_SLICE_MHZ, SPACE_BANDS_MHZ
+from app.config import DEMO_SLICE_MHZ
 from app.territory import places as territory_places
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,7 +36,7 @@ def _run_pipeline(ific_mdb: Path, register: Path, m4: Path, all_bands: bool) -> 
     ific = ingest.load_ific(ific_mdb)
     stations, counts = ingest.load_register(register)
     m4_rows = ingest.load_m4(m4)
-    scope = SPACE_BANDS_MHZ if all_bands else (DEMO_SLICE_MHZ,)
+    scope = tuple(finnish_bands(m4_rows)) if all_bands else (DEMO_SLICE_MHZ,)
     bands = [
         Band(lo_mhz=lo_mhz, hi_mhz=hi_mhz, group=index, stations=())
         for index, (lo_mhz, hi_mhz) in enumerate(scope)
@@ -64,7 +65,7 @@ def _run_pipeline(ific_mdb: Path, register: Path, m4: Path, all_bands: bool) -> 
 
 @pytest.fixture(scope="session")
 def challenge() -> SimpleNamespace:
-    """The real 3074 BR IFIC MDB, both the demo slice and all seven bands."""
+    """The real 3074 BR IFIC MDB, both the demo slice and every Finnish allocation."""
     return SimpleNamespace(
         slice=_run_pipeline(IFIC, REGISTER, M4, False),
         all=_run_pipeline(IFIC, REGISTER, M4, True),
