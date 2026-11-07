@@ -20,15 +20,15 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from datetime import date
 from pathlib import Path
 
 # Mirrors app/config.REGULATORY_STAGES so the digest reads only out/ and stays stdlib-only.
-# Within a class a filing another administration can still influence (9.1/9.6) outranks one
-# already recorded (11.2); that is why the top three is not a plain margin sort.
+# The queue order is stage, then class, then the Resolution 35 deadline, then case id; the
+# margin does not order (see app/gates.py::queue_key). A filing another administration can
+# still influence (9.1/9.6) outranks one already recorded (11.2), whatever the margin says.
 # shortcut: rank table copied from app/config.py, import it if the stage table starts growing.
 CLASS_ORDER = ("exceeds", "near", "cannot_decide", "clear")
-STAGE_RANK = {"No. 9.1": 0, "No. 9.6": 0, "No. 11.2": 1, "Resolution 49": 2}
-UNKNOWN_RANK = 9
 EMPTY_MESSAGE = "Käsitelty, ei uusia huomioitavia tapauksia."
 
 # The HTML preview's CSS, kept as constants so the template lines stay readable.
@@ -57,17 +57,24 @@ def ific_tag(cases: list[dict]) -> str:
 
 
 def top_cases(cases: list[dict], limit: int = 3) -> list[dict]:
-    """The first rows of the queue: class, then stage, then margin, then case id."""
+    """The first rows of the queue: stage, class, then the Res 35 deadline, then case id.
+
+    The same key as app/gates.py::queue_key and app/main.py::queue, so the digest cannot
+    disagree with the page it links to. The margin does not order.
+    """
     queue = [case for case in cases if case["class"] != "clear"]
 
     def key(case: dict) -> tuple:
-        stage = case["regulatory_stage"]["provision"]
-        return (
-            CLASS_ORDER.index(case["class"]) if case["class"] in CLASS_ORDER else len(CLASS_ORDER),
-            STAGE_RANK.get(stage, UNKNOWN_RANK),
-            -(case["calculation"]["margin_db"] or 0.0),
-            case["case_id"],
-        )
+        stage = case["regulatory_stage"]["rank"]
+        klass = CLASS_ORDER.index(case["class"]) if case["class"] in CLASS_ORDER else 9
+        deadline = case.get("deadline")
+        if not deadline:
+            deadline_rank, ordinal = 2, 0
+        else:
+            day, month, year = (int(part) for part in deadline.split("."))
+            stamp = date(year, month, day).toordinal()
+            deadline_rank, ordinal = (1, -stamp) if case.get("deadline_passed") else (0, stamp)
+        return (stage, klass, deadline_rank, ordinal, case["case_id"])
 
     return sorted(queue, key=key)[:limit]
 

@@ -5,12 +5,14 @@ import json
 from scripts import notify
 
 
-def make_case(ntc_id, klass, provision, margin, ific="3074"):
+def make_case(ntc_id, klass, provision, margin, ific="3074", rank=0, deadline=None, passed=False):
     return {
         "case_id": f"{ific}-{ntc_id}",
         "class": klass,
-        "regulatory_stage": {"provision": provision, "label": "", "source": ""},
+        "regulatory_stage": {"provision": provision, "label": "", "source": "", "rank": rank},
         "calculation": {"margin_db": margin},
+        "deadline": deadline,
+        "deadline_passed": passed,
         "source": {"ific": ific, "keys": {"ntc_id": ntc_id}},
     }
 
@@ -48,17 +50,17 @@ def test_message_carries_numbers_and_link(tmp_path):
 
 def test_top_three_is_queue_order_not_margin(tmp_path):
     cases = [
-        make_case("A", "exceeds", "No. 11.2", 99.0),  # biggest margin, but recorded in the MIFR
-        make_case("B", "exceeds", "No. 9.6", 2.0),  # can still be influenced: ranks first
-        make_case("C", "exceeds", "No. 9.6", 1.0),
-        make_case("D", "exceeds", "No. 9.1", 0.5),  # same rank as B, smaller margin
-        make_case("E", "near", "No. 9.6", -0.5),  # another class, last
-        make_case("F", "clear", "No. 9.6", -9.0),  # never queued
+        make_case("A", "exceeds", "No. 11.2", 99.0, rank=1),  # biggest margin, already in the MIFR
+        make_case("B", "near", "No. 9.6", -0.5, rank=0),  # same stage, weaker class: last
+        make_case("C", "exceeds", "No. 9.6", 0.5, rank=0),
+        make_case("D", "exceeds", "No. 9.6", 2.0, rank=0),  # bigger margin than C, the id sorts
+        make_case("E", "exceeds", "No. 9.6", 0.5, rank=0, deadline="19.12.2026"),
+        make_case("F", "clear", "No. 9.6", -9.0, rank=0),  # never queued
     ]
-    # Rank 0 (9.6/9.1) sorts by margin desc: B(2.0), C(1.0), D(0.5) -> ["B", "C", "D"].
+    # Stage first, then class, then the deadline: E (due 19 Dec) beats C and D, and C beats D
+    # although D has the larger margin.
     top = notify.top_cases(cases)
-    assert [case["source"]["keys"]["ntc_id"] for case in top] == ["B", "C", "D"]
-    assert top[0]["calculation"]["margin_db"] == 2.0
+    assert [case["source"]["keys"]["ntc_id"] for case in top] == ["E", "C", "D"]
 
 
 def test_zero_cases_gets_the_short_message():
