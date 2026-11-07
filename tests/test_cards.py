@@ -54,6 +54,8 @@ def test_card_has_the_whole_schema(challenge):
     md = render_card_md(card)
     assert "103500417" in md
     assert f"{card['victim']['lat']:g}".replace(".", ",") in md  # the worst-case station's place
+    assert "- **Coverage:**" in md
+    assert "s_beam." not in md  # beam geometry is not a blocking gap, the worst case covers it
 
 
 @pytest.mark.data
