@@ -556,7 +556,7 @@ Known limit: the order lives in four places (`gate4`, `app/main.py::queue`,
 `scripts/notify.py::top_cases` and `app/static/index.html`'s `queueKey`). All four carry the same
 stage, class, deadline key since 7 Nov 2026; the copies exist because `notify.py` stays stdlib-only
 and the page sorts what the API sends. `out/queue.md` is the queue of record. A new key changes
-four files, and the committed screenshot shows the old order until it is retaken.
+four files and the committed screenshot.
 
 ### T1. The P.1546 table is generated once and committed
 

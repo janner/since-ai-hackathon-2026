@@ -80,10 +80,11 @@ elapsed_s=2.05
 `runs/3075/funnel.json` carries the counts as `129 → 19 → 9 → 7 + 2`, with the drops
 `no_band_overlap` 110 and `geo_below_horizon` 10, and 9 rows in the queue. The run wrote seven cards
 to `cases.json` (3 exceeds, 4 near, no clear), 129 rows to `3075_results.csv`, three letters to
-`runs/3075/letters/`, and its own `queue.md`, `run.log` and `teams_message.*`. The first card is
-`3075-108501259`. The two notices the tool refuses to decide are rows 8 and 9 of `queue.md`:
-`126590034` and `126590035`, Resolution 49, no PSD, each with the value it would need (`psd ≥`
-−22,29 and −24,75 dBW/Hz).
+`runs/3075/letters/`, and its own `queue.md`, `run.log` and `teams_message.*`. The first queue row is
+`125520114`, a near case at a coordination request; the APSTAR card `3075-108501259` is fifth, because
+its filing is already in the MIFR and the stage orders first. The two notices the tool refuses to
+decide are rows 8 and 9 of `queue.md`: `126590034` and `126590035`, Resolution 49, no PSD, each with
+the value it would need (`psd ≥` −22,29 and −24,75 dBW/Hz).
 
 `runs/latest` points at `runs/3075/`, so the web UI shows that run's queue. The monitor does not touch
 `out/`: that directory keeps the 3074 outputs. A failed check (a truncated download, a broken zip,
@@ -110,19 +111,19 @@ Funnel: 196 → 41 → 21 → 20 + 1
 
 | # | case | class | stage | action | deadline | margin dB | reason |
 |---|---|---|---|---|---|---|---|
-| 1 | 124545403 | exceeds | No. 9.1 | M | - | 60,44 | exceeds |
-| 2 | 124520183 | exceeds | No. 9.6 | A | - | 3,66 | exceeds |
-| 3 | 124520184 | exceeds | No. 9.6 | A | - | 1,74 | exceeds |
-| 4 | 125500277 | exceeds | No. 11.2 | A | 19.12.2026 | 16,33 | exceeds |
-| 5 | 125500066 | exceeds | No. 11.2 | A | - | 21,32 | exceeds |
+| 1 | 124520183 | exceeds | No. 9.6 | A | - | 3,66 | exceeds |
+| 2 | 124520184 | exceeds | No. 9.6 | A | - | 1,74 | exceeds |
+| 3 | 124545403 | exceeds | No. 9.1 | M | - | 60,44 | exceeds |
+| 4 | 124520214 | near | No. 9.6 | A | - | -0,25 | near |
+| 5 | 125500277 | exceeds | No. 11.2 | A | 19.12.2026 | 16,33 | exceeds |
 | 6 | 103500417 | exceeds | No. 11.2 | M | - | 3,25 | exceeds |
 ```
 
 (13 more rows follow; the file lists all 19. The live file carries two more columns, the Finnish
-band and the `settles at` value, left out here for width.) Inside a class the stage comes first,
-then the earliest upcoming Resolution 35 deadline, then the margin: the `exceeds` rows in the
-advance publication and coordination request stages are listed before the MIFR notifications, whose
-margins do not put them second, and 125500277 (group due 19.12.2026) moves ahead of a larger margin.
+band and the `settles at` value, left out here for width.) The stage comes first, then the class,
+then the earliest upcoming Resolution 35 deadline; the margin does not order. The advance publication
+and coordination request rows come before the MIFR notifications, so 124545403's +60,44 dB margin is
+third and not first, and 125500277 (group due 19.12.2026) moves ahead of a larger margin.
 
 `out/cases.md` holds one card per computed notice. The one from the plan's test vector:
 
@@ -294,10 +295,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 168 passed with data/
+make check        # ruff check, ruff format --check, pytest: 180 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 123 passed, 45 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 131 passed, 49 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. The optional Teams digest (15 seconds)
@@ -350,8 +351,8 @@ unfinished prototype.
 | 0:00 | browser, the top-bar panel and "Check now" | the panel shows the last check: the newest package and when it was checked. On this tree it reads "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices."; when a check finds nothing new it reads "No new IFIC has been published yet (latest 3075). Checked <time> · next check <time>." Nobody downloads anything; the tool asks ITU itself, every two weeks. |
 | 0:10 | the top-bar status line with its funnel count, and the "Check now" button; do not click | the status line reads the last check, that of 7 Nov 2026: "New IFIC 3075 fetched and processed 7 Nov 2026, 09:43 · 129 notices." The button would ask ITU right away and, on this tree, fetch 3076, so the demo does not click it; see "Why not to click". |
 | 0:25 | the funnel panel | 129 notices: 110 with no band overlap and 10 below the horizon dropped, 19 overlap a band in the scope, 9 of those can be seen from Finland, 7 get a number and 2 cannot be decided. |
-| 0:35 | the queue, card `3075-108501259` (the first card of `cases.json`) | APSTAR-92E, 3 440-3 480 MHz, No. 11.2, recorded in the MIFR: PFD −187,59 against the −188,02 dB(W/m²/Hz) limit, margin +0,43 dB. |
-| 0:50 | the card's `Coverage` and `Missing` lines | the beam geometry is empty in IFIC 3075, so the worst case is assumed: peak beam gain aimed at the territory edge. `Missing` says nothing, because nothing blocks the case, and the question asks China to confirm that worst-case PFD. |
+| 0:35 | the queue, rows 1 and 5 | the stage orders first, not the margin. Row 1 is `125520114`, a near case at a coordination request Finland can still influence; the APSTAR exceedance `3075-108501259` is row 5, because its filing is already in the MIFR. |
+| 0:50 | open card `3075-108501259` (row 5) and its `Coverage` and `Missing` lines | APSTAR-92E, 3 440-3 480 MHz, No. 11.2: PFD −187,59 against the −188,02 dB(W/m²/Hz) limit, margin +0,43 dB. The beam geometry is empty in IFIC 3075, so the worst case is assumed: peak beam gain aimed at the territory edge. `Missing` says nothing, because nothing blocks the case, and the question asks China to confirm that worst-case PFD. |
 | 1:05 | `runs/3075/letters/3075-108501259.md` | the draft letter: the number, the worst-case assumption, the question. The tool drafts; a human sends it from their own mailbox. |
 | 1:20 | "Show calculation" on the card | the calculation behind the number: max PSD −50,3 dBW/Hz, beam gain 26,0 dBi, slant range 41 222 km, free-space loss 163,29 dB, and the limit with its Article 21 Table 21-4 row. |
 | 1:35 | `out/TERRESTRIAL.md` | the same style for terrestrial notices: 2 905 new, 163 modified, 413 withdrawn and 28 notices in reach against BR IFIC 3076. That file comes from the offline run into `out/`; the monitor run is space-only. |

@@ -62,17 +62,18 @@ and overlaps the register, and computes ITU-R P.1546-6 field strength at points 
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
-The screenshot above is the auto-fetch run: the funnel and the status line for IFIC 3075, the queue
-of the seven cards it computed, and the APSTAR-92E card with its territory point, the Finnish
-allocation and the register's reference row.
+The screenshot above is the auto-fetch run: the funnel and the status line for IFIC 3075, the queue of
+the nine cases it found, and a selected card with its territory point, the Finnish allocation and the
+register's reference row.
 
 ## Verified numbers
 
 Two runs are on record and their numbers are not interchangeable. The auto-fetch demo is IFIC 3075,
 the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 4 near, 2 `cannot_decide`,
-9 queue rows and the first card `3075-108501259`. The accuracy dataset is the challenge's IFIC 3074
-(`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026: `make check`
-170 tests (124 passed, 46 skipped without `data/`). The deterministic pipeline is offline; the
+9 queue rows; the first queue row is `125520114`, a coordination-stage near case, and the APSTAR-92E
+exceedance is fifth because its filing is already in the MIFR. The accuracy dataset is the challenge's
+IFIC 3074 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026:
+`make check` 180 tests (131 passed, 49 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
@@ -189,8 +190,8 @@ under a `kaista/` prefix, plus the accuracy files from the last run under `resul
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 170 passed |
-| Clean clone, no `data/` | 124 passed, 46 skipped |
+| With `data/` | 180 passed |
+| Clean clone, no `data/` | 131 passed, 49 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
