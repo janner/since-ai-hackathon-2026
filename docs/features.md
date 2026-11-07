@@ -417,6 +417,7 @@ files, and every number on the page comes from them.
 | `GET /api/cases` | `out/cases.json` |
 | `GET /api/cases/{case_id}` | one card, 404 when the id is unknown |
 | `GET /api/queue` | `cases.json` in queue order |
+| `GET /api/queue/full` | `queue.json`: every notice in the run, with its tier and reason |
 
 `KAISTA_OUT` (default `out`) points the API at another output directory. A missing file or broken
 JSON answers 503 with the message from `app.pipeline`, not 500: a half-finished run is an expected
@@ -428,17 +429,20 @@ satellite name cannot inject markup. The queue row and the card show the regulat
 the ITU short name (`No. 9.1` advance publication, API; `No. 9.6` coordination request, CRC;
 `No. 11.2` MIFR), the queue row spells out the filing action it reads from `filing_action`
 (`A` New filing, `M` Modification, `S` Suppression), and the card names the protected station and
-its coordinates: that is where the worst case is calculated. The queue endpoint reads `cases.json`,
-which holds cards only, so a
-`cannot_decide` notice has no row there; the funnel panel lists each one from
-`funnel.json::undecided_detail` with the missing field and the value it would need to reach the
-limit. The fetch line names the document series (`space`), so an IFIC number alone cannot be
-mistaken for the terrestrial series. The "Show calculation" block carries the formula, the limit
-source and the input keys, so a reader can recompute the number. Below it, "Show raw data (JSON)"
-shows the card exactly as `cases.json` holds it, field for field, for a reader who wants the
-unrendered record.
+its coordinates: that is where the worst case is calculated. The page's queue is
+`/api/queue/full`: every notice in the run, in queue order, split into `attention`, `checked` and
+`no_effect`, so a `cannot_decide` notice has a row even though it has no card; the funnel panel
+lists its missing field from `funnel.json::undecided_detail` with the value it would need to reach
+the limit. `/api/queue` keeps the card-only list for clients that only need the computed cases.
+Every funnel row is a filter button: a stage row shows the notices that passed that stage, a class
+row narrows the queue to that class, and a drop row shows the notices that left with that reason;
+a second click on the row, or Show all, clears the filter. The fetch line names the document
+series (`space`), so an IFIC number alone cannot be mistaken for the terrestrial series. The
+"Show calculation" block carries the formula, the limit source and the input keys, so a reader
+can recompute the number. Below it, "Show raw data (JSON)" shows the card exactly as
+`cases.json` holds it, field for field, for a reader who wants the unrendered record.
 
-Tests (`tests/test_api.py`, 16): the page, the fetch status and its lock, the `runs/latest` pointer,
+Tests (`tests/test_api.py`, 18): the page, the fetch status and its lock, the `runs/latest` pointer,
 the funnel numbers, every card, one card and its 404, the queue order, and the 503/504 error paths.
 The tests that read content take it from one real pipeline run into a temporary `out/` (a private
 copy per test, so one may corrupt its files); the index, health and error paths need no challenge

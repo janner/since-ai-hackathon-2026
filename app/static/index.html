@@ -63,6 +63,7 @@
   .q-group-meta { display: block; margin-top: 2px; font-size: 12px; line-height: 1.33; color: var(--muted); }
   .q-children { margin: 0; padding: 0; list-style: none; border-left: 2px solid var(--line); }
   .q-children button.queue-item { padding-left: 16px; }
+  .q-tier { padding: 12px 0 4px; border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 600; line-height: 1.4; }
   .tag { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 24px; font-size: 12px; line-height: 1.33; }
   .tag.t-exceeds { background: var(--accent-tint); color: var(--accent); }
   .tag.t-near { background: var(--surface); color: var(--fg); }
@@ -205,6 +206,7 @@ const UNDECIDED_EN = {
 };
 const DROP_LABEL = {
   no_band_overlap: "No band overlap",
+  earth_station_notice: "Earth station notice",
   geo_below_horizon: "Below the horizon",
   ngso_never_visible: "Never visible from Finland",
 };
@@ -383,47 +385,48 @@ async function get(url) {
   return body;
 }
 
-function undecidedRows(data) {
-  const detail = data.undecided_detail || {};
-  const ids = Object.keys(detail);
-  if (!ids.length) return [];
-  const list = el("ul", null, "undecided");
-  for (const id of ids) {
-    const d = detail[id] || {};
-    const parts = [id, UNDECIDED_EN[d.reason] || d.reason || "unknown reason"];
-    if (d.required_db !== undefined && d.required_db !== null) {
-      const field = d.field === "psd" ? "transmit PSD" : d.field === "gain" ? "beam gain" : d.field;
-      const unit = d.field === "gain" ? "dBi" : "dBW/Hz";
-      parts.push("the " + field + " would need at least " + num(d.required_db, unit) +
-        " to reach the limit");
-    }
-    list.append(el("li", parts.join(" \u00b7 "), "u-row"));
+function undecidedText(row) {
+  const detail = (funnelData.undecided_detail || {})[row.ntc_id] || {};
+  const parts = [UNDECIDED_EN[detail.reason] || detail.reason || row.reason_text || "unknown reason"];
+  if (detail.required_db !== undefined && detail.required_db !== null) {
+    const field = detail.field === "psd" ? "transmit PSD" : detail.field === "gain" ? "beam gain" : detail.field;
+    const unit = detail.field === "gain" ? "dBi" : "dBW/Hz";
+    parts.push("the " + field + " would need at least " + num(detail.required_db, unit) +
+      " to reach the limit");
   }
-  return [
-    el("li", "Notices that cannot be decided do not produce a card; they keep a row in queue.md and the CSV with the missing value.", "note"),
-    ...list.children,
-  ];
+  return parts.join(" \u00b7 ");
 }
 
-// Funnel rows that are a class: a click filters the queue to that class (again clears it).
+// Every funnel row is a filter button. A second click on the same row clears the filter.
 function filterRows(pairs) {
   const box = el("div", null, "rows");
-  for (const [label, value, klass] of pairs) {
+  for (const [label, value, key] of pairs) {
     const button = el("button", null, "row");
     button.type = "button";
-    button.dataset.filter = klass;
-    button.setAttribute("aria-pressed", String(queueFilter === klass));
+    button.dataset.filter = key;
+    button.setAttribute("aria-pressed", String(queueFilter === key));
     button.append(el("span", label, "k"), el("span", num(value), "v"));
-    button.addEventListener("click", () => setFilter(queueFilter === klass ? null : klass));
+    button.addEventListener("click", () => setFilter(queueFilter === key ? null : key));
     box.append(button);
   }
   return box;
 }
 
-function setFilter(klass) {
-  queueFilter = klass;
+// A row's meaning in the queue: a class narrows, the stage rows show what passed, a drop row none.
+function filterLabel(key) {
+  if (key === "notices") return "all notices";
+  if (key === "g1") return "Band overlap";
+  if (key === "g2") return "Visible from Finland";
+  if (key === "g3") return "Computed";
+  if (CLASS_EN[key]) return CLASS_EN[key];
+  if (key.indexOf("drop:") === 0) return DROP_LABEL[key.slice(5)] || key.slice(5);
+  return "all notices";
+}
+
+function setFilter(key) {
+  queueFilter = key;
   for (const button of document.querySelectorAll("button.row[data-filter]")) {
-    button.setAttribute("aria-pressed", String(button.dataset.filter === klass));
+    button.setAttribute("aria-pressed", String(button.dataset.filter === key));
   }
   renderQueue(queueItems);
   setStatus("");
@@ -439,11 +442,11 @@ function renderFunnel(data) {
     " need attention, " + (q.checked || 0) + " checked, " + (q.no_effect || 0) +
     " without effect on Finland";
   document.getElementById("funnel").replaceChildren(
-    rows([
-      ["Notices", c.notices],
-      ["Band overlap", c.g1],
-      ["Visible from Finland", c.g2],
-      ["Computed", c.g3],
+    filterRows([
+      ["Notices", c.notices, "notices"],
+      ["Band overlap", c.g1, "g1"],
+      ["Visible from Finland", c.g2, "g2"],
+      ["Computed", c.g3, "g3"],
     ]),
     filterRows([
       ["Exceeds limit", c.exceeds, "exceeds"],
@@ -453,7 +456,7 @@ function renderFunnel(data) {
       ["Cannot decide", c.cannot_decide, "cannot_decide"],
     ]),
     el("h3", "Drops"),
-    rows(Object.entries(data.drops).map(([key, value]) => [DROP_LABEL[key] || key, value])),
+    filterRows(Object.entries(data.drops).map(([key, value]) => [DROP_LABEL[key] || key, value, "drop:" + key])),
     el("h3", "Run"),
     rows([
       ["Mode", data.mode],
@@ -532,6 +535,18 @@ function queueRow(item) {
 
   button.addEventListener("click", () => showCase(item.case_id));
   li.append(button);
+  return li;
+}
+
+// A notice without a card keeps a queue row: a dropped notice or one that cannot be decided.
+function noticeRow(row) {
+  const li = el("li", null, "u-row");
+  li.append(el("span",
+    [row.sat_name || row.ntc_id, adminName(row.adm), row.ntc_id].filter(Boolean).join(" \u00b7 "),
+    "q-title"));
+  const detail = row["class"] === "cannot_decide" ? undecidedText(row)
+    : (row.reason_text || row.reason || "");
+  if (detail) li.append(el("span", detail, "q-stage"));
   return li;
 }
 
@@ -636,10 +651,21 @@ function groupRow(items, by) {
 }
 
 let queueItems = [];
+let fullQueue = [];
 let queueGroup = "network";
 let queueFilter = null;
 let funnelData = {};
 let currentCaseId = null;
+
+function matchesFilter(row) {
+  const key = queueFilter;
+  if (!key || key === "notices") return true;
+  if (key.indexOf("drop:") === 0) return Boolean(row.dropped_at) && row.reason === key.slice(5);
+  if (key === "g1") return row.dropped_at !== "G1";  // passed band overlap
+  if (key === "g2") return !row.dropped_at;          // passed horizon
+  if (key === "g3") return Boolean(row.case_id);     // computed into a card
+  return row["class"] === key;
+}
 
 function renderQueue(items) {
   queueItems = items;
@@ -650,27 +676,42 @@ function renderQueue(items) {
     const all = el("button", "Show all", "btn btn-sm");
     all.type = "button";
     all.addEventListener("click", () => setFilter(null));
-    label.append(document.createTextNode("Showing: " + (CLASS_EN[queueFilter] || queueFilter) + " "), all);
+    label.append(document.createTextNode("Showing: " + filterLabel(queueFilter) + " "), all);
   }
-  // Cannot-decide notices have no card, so the queue lists their missing values instead.
-  if (queueFilter === "cannot_decide") {
-    const undecided = undecidedRows(funnelData);
-    ul.replaceChildren(...(undecided.length ? undecided : [el("li", "Nothing is undecided.")]));
+  const cardsById = new Map(items.map((item) => [item.case_id, item]));
+  const visible = fullQueue.filter(matchesFilter);
+  if (!visible.length) {
+    ul.replaceChildren(el("li", queueFilter ? "No notices for this filter." : "The queue is empty."));
     return;
   }
-  // Clear cases are not the queue: the queue is the cases a human looks at (unless asked for).
-  const queue = items.filter((item) => queueFilter
-    ? item["class"] === queueFilter : item["class"] !== "clear").sort(compareQueue);
-  if (!queue.length) {
-    ul.replaceChildren(el("li", queueFilter ? "No cases in this class." : "The queue is empty."));
-    return;
+  const tiers = [
+    ["attention", "Needs attention"],
+    ["checked", "Checked, nothing to note"],
+    ["no_effect", "No effect on Finland"],
+  ];
+  const showEmpty = !queueFilter || queueFilter === "notices";
+  const out = [];
+  for (const [tier, title] of tiers) {
+    const rows = visible.filter((row) => row.tier === tier);
+    if (!rows.length && !showEmpty) continue;
+    out.push(el("li", title + " (" + rows.length + ")", "q-tier"));
+    if (tier === "no_effect") {
+      out.push(...rows.map(noticeRow));
+      continue;
+    }
+    const cards = rows.map((row) => cardsById.get(row.case_id)).filter(Boolean);
+    const withoutCard = rows.filter((row) => !cardsById.has(row.case_id));
+    if (cards.length) {
+      if (queueGroup === "none") {
+        out.push(...cards.map(queueRow));
+      } else {
+        const groups = groupQueue(cards, queueGroup).sort((a, b) => compareQueue(a[0], b[0]));
+        out.push(...groups.map((group) => group.length === 1 ? queueRow(group[0]) : groupRow(group, queueGroup)));
+      }
+    }
+    out.push(...withoutCard.map(noticeRow));
   }
-  if (queueGroup === "none") {
-    ul.replaceChildren(...queue.map(queueRow));
-  } else {
-    const groups = groupQueue(queue, queueGroup).sort((a, b) => compareQueue(a[0], b[0]));
-    ul.replaceChildren(...groups.map((group) => group.length === 1 ? queueRow(group[0]) : groupRow(group, queueGroup)));
-  }
+  ul.replaceChildren(...out);
   if (currentCaseId) markCurrent(currentCaseId);
 }
 
@@ -895,8 +936,13 @@ async function start() {
   loadFetch();
   loadStats();
   try {
-    renderFunnel(await get("/api/funnel"));
-    renderQueue(await get("/api/queue"));
+    const [funnel, cards, full] = await Promise.all([
+      get("/api/funnel"), get("/api/queue"), get("/api/queue/full"),
+    ]);
+    renderFunnel(funnel);
+    queueItems = cards;
+    fullQueue = full;
+    renderQueue(queueItems);
     setStatus("");
   } catch (error) {
     setStatus("Could not load the data: " + error.message);

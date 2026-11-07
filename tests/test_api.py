@@ -65,6 +65,7 @@ def test_missing_out_is_503_and_the_page_still_loads(bare_client):
     response = bare_client.get("/api/cases")
     assert response.status_code == 503
     assert "app.pipeline" in response.json()["detail"]
+    assert bare_client.get("/api/queue/full").status_code == 503
     assert bare_client.get("/").status_code == 200
 
 
@@ -184,6 +185,37 @@ def test_case_by_id(client):
     response = client.get("/api/cases/3074-103500417")
     assert response.status_code == 200
     assert response.json()["case_id"] == "3074-103500417"
+
+
+@pytest.mark.data
+@needs_data
+def test_queue_full_has_every_notice_in_three_tiers(client):
+    body = client.get("/api/queue/full").json()
+    funnel = client.get("/api/funnel").json()
+    assert len(body) == funnel["counts"]["notices"] == funnel["queue"]["shown"]
+    tiers = {"attention": 0, "checked": 0, "no_effect": 0}
+    drops = {}
+    for row in body:
+        assert row["tier"] in tiers
+        tiers[row["tier"]] += 1
+        if row["dropped_at"]:
+            drops[row["reason"]] = drops.get(row["reason"], 0) + 1
+    assert tiers == {key: funnel["queue"][key] for key in tiers}
+    assert drops == funnel["drops"]
+    assert all(row["ntc_id"] for row in body)
+
+
+@pytest.mark.data
+@needs_data
+def test_queue_full_attention_cards_match_the_case_list(client):
+    body = client.get("/api/queue/full").json()
+    cards = client.get("/api/queue").json()
+    by_case = {row["case_id"]: row for row in body if row["case_id"]}
+    for card in cards:
+        row = by_case[card["case_id"]]
+        assert row["tier"] in ("attention", "checked")
+        assert row["class"] == card["class"]
+        assert row["adm"] == card["parties"]["admin"]
 
 
 @pytest.mark.data

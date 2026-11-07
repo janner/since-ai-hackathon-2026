@@ -38,6 +38,10 @@ Block word counts: problem 42, solution 48, live demo 123, impact 59.
 
 ## Recording notes
 
+- The recorded cut uses a tightened 279-word narration (1:59), not the full table below; the table is
+  the unedited script.
+- Narration is generated with ElevenLabs (Eleven Multilingual v2, voice Rachel).
+
 - **Do not click "Check now".** On the submission tree it would fetch IFIC 3076 and move
   `runs/latest`. The demo reads the status line the 3075 run left. If a recording of the real
   7 Nov 09:43 fetch exists, splicing it in over 0:38–0:45 is stronger than the status line.
