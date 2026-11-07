@@ -432,9 +432,12 @@ function setFilter(klass) {
 function renderFunnel(data) {
   funnelData = data;
   const c = data.counts;
+  const q = data.queue || {};
   document.getElementById("funnel-line").textContent =
     c.notices + " \u2192 " + c.g1 + " \u2192 " + c.g2 + " \u2192 " + c.g3 + " + " +
-    c.cannot_decide + " \u00b7 queue " + ((data.queue && data.queue.shown) || 0);
+    c.cannot_decide + " \u00b7 every notice in the queue: " + (q.attention || 0) +
+    " need attention, " + (q.checked || 0) + " checked, " + (q.no_effect || 0) +
+    " without effect on Finland";
   document.getElementById("funnel").replaceChildren(
     rows([
       ["Notices", c.notices],
