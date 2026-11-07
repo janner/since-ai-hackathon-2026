@@ -491,7 +491,7 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 | Filing action on the card | Read `notice.act_code` into a `filing_action` field and a queue column | Small |
 | Register pre-filter | Filter the register by the protected bands before loading it into memory; one change in `load_register()` | Small change, blocked on the real register |
 | Res 35 deadline ordering | Fold the `grp_res35` deadlines into the queue order; 26 groups fall due on 19 Dec 2026 | Small to medium |
-| New IFIC detection | The brief opens the workflow with the word "detecting"; today the issue number is given by hand | Medium |
+| Scheduled cadence | The monitor is built (`scripts/monitor.py`) and the issue number is no longer given by hand, but nothing is installed: the cadence needs one line in whatever scheduler the operator already runs | Small |
 | M15 cross-check | The brief lists it; the tool does not use it | Medium |
 | CEPT/ECC DocDB | The third tier of the protection framework; not used | Medium |
 | Space-side trends | Needs a second IFIC issue; the terrestrial side already has trends | Medium, blocked on data |

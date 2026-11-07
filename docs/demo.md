@@ -4,6 +4,14 @@ Everything below was run on 7 Nov 2026; the output blocks are the real
 output, not illustrations. Numbers may move by a second or two between runs, and the timestamps and
 `run_at` fields change with the clock.
 
+Two runs sit side by side, and the script in section 10 keeps them apart.
+
+- **IFIC 3074 is the accuracy material.** It is the package the challenge ships, and the numbers in
+  sections 2 to 4 (196 notices, the slice, the seven-band run) come from it. `out/` holds that run.
+- **IFIC 3075 is the automatic-search demo.** The monitor fetched it on 7 Nov 2026 and the funnel
+  ran into `runs/3075/`; `runs/latest` points there, so the web UI shows the 3075 queue. Section 2b
+  is that run.
+
 ## 1. One-time setup
 
 ```bash
@@ -19,7 +27,7 @@ file. The database itself is read at run time by `mdb-export` (`apt install mdbt
 download needs a network. The deterministic pipeline does not: it opens a connection only in the
 optional LLM prose step, and only when `LLM_BASE_URL` is set.
 
-## 2. The demo run: the 3.47 to 3.78 GHz slice
+## 2. The accuracy run on IFIC 3074: the 3.47 to 3.78 GHz slice
 
 ```bash
 uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
@@ -36,6 +44,57 @@ wrote out/cases.json, cases.md, queue.md, funnel.json, 3074_results.csv, run.log
 The first line is the funnel: 196 notices, 41 overlap a protected band, 19 of those can be seen from
 Finland, 18 get a number and one cannot be decided. The whole run takes a few seconds — most of it
 the `mdb-export` of the 15 tables — and opens no connection with no LLM configured.
+
+## 2b. The automatic check: what the monitor did on IFIC 3075
+
+Nobody downloads the package by hand. `scripts/monitor.py` asks ITU for the next space BR IFIC and
+ingests it when it appears; the "Tarkista nyt" button in the page runs the same thing.
+
+```bash
+uv run python scripts/monitor.py --check   # ask ITU now, ingest a new package
+uv run python scripts/monitor.py           # print the last known status
+```
+
+The check of 7 Nov 2026 wrote `runs/3075/`:
+
+```
+run_at=2026-11-07T09:43:56+02:00
+input_sha256=5416d9e8a67fc22fb055cb0b6f457e8bb205df90d3e6e0a0dccd9be0ede02a07
+rules_version=1.1.0
+ific=3075
+source_file=ific3075.mdb
+mode=slice
+notices=129
+freq_rows=50645
+stations_on_band=7
+bands=2
+visible=GEO 9 NGSO 0
+g1=19 g2=9 g3=7 cannot_decide=2
+letters=3
+elapsed_s=2.05
+```
+
+`runs/3075/funnel.json` carries the counts as `129 → 19 → 9 → 7 + 2`, with the drops
+`no_band_overlap` 110 and `geo_below_horizon` 10, and 9 rows in the queue. The run wrote seven cards
+to `cases.json` (3 exceeds, 4 near, no clear), 129 rows to `3075_results.csv`, three letters to
+`runs/3075/letters/`, and its own `queue.md`, `run.log` and `teams_message.*`. The first card is
+`3075-108501259`. The two notices the tool refuses to decide are rows 8 and 9 of `queue.md`:
+`126590034` and `126590035`, Resolution 49, no PSD, each with the value it would need (`psd ≥`
+−21,77 and −24,74 dBW/Hz).
+
+`runs/latest` now points at 3075, so the web UI shows the 3075 queue. The monitor does not touch
+`out/`: that directory keeps the 3074 outputs. A failed check (a truncated download, a broken zip,
+a run that dies) writes `status: error`, exits 1, and leaves `runs/latest` and `out/` as they were.
+
+The top-bar panel reads the last answer from `out/fetch_status.json`:
+
+- `new`: "Uusi IFIC 3075 haettu ja ajettu 7.11.2026 klo 9.43 · 129 ilmoitusta."
+- `no_new`: "Uutta IFIC:iä ei ole vielä julkaistu (viimeisin 3075). Tarkistettu <aika> · seuraava
+  tarkistus <aika>."
+- `error`: "Tarkistus epäonnistui <aika>: <viesti>."
+
+The cadence is 14 days (`CADENCE` in `scripts/monitor.py`), and `next_check` is written only when a
+check finds nothing new.
 
 ## 3. What to look at
 
@@ -171,7 +230,7 @@ uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 ```
 
 ```
-terrestrial 3075→3076: 2905 new, 163 modified, 413 withdrawn, 576 recorded, 28 notices in reach
+terrestrial 3075→3076: 2905 new, 163 modified, 413 withdrawn, 28 notices in reach
 ```
 
 `out/TERRESTRIAL.md` is the readable report: the intent table, the field strength at the border
@@ -218,10 +277,10 @@ cards, because no endpoint was set.
 ## 8. The full test suite
 
 ```bash
-make check        # ruff check, ruff format --check, pytest: 134 passed with data/
+make check        # ruff check, ruff format --check, pytest: 160 passed with data/
 ```
 
-In a clean clone without `data/`, the data tests skip themselves: 91 passed, 43 skipped. The number
+In a clean clone without `data/`, the data tests skip themselves: 116 passed, 44 skipped. The number
 to quote for "does it work on my machine" is that one, since it needs no challenge data.
 
 ## 9. The optional Teams digest (15 seconds)
@@ -231,28 +290,30 @@ turns the files of the run into one message per IFIC:
 
 ```bash
 uv run python scripts/notify.py --dry-run --html
-# writes out/teams_message.md, out/teams_message.json, out/teams_message.html
+# reads runs/latest (the run the page shows); writes teams_message.{md,json,html} into that run
 ```
 
-The message of the slice run in section 2:
+The message of the auto-fetch run in section 2b:
 
 ```
-# BR IFIC 3074 — 15 huomioitavaa
+# BR IFIC 3075 — 9 huomioitavaa
 
-Suppilo: 196 → 41 → 19 → 18 + 1
-Luokat: 9 ylittää · 5 lähellä
+Suppilo: 129 → 19 → 9 → 7 + 2
+Luokat: 3 ylittää · 4 lähellä
 
 ## Kiireellisimmät
-1. 124545403 — exceeds, No. 9.1, 60,44 dB
-2. 124520183 — exceeds, No. 9.6, 2,95 dB
-3. 124520184 — exceeds, No. 9.6, 1,03 dB
+1. 108501259 — exceeds, No. 11.2, 0,38 dB
+2. 308501259 — exceeds, No. 11.2, 0,38 dB
+3. 125512025 — exceeds, No. 11.2, 0,04 dB
 
 Kaista: http://localhost:8000
 ```
 
-Open `out/teams_message.html` for the same text as a channel card. The three lines are `queue.md`
-rows 1 to 3 and the counts are the ones in `funnel.json`: the script reads those two files and
-computes nothing. One message per run, no bot, no chat, no schedule.
+Open `runs/3075/teams_message.html` for the same text as a channel card. The script follows
+`runs/latest`, so it builds the digest of the run the page shows; pointed at `out/` with `KAISTA_OUT`
+it builds the 3074 accuracy slice instead. The three lines are `queue.md` rows 1 to 3 and the counts
+are the ones in `funnel.json`: the script reads those two files and computes nothing. One message per
+run, no bot, no chat, no schedule.
 
 `--send` POSTs the same card to `TEAMS_WEBHOOK_URL`. That path has never run against a real Teams
 channel, because there was no test channel, so show the dry-run output and say so. The link in the
@@ -261,15 +322,27 @@ running the UI; a link a real channel could use needs the app on a hosted URL.
 
 ## 10. Three-minute demo script
 
+Two data sets on the screen: IFIC 3074 is the accuracy material, IFIC 3075 is what the automatic
+search fetched. The first 30 seconds are the automatic check; the rest is one card of the run it
+produced.
+
 | Time | On screen | What to say |
 |---|---|---|
-| 0:00 | terminal, `data/itu-ific-3074/` and the slice command | 196 notices, 95 865 frequency rows, published every two weeks, checked by hand today |
-| 0:20 | run the slice command, funnel line appears | 196 to 41 to 19 to 18 plus one that cannot be decided |
-| 0:50 | `out/cases.md`, card 3074-103500417 | the number, the citation for the limit, the missing beam geometry, the question we would send |
-| 1:40 | `queue.md`, row 15, case 126590032 | the case the tool refuses to decide, with the reason `no_power`, and why that is a feature |
-| 2:20 | `out/teams_message.html` in a browser (optional, 15 s) | one message per IFIC, built from the same files; the webhook path exists, the live send was never made |
-| 2:35 | terrestrial MDB run, `TERRESTRIAL.md` | the same style for terrestrial notices: the intent diff, field strength, trends, threshold open |
-| 2:50 | the UI, or `run.log` | every number is reproducible from the hash and the rules version; the human decides |
+| 0:00 | browser, the top-bar panel and "Tarkista nyt" | the panel holds the last check of "Uusi aineisto": the newest package and when it was checked. With nothing new published it also names the next check ("Uutta IFIC:iä ei ole vielä julkaistu (viimeisin 3075). Tarkistettu <aika> · seuraava tarkistus <aika>."). Nobody downloads anything; the tool asks ITU itself, every two weeks. |
+| 0:10 | click "Tarkista nyt", the panel updates | the button asks ITU now. When a package is out the panel turns into "Uusi IFIC 3075 haettu ja ajettu 7.11.2026 klo 9.43 · 129 ilmoitusta.", the funnel runs behind it and the queue loads. When nothing is new it says so and nothing moves. |
+| 0:25 | the funnel panel | 129 notices: 110 with no band overlap and 10 below the horizon dropped, 19 overlap a protected band, 9 of those can be seen from Finland, 7 get a number and 2 cannot be decided. |
+| 0:35 | the queue, card `3075-108501259` (the first card of `cases.json`) | APSTAR-92E, 3 520-3 560 MHz, No. 11.2, recorded in the MIFR: PFD −187,64 against the −188,02 dB(W/m²/Hz) limit, margin +0,38 dB. |
+| 0:50 | the card's "Missing" line | the beam geometry is empty in IFIC 3075, so the tool cannot say whether the beam covers Finland. Four fields are listed, and the question to China follows from them. |
+| 1:05 | `runs/3075/letters/3075-108501259.md` | the draft letter: the number, the missing service area, the question. The tool drafts; a human sends it from their own mailbox. |
+| 1:20 | "Näytä laskelma" on the card | the calculation behind the number: max PSD −50,3 dBW/Hz, beam gain 26,0 dBi, slant range 41 441 km, free-space loss 163,34 dB, and the limit with its Article 21 Table 21-4 row. |
+| 1:35 | `out/TERRESTRIAL.md` | the same style for terrestrial notices: 2 905 new, 163 modified, 413 withdrawn and 28 notices in reach against BR IFIC 3076. That file comes from the offline run into `out/`; the monitor run is space-only. |
+| 1:50 | `runs/3075/queue.md`, rows 8 and 9 (`126590034`, `126590035`) | "ihminen päättää": the two notices the tool refuses to decide, with the level each would need (psd ≥ −21,77 and −24,74 dBW/Hz). Listing them instead of guessing is the point; the decision is left to a human. |
 
-If the UI is not running, the demo works from `cases.md` and `queue.md` alone. The deterministic run
-needs no network, and nothing breaks when the language model is absent.
+**Before the click.** The check fetches the number after `runs/latest`. On 7 Nov 2026 that was 3075
+and ITU had already published 3076, so a live click on this tree fetches 3076 and the page moves on
+to it. Either accept that and demo 3076, or skip the click and narrate the status line the 3075 run
+left. Do not run the check on the tree you are about to submit.
+
+If the UI is not running, the demo works from `cases.md` and `queue.md` alone; for the 3075 run those
+are in `runs/3075/`. Everything except the "Tarkista nyt" click is offline, and nothing breaks when
+the language model is absent: every card of the 3075 run carries the deterministic template.

@@ -23,14 +23,13 @@ Every two weeks the ITU publishes a BR IFIC: a package of new satellite filings.
 
 Kaista is a triage tool for that first pass. It reads one IFIC package, derives the protected bands from Traficom's table of frequencies of interest, keeps the space-to-Earth notices that overlap those bands and can be seen from Finland, and computes an upper-bound power flux density against the ITU Radio Regulations Article 21, Table 21-4 limit. Whatever survives and can be computed becomes a case card: the source rows, the calculation, the Finnish allocation from Regulation M4, the regulatory stage of the filing, the fields that are missing, and one question for the other administration. A human decides what to do with each card.
 
-The funnel is the whole point, so the tool shows it. On the demo slice (3,470 to 3,780 MHz) 196 notices become 41 on band overlap, 19 visible from Finland, and 18 computed cards. Nine cards exceed the limit, five come near it and four are clear. One notice passes the first two gates and cannot be computed, so it keeps its row in the queue and the CSV as cannot_decide instead of becoming a card. Over all seven space bands the run goes 196 to 101 to 75 to 64 computed cards, with 26 exceeding, 15 near and 23 clear, and a queue of 52. The queue is not capped: the written brief names no target number, so every exceedance, near-limit case and undecidable notice gets a row. Inside a class the queue puts the stage another administration can still influence (advance publication, coordination request) before a filing already recorded in the MIFR. Nothing is dropped silently: every notice that leaves carries a stage and a reason in 3074_results.csv, and the counts are in funnel.json.
+The funnel is the whole point, so the tool shows it. On the demo slice of the challenge package (3 470 to 3 780 MHz) 196 notices become 41 on band overlap, 19 visible from Finland and 18 computed cards: nine exceed the limit, five come near it, four are clear, and one notice passes both gates but cannot be computed, so it keeps a row as cannot_decide instead of becoming a card. Over all seven space bands the run goes 196 to 101 to 75 to 64 cards. The queue is not capped, and inside a class it puts the stage another administration can still influence (advance publication, coordination request) before a filing already recorded in the MIFR. Nothing is dropped silently: every notice that leaves carries a stage and a reason in 3074_results.csv.
 
-Everything before the card text is deterministic. The pipeline reads the BR IFIC Access database with `mdb-export`, plus a CSV and a JSON file, uses standard-library math, and never opens a network connection. The PFD is an upper bound, not a claim of interference: max PSD plus max beam gain minus free-space loss, against Table 21-4. The one optional step is prose. If LLM_BASE_URL is set, a language model writes the card summary; if it is not, a template does. The model never supplies a number. A numeric guard reads every sentence and rejects it if it carries a number that is not already in the card, and the template takes over. The letter to the other administration has its own template and its own function. In the Red Hat award setup the drafting model runs in an OpenShift AI sandbox and the pipeline runs on the laptop, so with `LLM_BASE_URL` unset nothing leaves the machine.
+Everything before the card text is deterministic: `mdb-export` reads the BR IFIC Access database, plus a CSV and a JSON file, and standard-library math does the rest. The pipeline never opens a network connection. The PFD is an upper bound, not a claim of interference: max PSD plus max beam gain minus free-space loss, against Table 21-4. The one optional step is prose. With an endpoint configured a language model writes the card summary, otherwise a template does. The model never supplies a number: a numeric guard rejects any sentence whose number is not already on the card, and the template takes over. In the Red Hat award setup the drafting model runs in an OpenShift AI sandbox and the pipeline runs on the laptop; with `LLM_BASE_URL` unset nothing leaves the machine.
 
-The tool is built as one module per feature, each with its own test file, 137 tests in all (94 of
-them run in a clean clone; the rest need the challenge data). A slice run takes about 3.5 seconds and
-the seven-band run about 7.7 seconds on the hackathon machine, most of it `mdb-export` reading the
-BR IFIC database. The repository also carries a side feature for terrestrial land-mobile notices. It is not a second program: one command runs it, `python -m app.pipeline --terrestrial`, in the same pass and into the same output directory as the space funnel, and each file it writes carries the same `source` (file, SHA256, tables, keys) and `audit` (input SHA256, rules version, run time) blocks as a space case card; only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates. It reads two real BR IFIC terrestrial databases (3075 and 3076), takes each notice's change from its intent field, keeps what is within 1,000 km of Finland and overlaps the register, and computes the field strength at points along the Finnish border.
+Finding the package is the other half, so the tool does it too. `scripts/monitor.py` asks ITU for the next space BR IFIC, and the page shows the last package checked, when it was checked and, when nothing new is out yet, when the next check falls. "Tarkista nyt" asks ITU again and ingests what it finds; a clean run writes its own `runs/<ific>/` and moves the `runs/latest` pointer. The check pulled IFIC 3075, the automatic path's demo: 129 notices to 19 to 9, seven cards and two undecidable notices, first card 3075-108501259 (APSTAR-92E, 0,38 dB over the limit). IFIC 3074 stays the accuracy material.
+
+The tool is one module per feature, each with its own test file, 160 tests in all, 116 of them in a clean clone. A slice run takes about 3.5 seconds. A side feature applies the same style to terrestrial land-mobile notices: `python -m app.pipeline --terrestrial` runs it in the same pass and into the same output directory, with the same `source` and `audit` blocks on every file it writes, and only the calculation path differs, ITU-R P.1546-6 field strength instead of the PFD gates.
 
 Two things the build met on the way. Beam geometry is empty in IFIC 3074, so the tool cannot decide whether a beam actually illuminates Finland; instead of guessing, every card carries that as a question and lists the missing fields. And the reference tool behind the plan read the register cell `0,1G` as 0.1 MHz, while this code reads the `Channel bandwidth` column as 0.1 GHz = 100 MHz; that is why the seven-band funnel sits one notice above the plan (101 against 100). The demo slice is identical either way, and the difference is written up in docs/decisions.md.
 
@@ -57,8 +56,10 @@ the source zip below.
 
 **Demo video** (YouTube, public or unlisted, ideally under 2 min; no file uploads)
 
-TODO (human): Janne records it. Script and exact commands are in `docs/demo.md` (three minutes on stage,
-under two minutes on video, product visible in the first 20 seconds). No link is invented here.
+TODO (human): Janne records it. Script and exact commands are in `docs/demo.md` (three minutes on stage;
+under two minutes on video). Open on the automatic check: the top-bar "Uusi aineisto" panel and the
+"Tarkista nyt" click are the first 30 seconds, and the funnel and the first card follow. No link is
+invented here.
 
 **Source code .zip** (one file, max 100 MB; leave out dependencies and data)
 
@@ -158,7 +159,8 @@ Measured evidence, 7 Nov 2026, sandbox `janner-1-dev`. The raw output is in
   the local run. `prose.source`: llm 5, template_guard 12, template 1, so the guard rejected 12 of
   the 17 drafts it saw. One call per card, 36.6 s to 120.3 s, median 86.9 s, whole run 25.6 min. The
   deterministic part of the same run took 1.19 s.
-- `make check` green: 137 tests passed that day. The tests never need the network.
+- `make check` green: 137 tests passed in that run; 160 at the final commit. The tests never need
+  the network.
 - One card of 18 fell back to the template. The slowest call measured 120.3 s, right at the 120 s
   client timeout in `app/llm.py`, but the log does not tell a timeout from a blank answer. After the
   list-marker fix a re-run on the loaded node did not get through that timeout at all:
@@ -184,20 +186,20 @@ Sandbox facts (verified 6 and 7 Nov 2026, namespace `janner-1-dev`):
 
 Automated, done in the repository
 
-- [x] `make check` green: ruff check, ruff format --check, 137 tests passed
-- [x] README run steps work in a clean clone (94 passed, 43 skipped without `data/`)
+- [x] `make check` green: ruff check, ruff format --check, 160 tests passed
+- [x] README run steps work in a clean clone (116 passed, 44 skipped without `data/`)
 - [x] Pre-existing work and outside assets stated in README and About (template commit `6fe98b9`)
 - [x] No secrets or challenge data committed; `data/` and `out/` are gitignored
 - [x] `make submission-zip` builds `dist/kaista-submission.zip`, tracked files at HEAD only, no data
 - [x] `docs/architecture.md` present and linked from the README documentation table
-- [ ] Submission-form field text lengths, re-measured 7 Nov 2026: name 6 and tagline 69 are inside
-      their limits; the About text is 5,176 characters, 176 over the form's 5,000 limit. Trim it
-      before pasting.
+- [x] Submission-form field text lengths, re-measured 7 Nov 2026: name 6 and tagline 69 are inside
+      their limits; the About text is 4,867 characters, inside the form's 5,000 limit.
 
 Human steps, before submitting
 
 - [ ] Push: `origin/main` already carries the deadline commits; push the final commit before submitting
-- [ ] Demo video on YouTube, public or unlisted, under 2 minutes, product visible in the first 20 seconds
+- [ ] Demo video on YouTube, public or unlisted, under 2 minutes; opens on the automatic check (the
+      "Uusi aineisto" panel and the "Tarkista nyt" click) in the first 30 seconds
 - [ ] Source zip rebuilt after the final commit and attached to the form (under 100 MB)
 - [ ] Repository URL pasted into the form (and the repo made readable to judges)
 - [ ] Demo URL opens logged out, if a demo URL is given at all

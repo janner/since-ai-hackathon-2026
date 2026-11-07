@@ -53,18 +53,21 @@ and overlaps the register, and computes ITU-R P.1546-6 field strength at points 
 
 ![Kaista UI: funnel, queue and a selected case card](docs/screenshot.png)
 
-The screenshot above is the demo slice after the run: the funnel, the queue and the selected card
-3074-103500417 (COMPASS-80E, over the limit by 3,24 dB).
+The screenshot above is the auto-fetch run: the funnel and the status line for IFIC 3075, the queue
+of the seven cards it computed, and a selected case card.
 
 ## Verified numbers
 
-Measured 7 Nov 2026 on IFIC 3074: `make check` 137 tests passed (94 passed, 43 skipped without
-`data/`), the slice run takes about 3.5 s, the seven-band run about 7.7 s — most of it `mdb-export`
-reading the 15 tables out of the BR IFIC Access database. The deterministic pipeline is offline; the
-optional LLM prose step is the only part that opens a connection, and only when `LLM_BASE_URL` is
-set.
+Two runs are on record and their numbers are not interchangeable. The auto-fetch demo is IFIC 3075,
+the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 4 near, 2 `cannot_decide`,
+9 queue rows and the first card `3075-108501259`. The accuracy dataset is the challenge's IFIC 3074
+(`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026: `make check`
+160 tests (116 passed, 44 skipped without `data/`). The deterministic pipeline is offline; the
+optional LLM prose step is the only part of the run that opens a connection, and only when
+`LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
+checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
 
-| | Demo slice 3 470–3 780 MHz | All seven space bands (`--all`) |
+| | Accuracy slice 3 470–3 780 MHz (IFIC 3074) | All seven space bands (`--all`) |
 |---|---|---|
 | Notices in | 196 | 196 |
 | Register stations on the bands | 7 | 84 |
@@ -133,8 +136,9 @@ uv run uvicorn app.main:app --reload      # http://localhost:8000
 The deterministic pipeline is offline. The LLM is an optional extra step: without `LLM_BASE_URL`
 every card falls back to the deterministic template in `templates/`, and the run opens no
 connection at all. With `LLM_BASE_URL` set, `app/prose.py` makes one request per card to that
-endpoint through `app/llm.py`. `scripts/fetch_data.py` remains the only code that downloads
-anything, and only when called by hand.
+endpoint through `app/llm.py`. Two scripts reach the network: `scripts/monitor.py`, which checks
+ITU for the next BR IFIC and runs it into `runs/<ific>/`, and `scripts/fetch_data.py`, the one-time
+preparation that downloads the fixed packages by hand.
 
 ### Output files
 
@@ -166,8 +170,8 @@ HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never ente
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
-| With `data/` | 137 passed |
-| Clean clone, no `data/` | 94 passed, 43 skipped |
+| With `data/` | 160 passed |
+| Clean clone, no `data/` | 116 passed, 44 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
@@ -187,8 +191,8 @@ row; the funnel endpoint carries their count.
 
 ## Teams notification (optional)
 
-A wish, not a requirement. `scripts/notify.py` reads `out/funnel.json` and `out/cases.json` from the
-last run and builds one message per IFIC: the funnel numbers, the three most urgent cases in queue
+A wish, not a requirement. `scripts/notify.py` reads `funnel.json` and `cases.json` from the run the
+page shows (`runs/latest`, else `out/`) and builds one message per IFIC: the funnel numbers, the three most urgent cases in queue
 order, and the link to the UI. One message per run. No bot, no chat, no Graph, no cron, no LLM, and
 standard library only: it computes nothing the files do not already carry.
 
@@ -298,8 +302,8 @@ at all: open `out/teams_message.html`.
     stands (see "Next steps" in `docs/features.md`).
 20. What is not built, and what each piece would take, is listed in `docs/features.md` under "Next
     steps": the filings chain (`ntc_lnk`), the filing action (`notice.act_code`), the AP30 plan path,
-    RR Art. 22 / EPFD, new-IFIC detection, space-side trends, Resolution 35 deadline ordering, the
-    M15 cross-check and the CEPT/ECC DocDB tier.
+    RR Art. 22 / EPFD, space-side trends, Resolution 35 deadline ordering, the M15 cross-check
+    and the CEPT/ECC DocDB tier.
 
 ## Layout
 
@@ -318,7 +322,7 @@ app/            one module per feature, each with tests/test_<feature>.py
   main.py       read-only API and the page
 rules/          rr21_table21_4.csv, p1546_land.csv
 templates/      the two Finnish templates (card summary, correspondence)
-scripts/        fetch_data.py, demo.sh, notify.py
+scripts/        fetch_data.py, monitor.py, demo.sh, notify.py
 docs/           features.md, architecture.md, decisions.md, demo.md
 tests/          unit, component and data tests; the data tests read data/ and skip when it is missing
 data/  out/     local only, ignored by git
@@ -338,9 +342,10 @@ Traficom's synthetic dataset from the Since AI platform and has to be copied in 
 - No personal data goes through the pipeline.
 - No secrets in the repository: configuration comes from `.env` (see `.env.example`), and the only
   credential any code reads is `LLM_API_KEY`, sent to the endpoint the user configured.
-- The deterministic run is offline. `scripts/fetch_data.py` is the only code that downloads data, and
-  only when called by hand. The optional LLM prose step (`LLM_BASE_URL`) makes one request per card
-  to the endpoint the user configured.
+- The deterministic run is offline. `scripts/monitor.py` is the only code that downloads on its own:
+  it checks ITU for the next BR IFIC and runs it. `scripts/fetch_data.py` downloads the fixed packages
+  when called by hand. The optional LLM prose step (`LLM_BASE_URL`) makes one request per card to the
+  endpoint the user configured.
 - `data/` and `out/` are gitignored. The register and the IFIC package are not redistributed.
 
 ## Technology inventory
