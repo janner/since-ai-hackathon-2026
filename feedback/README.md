@@ -12,7 +12,7 @@ Hermeksen kotihakemistoon, eivät repoon eivätkä kolmannelle osapuolelle.
 1. Tausta: miten työ tehdään tänään, kuka hakee IFIC:n ja kuinka kauan se kestää.
 2. Automaattihaku: mikä IFIC on viimeksi haettu ja montako ilmoitusta siinä oli.
 3. Tapaus: miksi jonon ylin tapaus on listalla ja mitä tietoa siitä puuttuu.
-4. Seuraava askel: mistä löytyy kysymys toiselle hallinnolle.
+4. Seuraava askel: mitä tapaukselle tehdään ja mistä kortin kohdasta sen näkee.
 5. Ei-päätettävät: etsi kaksi ilmoitusta, joita työkalu ei voi päättää.
 6. Laskelma ja luottamus: PFD, raja ja marginaali; luottamus 1–5.
 
