@@ -9,6 +9,7 @@ The case-drafting model runs in the cluster. Everything else runs on the laptop.
 | Route `granite` | same project | Edge TLS, redirects HTTP to HTTPS |
 | `app/pipeline.py` and the rest | laptop | Ingestion, gates, PFD, cards, funnel, UI |
 | `app/llm.py` (one chat call per card) | laptop to route | The only network call in a run, and only in the optional prose step |
+| `deploy/openshift/pipeline/` (Data Science Pipeline) | OpenShift AI sandbox `janner-1-dev` | The triage funnel itself, as a three-stage KFP v2 pipeline (`ingest -> triage -> metrics`) on the managed object store; see `deploy/openshift/pipeline/README.md` |
 
 The deterministic path never opens a connection. Unset `LLM_BASE_URL` and the cards get the
 deterministic template instead. Tests never need the network.
@@ -51,6 +52,9 @@ uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
 
 `app/llm.py` speaks the OpenAI chat API, so the same command works against any endpoint that
 does. The card records the served model in `prose.model` when the model text is kept.
+
+The same sandbox also runs the funnel end to end without the laptop: a `DataSciencePipelinesApplication`
+with a three-stage KFP v2 pipeline. See `deploy/openshift/pipeline/README.md`.
 
 ## Measured evidence (7.11.2026, sandbox `janner-1-dev`)
 

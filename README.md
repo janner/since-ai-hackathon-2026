@@ -39,7 +39,8 @@ undecidables. The queue lists every case a human should look at: exceedances
 first, then the near-limit cases, then the ones that cannot be decided, and inside a class the
 stage another administration can still influence (advance publication, coordination request) comes
 before a filing already recorded in the MIFR. It is not capped. A separate accuracy file covers all
-196 notices, the dropped ones included. A human decides.
+196 notices, the dropped ones included (it ships as `results/3074_results.csv` inside the submission
+zip, not in the repository). A human decides.
 
 The language model writes the card summary and, for each case above the limit, the correspondence
 letter. Every number comes from code, and a numeric guard rejects a sentence that carries a number
@@ -164,11 +165,13 @@ make fmt          # fix lint and formatting
 make test         # pytest -q; tests marked @pytest.mark.data skip when data/ is missing
 make test-data    # only the tests that need the real challenge data
 make run          # uvicorn on http://localhost:8000
-make submission-zip   # tracked files at HEAD into dist/kaista-submission.zip
+make submission-zip   # tracked files at HEAD + the run's results/ into dist/kaista-submission.zip
 ```
 
-`make submission-zip` builds the source archive for the submission form from the files tracked at
-HEAD, under a `kaista/` prefix. `data/`, `out/`, `.venv/` and `dist/` never enter it.
+`make submission-zip` builds the source archive for the submission form: the files tracked at HEAD
+under a `kaista/` prefix, plus the accuracy files from the last run under `results/`
+(`3074_results.csv`, `terrestrial_findings.json`, `terrestrial_trends.csv`, `TERRESTRIAL.md`).
+`data/`, `out/`, `.venv/` and `dist/` never enter it.
 
 | Environment | Result (7 Nov 2026) |
 |---|---|
@@ -267,9 +270,10 @@ at all: open `out/teams_message.html`.
     threshold per notice.
 11. Not implemented: the labelled evaluation set (plan R16) and the LUMI run (R20). The OpenShift AI
     part (R19) was built and used: Granite 3.3 2B Instruct served by KServe and the vLLM CPU runtime
-    in the sandbox, called by the prose step. See `deploy/openshift/README.md`. The demo video, the
-    push and the rest of the submission form are the owner's steps; `SUBMISSION.md` lists them under
-    the final check.
+    in the sandbox, called by the prose step (`deploy/openshift/README.md`); and the funnel itself ran
+    in the cluster as an OpenShift AI Data Science Pipeline, a three-stage KFP v2 run
+    (`deploy/openshift/pipeline/README.md`). The demo video, the push and the rest of the submission
+    form are the owner's steps; `SUBMISSION.md` lists them under the final check.
 12. The queue has no cap. The written challenge brief names no target number, and the job is to
     find the problems and report them, not to shorten the list. Everything stays in the files; the
     clear cases keep their row in `cases.json` and `3074_results.csv` and are left out of the queue.
@@ -421,4 +425,5 @@ during the hackathon, 6 to 8 Nov 2026.
 | `docs/demo.md` | The three-minute demo script and the exact commands, with the expected output |
 | `docs/demo-video.md` | The two-minute demo video: timed narration, screen plan, caption lines |
 | `deploy/openshift/README.md` | What runs in the cluster and what runs on the laptop, the apply and call commands, and the measured evidence from the served Granite |
+| `deploy/openshift/pipeline/README.md` | The funnel as an OpenShift AI Data Science Pipeline: the three KFP v2 stages, the manifests, and the measured cluster run |
 | `SUBMISSION.md` | Draft of the sinceai.app submission form and the Red Hat award checklist |

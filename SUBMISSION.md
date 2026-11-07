@@ -62,9 +62,11 @@ caption lines — is `docs/demo-video.md`; the three-minute stage script with th
 
 **Source code .zip** (one file, max 100 MB; leave out dependencies and data)
 
-`make submission-zip` writes `dist/kaista-submission.zip` from the tracked files at HEAD, under a
-`kaista/` prefix. It holds the repository's tracked files only: no `data/`, `out/`, `.venv/`, `.git/`
-or `dist/`. Run it after the final commit, attach the file.
+`make submission-zip` writes `dist/kaista-submission.zip`: the tracked files at HEAD under a `kaista/`
+prefix, plus the accuracy files the brief asks for as separate files, under `results/`
+(`3074_results.csv`, `terrestrial_findings.json`, `terrestrial_trends.csv`, `TERRESTRIAL.md`). The
+repository itself holds no `data/`, `out/`, `.venv/`, `.git/` or `dist/`. Run it after the final
+commit, with `out/` filled by a pipeline run, and attach the file.
 
 **MLH questions**
 
@@ -101,7 +103,7 @@ confidential), so no personal ticks are needed.
   the Bureau required at least two independent implementations before relying on the software
   (https://www.itu.int/epfdsupport/). All sources are listed in README and in part 4 of
   `docs/decisions.md`.
-- Partner technologies: Red Hat OpenShift AI, see below.
+- Partner technologies: Red Hat OpenShift AI. Two parts: the drafting model on KServe with vLLM, and the triage funnel itself as an OpenShift AI Data Science Pipeline. See below.
 - Teams digest: no field of its own. The optional `scripts/notify.py` builds one message per IFIC for
   an incoming Teams webhook (dry-run output `out/teams_message.md`, preview `out/teams_message.html`).
   The webhook path is implemented and unit-tested; no live send was made, because there was no test
@@ -123,6 +125,17 @@ own peak gain rather than a worst-case guess.
 **Claimed: the drafting model is served by OpenShift AI and the app called it.** Granite 3.3 2B
 Instruct (Red Hat modelcar) runs on KServe with the vLLM CPU runtime in the sandbox project
 `janner-1-dev`, and the prose step drafted cards through its OpenAI-compatible endpoint.
+
+**Also on OpenShift AI: the triage funnel itself as a Data Science Pipeline.** `deploy/openshift/pipeline/`
+holds a `DataSciencePipelinesApplication` (`kaista-pipelines`) with managed MinIO and MariaDB, a task
+image built in-cluster from this repository, and a three-stage KFP v2 pipeline sharing one workspace
+PVC: `ingest -> triage -> metrics`. Caching is off on all three, so each IFIC package is a comparable
+run. The measured run on 7 Nov 2026, workflow `kaista-ific-triage-zszqk` (`Succeeded`, 49 min, run id
+`febefa66-4181-43c4-92b5-78235f1f1c23`), reproduced the laptop funnel exactly (196 notices to G1 41,
+G2 19, G3 18 + 1 `cannot_decide`, exceeds 9 / near 5 / clear 4, queue 15) and wrote the funnel
+numbers and the guard's rejection share as the run's own metrics. The prose step kept 2 of 18 cards
+in the cluster: a CPU-throughput limit there, not a correctness one.
+`deploy/openshift/pipeline/README.md` has the run and the four limitations.
 
 - [x] The drafting LLM (Granite 3.3 2B Instruct modelcar) served by KServe + vLLM CPU runtime in
   OpenShift AI. `oc get isvc granite` reads READY True, the pod is 3/3 Running, and the route

@@ -1,8 +1,8 @@
 # Features
 
 What each part of the pipeline does, how it is built, and which test file covers it. Written against
-commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (134 passed) and a clean clone
-(94 passed, 43 skipped).
+commit `5be8bd5`, verified on 7 Nov 2026 with `make check` (165 passed) and a clean clone
+(121 passed, 44 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
