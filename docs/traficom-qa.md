@@ -265,3 +265,25 @@ card.
 - No open questions from the Q&A. The mandatory-field question is answered in S5. The `Class of
   licence` question is not needed: the side quest reads the station class from the BR IFIC
   terrestrial preface.
+
+## Follow-up answers (fourth round, 7 Nov 2026)
+
+### S6. Tracking what was complained about, and how it ended
+
+**Answer.** "Tilastointi olisi tärkeää. Pitäisi saada tietää, mistä asioista on valitettu ja kenen
+toiminnasta on valitettu, vaikka viiden vuoden kuluttua: mitä on tehty ja mihin on puututtu."
+
+**What changed.** New: an append-only complaint register (`app/ledger.py`) and a statistics view
+(`app/stats.py`, section "Complaint register" in the UI). A complaint is opened by the pipeline for
+every case it would write a letter for, and a human records the rest: the letter, the reply, the
+action, the closing outcome. The three questions are answered from those events: what (band, Finnish
+allocation, issue type), whose operation (administration, network, operator) and what was done
+(action, outcome, days from letter to reply). The card carries a line saying how often that
+administration and that network have come up before. Nothing is deleted or rewritten, so the answer
+for 2021 is the same in 2031.
+
+The history from 2021 to 2026 in the demo is synthetic and labelled: it is seeded from
+`scripts/seed_history.py --seed 2026`, every line carries `synthetic: true`, the network names are
+invented, and the UI says so in its banner. The real rows come from the pipeline runs. Decision R1 in
+`docs/decisions.md` has the reasons and the limits (a file, not a database; a production deployment
+would move the same event model to SQLite or Postgres with a retention period).

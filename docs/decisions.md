@@ -848,3 +848,37 @@ claiming an integration (README "Teams notification (optional)", `docs/features.
 
 Reopen if: a Teams test channel exists, or Traficom asks for the digest inside Teams. Verify the
 live send first; a bot is worth discussing only after that.
+
+## The complaint register
+
+### R1. An append-only event log, not a case table (7 Nov 2026)
+
+Choice: `app/ledger.py` keeps one JSON line per event in `ledger/complaints.jsonl` and the state of a
+complaint is folded from its events on every read (`opened`, `letter_sent`, `reply_received`,
+`action_recorded`, `closed`, `reopened`). No code path edits or deletes a line. `app/stats.py` answers
+the specialist's three questions from those events: what was complained about (band, M4 services,
+issue type), whose operation (administration, network, operator) and what was done (action, outcome,
+days to reply).
+
+Alternatives: a mutable case table in SQLite, a spreadsheet export per run, or nothing (today's
+state: the letter lives in a mailbox and the outcome in someone's memory).
+
+Reason: the specialist asked what has to be answerable five years from now (`docs/traficom-qa.md`
+S6). A mutable row loses the question "what did we know when we wrote", and a rewrite is
+indistinguishable from a correction. An append-only log keeps both, and the fold means a schema change
+is a new event type rather than a migration. Classification is a closed list
+(`EVENT_TYPES`/`ISSUE_TYPES`/`ACTIONS`/`OUTCOMES`): the API turns anything else into a 422, so a
+statistic cannot be computed from a free-text label. A human records the decision; the pipeline only
+opens the complaint and records the letter it drafted.
+
+The demo history is synthetic and separate: `scripts/seed_history.py --seed 2026` writes
+`ledger/complaints.synthetic.jsonl` (206 complaints, 695 events, Jan 2021 - Oct 2026) byte for byte
+from the seed, with `synthetic: true` on every line and invented network names (`SYN-`). The UI says
+so in its banner, and `?synthetic=false` hides it. The real log holds the IFIC 3074 run.
+
+Data limit: the log is a file, not a database. That is enough for the demo and for one regulator's
+volume; a production deployment moves the same event model to SQLite or Postgres and sets a retention
+period under the archives act. Nothing in the code depends on the file format.
+
+Reopen if: Traficom wants the register as a service (multi-user writes, retention policy, integration
+to their case system), or the volume outgrows a single file.

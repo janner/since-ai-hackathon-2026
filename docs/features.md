@@ -606,3 +606,39 @@ and the two terrestrial BR IFIC MDBs; `tests/conftest.py` skips every one of the
 The pure tests carry their own inputs in the test: the unit forms in `tests/test_ingest.py`, the band
 merging in `tests/test_bands.py`, the guard rows in `tests/test_gates.py`, the PFD vectors and the
 limit table in `tests/test_pfd.py`.
+
+## F12: the complaint register and the statistics
+
+`app/ledger.py` keeps the register as an append-only log: one JSON line per event in
+`ledger/complaints.jsonl` (`KAISTA_LEDGER` overrides the directory), and the state of a complaint is
+folded from its events on every read. The events are `opened`, `letter_sent`, `reply_received`,
+`action_recorded`, `closed` and `reopened`; `opened` copies the card's identifiers (`ific`, `case_id`,
+`ntc_id`, `adm`, `network_org`, `sat_name`, band, M4 services, class, regulatory stage, the input
+SHA256 and the rules version) rather than referencing a card that may not exist in five years. No
+code path edits or deletes a line, so the answer for a case is the same in 2031 as in 2026.
+
+Classification is a closed list: `ISSUE_TYPES`, `ACTIONS` and `OUTCOMES` in `app/ledger.py`. Anything
+outside them is a `ValueError`, and the API maps it to a 422, so no statistic can come from a
+free-text label. A free `note` is allowed.
+
+`python -m app.pipeline ... --ledger` opens a complaint for every flagged case and records the letter
+it drafted; a second run of the same case opens nothing (`ledger.open_complaint` follows the card's
+`same_network` chain). The humans' decisions go through `POST /api/complaints/{id}/events`. The
+pipeline never closes a complaint: closing is a human act, and an unknown outcome is refused.
+
+`app/stats.py` answers the specialist's three questions from the events, with no stored aggregate and
+no language model: what was complained about (`bands`, `issues`), whose operation (`admins`,
+`networks`) and what was done (`actions`, `outcomes`, the median days from letter to reply). The same
+rows are `GET /api/stats` and `GET /api/stats.csv`; `GET /api/complaints` filters and
+`GET /api/complaints/{id}` returns the whole timeline. `?synthetic=false` hides the demo history.
+
+The demo history is generated, not hand-written: `scripts/seed_history.py --seed 2026` writes
+`ledger/complaints.synthetic.jsonl` (206 complaints, 695 events, Jan 2021 - Oct 2026) byte for byte
+from the seed, with `synthetic: true` on every line and invented network names (`SYN-`). The UI says
+so in its banner, and the card says how often that administration and that network have come up
+before.
+
+Tests (`tests/test_ledger.py`, 6): the closed lists reject anything else, the state is folded from the
+events, a reopened complaint is open again, a second notice of the same case opens nothing, the
+statistics answer the three questions on a two-complaint fixture, and the API refuses a loose event
+(422) and an unknown complaint (404).

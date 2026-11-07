@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app import cards as card_writer
-from app import gates, ingest, pfd, prose, terrestrial
+from app import gates, ingest, ledger, pfd, prose, terrestrial
 from app.allocation import finnish_bands
 from app.bands import Band
 from app.config import DEMO_SLICE_MHZ, RULES_VERSION
@@ -30,6 +30,8 @@ from app.territory import places as territory_places
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LIMITS = REPO_ROOT / "rules" / "rr21_table21_4.csv"
+# The pseudonym the pipeline writes into the ledger's actor field; never a real name.
+LEDGER_ACTOR = "spec-01"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -64,6 +66,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="previous BR IFIC MDB for the trend baseline (default: --terrestrial)",
     )
+    parser.add_argument(
+        "--ledger",
+        action="store_true",
+        help="also register every flagged case in the complaint ledger (ledger/complaints.jsonl)",
+    )
     return parser.parse_args(argv)
 
 
@@ -76,6 +83,7 @@ def run(
     all_bands: bool = False,
     terrestrial_path: Path | None = None,
     terrestrial_prev: Path | None = None,
+    ledger_events: bool = False,
 ) -> int:
     started = time.monotonic()
     ific = ingest.load_ific(ific_mdb)
@@ -140,6 +148,10 @@ def run(
     results = f"{card_writer.ifact_tag(ific)}_results.csv"
     print(f"wrote {out}/cases.json, cases.md, queue.md, funnel.json, {results}, run.log, letters/")
 
+    if ledger_events:
+        registered = register_complaints(built, out)
+        print(f"ledger: {registered} complaints registered in {ledger.ledger_dir()}")
+
     if terrestrial_path is not None:
         # Same command, same out/, same source/audit/missing contract; a separate
         # calculation path (P.1546-6 vs. the PFD gates). No previous MDB given means
@@ -163,6 +175,66 @@ def run(
     return 0
 
 
+def register_complaints(cards: list[dict], out: Path) -> int:
+    """Open a complaint for every case the funnel flagged, and a letter for the `exceeds` ones.
+
+    Idempotent: a case that already has an open complaint, or a network already under one, is
+    skipped, so a re-run of the same IFIC adds no line. Only `opened` and `letter_sent` are written
+    here; the outcome is a human decision (`POST /api/complaints/{id}/events`).
+    """
+    known = ledger.read()
+    new: list[dict] = []
+    for card in cards:
+        issue_type = ledger.CLASS_ISSUES.get(card["class"])
+        if issue_type is None:
+            continue
+        case_id = card["case_id"]
+        same_network = tuple(card.get("same_network") or ())
+        if ledger.open_complaint(known + new, case_id, same_network):
+            continue
+        at = ledger.now()
+        new.append(
+            ledger.event(
+                case_id,
+                "opened",
+                at,
+                LEDGER_ACTOR,
+                {
+                    "ific": int(card["source"]["ific"]),
+                    "case_id": case_id,
+                    "ntc_id": card["source"]["keys"]["ntc_id"],
+                    "adm": card["parties"]["admin"],
+                    "network_org": card["parties"]["network_org"],
+                    "sat_name": card["coverage"]["sat_name"],
+                    "band": card["band"],
+                    "m4_services": (card.get("m4") or {}).get("services_in_finland"),
+                    "class": card["class"],
+                    "regulatory_stage": (card.get("regulatory_stage") or {}).get("provision"),
+                    "issue_type": issue_type,
+                    "source_sha256": card["audit"]["input_sha256"],
+                    "rules_version": card["audit"]["rules_version"],
+                    "same_network": list(same_network),
+                },
+            )
+        )
+        if card["class"] == "exceeds":
+            new.append(
+                ledger.event(
+                    case_id,
+                    "letter_sent",
+                    at,
+                    LEDGER_ACTOR,
+                    {
+                        "letter": str(out / "letters" / f"{case_id}.md"),
+                        "action": "comment_sent",
+                    },
+                )
+            )
+    if new:
+        ledger.append(new)
+    return len({ev["complaint_id"] for ev in new})
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
@@ -175,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
             args.all,
             args.terrestrial,
             args.terrestrial_prev,
+            args.ledger,
         )
     except ingest.DataError as error:
         print(f"error: {error}", file=sys.stderr)
