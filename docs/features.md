@@ -481,7 +481,8 @@ Register scale, measured 7 Nov 2026 with the register duplicated and `--all`:
 | 87 400 | 17.3 s | 307 MB |
 | 874 000 | 272 s | 1 840 MB |
 
-The register in this challenge has 871 stations and only 84 of them sit on the seven space bands, so
+The register has 874 rows covering 872 station numbers; three rows carry no frequency, so 871
+stations load. Only 84 of them sit on the seven space bands, so
 the full register does not change the result when it is filtered by band first. A real dataset is
 "tens of millions of rows" by the sample's own cover note; at that size the current code would need
 about 20 GB of memory, because `ingest.rows()` reads the whole file into a list and the gates loop

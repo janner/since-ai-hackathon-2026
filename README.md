@@ -250,9 +250,10 @@ row; the funnel endpoint carries their count.
     result, written up table by table in `docs/features.md` under "Data we read and did not use".
     `s_beam.gain` is the one column that is used: it gives every PFD the notice's own peak gain
     rather than a worst-case guess.
-19. The register in this challenge has 871 stations and only 84 of them sit on the seven space
-    bands, so the result does not depend on the full register. The sample's own cover note says a
-    real dataset would be "tens of millions of rows", and the code reads the whole file into memory,
+19. The register has 874 rows (871 stations load; three rows carry no frequency) and only 84 of
+    them sit on the seven space bands, so the result does not depend on the full register. The
+    sample's own cover note says a real dataset would be "tens of millions of rows", and the code
+    reads the whole file into memory,
     so that size needs a band filter before the load; the tool does not claim to handle it as it
     stands (see "Next steps" in `docs/features.md`).
 20. What is not built, and what each piece would take, is listed in `docs/features.md` under "Next
