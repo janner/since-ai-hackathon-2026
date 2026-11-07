@@ -51,7 +51,9 @@ def test_card_has_the_whole_schema(challenge):
         "s_beam.min_axis",
     ]
     assert len(card["audit"]["input_sha256"]) == 64
-    assert "103500417" in render_card_md(card)
+    md = render_card_md(card)
+    assert "103500417" in md
+    assert f"{card['victim']['lat']:g}".replace(".", ",") in md  # the worst-case station's place
 
 
 @pytest.mark.data

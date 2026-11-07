@@ -202,6 +202,11 @@ def render_card_md(card: dict) -> str:
     calc, band, victim = card["calculation"], card["band"], card["victim"]
     stage = card["regulatory_stage"]
     marker = " — adjacent" if card["adjacent"] else ""
+    where = (
+        f", {fmt_num(victim['lat'])} N {fmt_num(victim['lon'])} E"
+        if victim.get("lat") is not None and victim.get("lon") is not None
+        else ""
+    )
     lines = [
         f"# {card['case_id']} — {card['class']}{marker}",
         "",
@@ -209,7 +214,7 @@ def render_card_md(card: dict) -> str:
         f"{card['parties']['admin']}), beam {card['coverage']['beam']}",
         f"- **Band:** {fmt_mhz(band['freq_min_mhz'])}-{fmt_mhz(band['freq_max_mhz'])} MHz",
         f"- **Stage:** {stage['provision']} — {stage['label']}",
-        f"- **Victim:** station {victim['station']} ({victim['class']}), "
+        f"- **Victim:** station {victim['station']} ({victim['class']}){where}, "
         f"elevation {fmt_num(card['coverage']['elevation_deg'])}°",
         f"- **PFD:** {fmt_num(calc['pfd_dbw_m2_hz'])} dB(W/m²/Hz) vs limit "
         f"{fmt_num(calc['limit_dbw_m2_hz'])} dB(W/m²/Hz) → margin {fmt_num(calc['margin_db'])} dB",

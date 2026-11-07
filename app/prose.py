@@ -15,8 +15,8 @@ from app.config import fmt_mhz, fmt_num
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
 PROMPT = (
-    "Write two plain sentences for a radio interference screening case. Use only the facts "
-    "and numbers in this JSON. Do not invent numbers. Do not give a verdict.\n\n{card}"
+    "Write two plain sentences in English for a radio interference screening case. Use only "
+    "the facts and numbers in this JSON. Do not invent numbers. Do not give a verdict.\n\n{card}"
 )
 
 
@@ -25,7 +25,7 @@ def draft_letter(card: dict, chat: Callable | None = None) -> dict:
 
 
 def draft_summary(card: dict, chat: Callable | None = None) -> dict:
-    return _draft(card, "case_fi.md", chat)
+    return _draft(card, "case_en.md", chat)
 
 
 def _draft(card: dict, template_name: str, chat: Callable | None) -> dict:
@@ -53,7 +53,7 @@ def _ask(card: dict, chat: Callable | None) -> str | None:
         return None
 
 
-def template(card: dict, template_name: str = "case_fi.md") -> str:
+def template(card: dict, template_name: str = "case_en.md") -> str:
     calc = card["calculation"]
     values = {
         "case_id": card["case_id"],
