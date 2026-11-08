@@ -22,8 +22,8 @@ def gso_row(limits) -> pfd.LimitRow:
     return row
 
 
-def test_table_has_thirteen_rows(limits):
-    assert len(limits) == 13
+def test_table_has_every_region_1_row(limits):
+    assert len(limits) == 51
     assert {row.orbit for row in limits} == {"GSO", "NGSO", "HEO", "any"}
 
 
@@ -34,11 +34,13 @@ def test_limit_row_needs_a_row_that_contains_the_whole_band(limits):
     assert pfd.limit_row(limits, 3998.0, 4202.0, "GSO") is None
 
 
-def test_heo_uses_the_ngso_row_when_there_is_no_heo_row(limits):
-    row = pfd.limit_row(limits, 17800.0, 18000.0, "HEO")
-    assert row.orbit == "NGSO"  # 17,7-19,3 GHz has no HEO row, so footnote 13 applies
-    heo_band = pfd.limit_row(limits, 11000.0, 11200.0, "HEO")
-    assert heo_band.orbit == "HEO"  # here the footnote 24 row exists
+def test_heo_rows_win_over_ngso_rows(limits):
+    assert (
+        pfd.limit_row(limits, 3600.0, 3700.0, "HEO").orbit == "NGSO"
+    )  # 3,4-4,2 GHz has no HEO row
+    assert pfd.limit_row(limits, 11000.0, 11200.0, "HEO").orbit == "HEO"  # footnote 24 row
+    row = pfd.limit_row(limits, 17800.0, 18000.0, "HEO")  # footnote 16 row
+    assert row.orbit == "HEO" and "footnote 16" in row.service
 
 
 def test_vector_1_arithmetic(gso_row):
@@ -55,7 +57,7 @@ def test_vector_1_arithmetic(gso_row):
 
 def test_vector_2_arithmetic():
     """The plan's non-GSO vector: perigee 592 km, worst angle 5,0 deg, 2 310 km."""
-    row = pfd.load_limits(RULES)[1]  # 3 400-4 200 MHz NGSO, footnote 22/23
+    row = pfd.limit_row(pfd.load_limits(RULES), 3400.0, 4200.0, "NGSO")  # footnote 22/23
     assert row.a_db == -138.0 and row.offset == "Y"
     distance = pfd.slant(592.0, 5.0)
     assert distance == pytest.approx(2310, abs=2)
