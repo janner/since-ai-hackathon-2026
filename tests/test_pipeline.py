@@ -189,7 +189,8 @@ def test_the_register_is_only_a_reference(tmp_path):
     out = tmp_path / "out"
     assert pipeline.run(SPACE_MDB, empty, M4, out) == 0
     counts = json.loads((out / "funnel.json").read_text(encoding="utf-8"))["counts"]
-    assert (counts["g1"], counts["g2"], counts["g3"]) == (176, 138, 104)
+    # g3 dropped by 2: the two EESS footnote-18 rows are cannot_decide now, not exceeds.
+    assert (counts["g1"], counts["g2"], counts["g3"]) == (176, 138, 102)
     cards = json.loads((out / "cases.json").read_text(encoding="utf-8"))
     assert cards and all(card["victim"] is None for card in cards)
     assert "- **Reference:**" not in (out / "cases.md").read_text(encoding="utf-8")
@@ -236,4 +237,5 @@ def test_without_the_terrestrial_flag_the_space_run_is_unchanged(tmp_path):
     assert not (out / "terrestrial_findings.json").exists()
     counts = json.loads((out / "funnel.json").read_text(encoding="utf-8"))["counts"]
     assert (counts["notices"], counts["g1"], counts["g2"]) == (196, 176, 138)
-    assert counts["exceeds"] == 56
+    # 124520203/324520203 are cannot_decide now: footnote 18's SAR formula, not its a/k pair.
+    assert counts["exceeds"] == 54

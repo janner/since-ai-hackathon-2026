@@ -28,7 +28,9 @@ def test_table_has_every_region_1_row(limits):
 
 
 def test_limit_row_needs_a_row_that_contains_the_whole_band(limits):
-    assert pfd.limit_row(limits, 100.0, 200.0, "GSO") is None  # no_limit_for_band
+    # None means "no single row contains the band"; the gates split the band instead
+    # and record `no_agreed_limit` for a part with no row.
+    assert pfd.limit_row(limits, 100.0, 200.0, "GSO") is None
     assert pfd.limit_row(limits, 3400.0, 4200.0, "GSO").freq_lo_mhz == 3400.0
     # 3 998 - 4 202 MHz sticks out of the 3 400-4 200 MHz row
     assert pfd.limit_row(limits, 3998.0, 4202.0, "GSO") is None

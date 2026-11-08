@@ -15,7 +15,7 @@ from app.config import EXCEEDS_DB, NEAR_DB
 from app.ingest import Freq, IficData, Notice, Station
 from app.territory import Place
 
-CLASS_ORDER = ("exceeds", "near", "not_space", "cannot_decide")
+CLASS_ORDER = ("exceeds", "near", "not_space", "cannot_decide", "no_agreed_limit")
 STAGES = ("G1", "G2")
 
 # Plain-language reason for a notice that leaves the funnel, for the queue row a human reads.
@@ -29,9 +29,21 @@ DROP_TEXT = {
 }
 
 
-def classify(margin_db: float, adjacent: bool = False, band_satellite: bool = True) -> str:
+def classify(
+    margin_db: float,
+    adjacent: bool = False,
+    band_satellite: bool = True,
+    no_agreed_limit: bool = False,
+    cannot_decide: bool = False,
+) -> str:
     """exceeds above 0 dB, near above -3 dB, not_space on a band Finland does not allocate
-    to satellite use, clear otherwise.
+    to satellite use, no_agreed_limit when part of the band has no Table 21-4 row, cannot_decide
+    when a row's limit is a footnote formula, clear otherwise.
+
+    A `clear` margin only stays `clear` when every part of the band has a computable row: an
+    unknown part must never read as a pass. The two new classes are fail-closed states, not
+    thresholds; a margin above them still reads `exceeds`/`near`, because the exceedance is the
+    finding and the unknown part is the caveat on the same card.
 
     An adjacent-channel case is capped at `near`: the Table 21-4 limit is a property of the
     notified band and does not apply outside it, so a guard-only case must not read as `exceeds`.
@@ -42,6 +54,10 @@ def classify(margin_db: float, adjacent: bool = False, band_satellite: bool = Tr
         klass = "near"
     elif not band_satellite:
         klass = "not_space"
+    elif no_agreed_limit:
+        klass = "no_agreed_limit"
+    elif cannot_decide:
+        klass = "cannot_decide"
     else:
         klass = "clear"
     return "near" if adjacent and klass == "exceeds" else klass
@@ -80,6 +96,8 @@ class Case:
     deadline: date | None = None  # the notice's Resolution 35 deadline, from grp_res35
     deadline_passed: bool = False  # that deadline is already behind the run
     band_gaps: tuple[tuple[float, float], ...] = ()  # parts of the band with no satellite use
+    limit_gaps: tuple[tuple[float, float], ...] = ()  # parts with no Table 21-4 row at all
+    screening_reason: str = ""  # footnote code when a covering row cannot be computed
 
 
 @dataclass(frozen=True)
@@ -390,32 +408,24 @@ def _worst_for_notice(
             counts = (nongeo.nbr_sat_nh, nongeo.nbr_sat_sh)
     worst: Case | None = None
     missing: str | None = None
+    screening_reason: str | None = None
     for freq in freqs:
-        limit = pfd.limit_row(limits, freq.freq_min_mhz, freq.freq_max_mhz, orbit)
-        if limit is None:
-            missing = missing or "no_limit_for_band"
-            continue
+        segments = pfd.limit_segments(limits, freq.freq_min_mhz, freq.freq_max_mhz, orbit)
+        limit_gaps = tuple((seg.freq_lo_mhz, seg.freq_hi_mhz) for seg in segments if not seg.covered)
+        screening: str | None = None
+        computed = False
         psd = ific.emiss.get(freq.grp_id)
         if psd is None:
             if not fill_unknown:
-                missing = "no_power"
+                missing = missing or "no_power"
                 continue
             psd = 0.0
         gain = _beam_gain(ific, freq)
         if gain is None:
             if not fill_unknown:
-                missing = "no_gain"
+                missing = missing or "no_gain"
                 continue
             gain = 0.0
-        offset = 0.0
-        if limit.offset == "Y":
-            offset = pfd.y_fn(max(counts))
-        elif limit.offset == "X":
-            x_value = pfd.x_fn(sum(counts))
-            if x_value is None:
-                missing = "x_needs_nv"
-                continue
-            offset = x_value
         band = allocation.m4_lookup(m4_rows, freq.freq_min_mhz, freq.freq_max_mhz)
         # The register's rows on this band: context only, never the set the level is taken at.
         reference = [
@@ -429,52 +439,92 @@ def _worst_for_notice(
                 (place.lat, place.lon, place.label, *pfd.look(place.lat, place.lon, sat_lon))
                 for place in places
             ]
-            victim = _worst_reference(reference, psd, gain, limit, offset, sat_lon)
         else:
             # shortcut: a non-GSO pass sweeps every latitude, so position does not change the
             # geometry; the pass is sampled from 0 to 90 deg in 0.1 deg steps. Upgrade if a real
             # orbit ephemeris ever arrives.
             points = [(None, None, "", e / 10, pfd.slant(perigee, e / 10)) for e in range(901)]
-            victim = reference[0] if reference else None
-        for lat, lon, label, elevation, distance in points:
-            if elevation <= 0:
-                continue
-            level = psd + gain - pfd.fspl(distance)
-            limit_db = pfd.limit_hz(limit, elevation, offset)
-            margin = round(level - limit_db, 2)
-            if worst is not None and margin <= worst.margin_db:
-                continue
-            worst = Case(
-                ntc_id=ntc_id,
-                orbit=orbit,
-                beam=freq.beam_name,
-                grp_id=freq.grp_id,
-                band_lo_mhz=freq.freq_min_mhz,
-                band_hi_mhz=freq.freq_max_mhz,
-                victim=victim,
-                elev_deg=round(elevation, 2),
-                slant_km=round(distance),
-                psd_dbw_hz=round(psd, 2),
-                beam_gain_db=round(gain, 2),
-                eirp_dbw_hz=round(psd + gain, 2),
-                fspl_db=round(pfd.fspl(distance), 2),
-                pfd_dbw_m2_hz=round(level, 2),
-                limit_dbw_m2_hz=round(limit_db, 2),
-                margin_db=margin,
-                offset_db=round(offset, 2),
-                perigee_km=perigee,
-                limit=limit,
-                klass=classify(margin, adjacent, band["satellite_use"]),
-                band_satellite=band["satellite_use"],
-                band_use=band["services_in_finland"],
-                band_gaps=tuple(band["gaps"]),
-                adjacent=adjacent,
-                lat=lat,
-                lon=lon,
-                place=label,
-                deadline=deadline[0] if deadline else None,
-                deadline_passed=deadline[1] if deadline else False,
-            )
+        # shortcut: palvelua ei täsmätä riviin. Every row that covers a part of the band is
+        # computed and the largest margin wins, so a row meant for another service cannot let
+        # the notice pass. This is a deliberate upper bound: a false negative is worse than a
+        # false positive here. A band that crosses a row edge is computed part by part, and a
+        # part with no row leaves a fact and a fail-closed class instead of `clear`.
+        for segment in segments:
+            for row in segment.rows:
+                reason = pfd.uncomputable_reason(row)
+                if reason is not None:
+                    screening = screening or reason
+                    continue
+                offset = 0.0
+                if row.offset == "Y":
+                    offset = pfd.y_fn(max(counts))
+                elif row.offset == "X":
+                    x_value = pfd.x_fn(sum(counts))
+                    if x_value is None:
+                        screening = screening or pfd.x_missing_reason(row)
+                        continue
+                    offset = x_value
+                computed = True
+                if sat_lon is not None:
+                    victim = _worst_reference(reference, psd, gain, row, offset, sat_lon)
+                else:
+                    victim = reference[0] if reference else None
+                for lat, lon, label, elevation, distance in points:
+                    if elevation <= 0:
+                        continue
+                    level = psd + gain - pfd.fspl(distance)
+                    limit_db = pfd.limit_hz(row, elevation, offset)
+                    margin = round(level - limit_db, 2)
+                    if worst is not None and margin <= worst.margin_db:
+                        continue
+                    worst = Case(
+                        ntc_id=ntc_id,
+                        orbit=orbit,
+                        beam=freq.beam_name,
+                        grp_id=freq.grp_id,
+                        band_lo_mhz=freq.freq_min_mhz,
+                        band_hi_mhz=freq.freq_max_mhz,
+                        victim=victim,
+                        elev_deg=round(elevation, 2),
+                        slant_km=round(distance),
+                        psd_dbw_hz=round(psd, 2),
+                        beam_gain_db=round(gain, 2),
+                        eirp_dbw_hz=round(psd + gain, 2),
+                        fspl_db=round(pfd.fspl(distance), 2),
+                        pfd_dbw_m2_hz=round(level, 2),
+                        limit_dbw_m2_hz=round(limit_db, 2),
+                        margin_db=margin,
+                        offset_db=round(offset, 2),
+                        perigee_km=perigee,
+                        limit=row,
+                        klass=classify(
+                            margin,
+                            adjacent,
+                            band["satellite_use"],
+                            no_agreed_limit=bool(limit_gaps),
+                            cannot_decide=bool(screening),
+                        ),
+                        band_satellite=band["satellite_use"],
+                        band_use=band["services_in_finland"],
+                        band_gaps=tuple(band["gaps"]),
+                        limit_gaps=limit_gaps,
+                        screening_reason=screening or "",
+                        adjacent=adjacent,
+                        lat=lat,
+                        lon=lon,
+                        place=label,
+                        deadline=deadline[0] if deadline else None,
+                        deadline_passed=deadline[1] if deadline else False,
+                    )
+        if not computed and missing is None:
+            missing = pfd.no_agreed_limit_reason(*limit_gaps[0]) if limit_gaps else None
+        screening_reason = screening_reason or screening
+    # A footnote reason is more specific than a bare interval: when the notice cannot be
+    # computed at all and a row's footnote is the reason, name the footnote instead of the
+    # first gap the loop met. A missing field (no_power/no_gain) still wins, because without
+    # it even a computable row cannot be evaluated.
+    if screening_reason and (missing is None or missing.startswith("no_agreed_limit")):
+        missing = screening_reason
     return worst, missing
 
 
@@ -565,8 +615,12 @@ def gate4(
         """Why the band itself is a finding, when part of it has no satellite use here.
 
         Only a `not_space` row carries the note: on an `exceeds` or `near` row the class is
-        the finding, and the Finland band column already names the allocation.
+        the finding, and the Finland band column already names the allocation. A fail-closed
+        class (`no_agreed_limit`, `cannot_decide`) carries the footnote or the missing interval
+        so the card names the row and the footnote that stopped the calculation.
         """
+        if case.klass in ("no_agreed_limit", "cannot_decide") and case.screening_reason:
+            return case.screening_reason
         if case.klass != "not_space" or case.band_satellite:
             return case.klass
         parts = ", ".join(

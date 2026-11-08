@@ -161,13 +161,17 @@ def test_all_bands_funnel(challenge):
     without satellite use is a finding. The register still supplies the reference row.
     """
     result = challenge.all.result
+    # 124520203/324520203 (EESS active, footnote 18) are no longer read as an exceedance:
+    # the row's limit is the SAR formula in the footnote, not its a/k pair, so the notice is
+    # cannot_decide. The other rows' margins are unchanged except where the worst over several
+    # rows is now reported (e.g. 124520174 37.9 -> 11.71 dB, still exceeds).
     assert result.counts == {
         "notices": 196,
         "g1": 176,
         "g2": 138,
-        "g3": 104,
-        "cannot_decide": 34,
-        "exceeds": 56,
+        "g3": 102,
+        "cannot_decide": 36,
+        "exceeds": 54,
         "near": 30,
         "not_space": 2,
         "clear": 16,

@@ -186,6 +186,7 @@ const ADMIN_EN = { CHN: "China", USA: "United States", RUS: "Russia", EST: "Esto
 const CLASS_EN = {
   exceeds: "Exceeds limit", near: "Near limit",
   clear: "Clear", cannot_decide: "Cannot decide", not_space: "No satellite use in Finland",
+  no_agreed_limit: "No agreed PFD limit",
 };
 // notice.act_code: what the filing does to the record.
 const ACTION_EN = { A: "New filing", M: "Modification", S: "Suppression" };
@@ -200,9 +201,11 @@ const UNDECIDED_EN = {
   no_gain: "no beam gain",
   no_orbit: "no orbit data",
   no_perigee: "no perigee",
-  no_limit_for_band: "no limit for the band",
   no_station: "no Finnish station",
   no_territory: "no point on Finnish territory",
+  footnote_18_eess_active: "footnote 18: EESS active SAR formula, not a PFD limit",
+  footnote_26_ngso_iss: "footnote 26: NGSO ISS Resolution 679, not a PFD limit",
+  footnote_13_nv_missing: "footnote 13: X offset needs Nv, missing for this notice",
 };
 const DROP_LABEL = {
   no_band_overlap: "No band overlap",
@@ -387,7 +390,8 @@ async function get(url) {
 
 function undecidedText(row) {
   const detail = (funnelData.undecided_detail || {})[row.ntc_id] || {};
-  const parts = [UNDECIDED_EN[detail.reason] || detail.reason || row.reason_text || "unknown reason"];
+  const reason = detail.reason || row.reason_text || "unknown reason";
+  const parts = [UNDECIDED_EN[reason] || reason];
   if (detail.required_db !== undefined && detail.required_db !== null) {
     const field = detail.field === "psd" ? "transmit PSD" : detail.field === "gain" ? "beam gain" : detail.field;
     const unit = detail.field === "gain" ? "dBi" : "dBW/Hz";
@@ -469,7 +473,7 @@ function renderFunnel(data) {
 
 // The queue order mirrors app/gates.py::queue_key: regulatory stage, then class, then the
 // earliest upcoming Resolution 35 deadline. The margin does not order (Traficom, S1).
-const QUEUE_CLASS = ["exceeds", "near", "not_space", "cannot_decide", "clear"];
+const QUEUE_CLASS = ["exceeds", "near", "not_space", "cannot_decide", "no_agreed_limit", "clear"];
 const QUEUE_STAGE = { "No. 9.1": 0, "No. 9.6": 0, "No. 11.2": 1, "Resolution 49": 2 };
 const QUEUE_STAGE_UNKNOWN = 9;
 
