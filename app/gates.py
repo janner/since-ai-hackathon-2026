@@ -411,7 +411,9 @@ def _worst_for_notice(
     screening_reason: str | None = None
     for freq in freqs:
         segments = pfd.limit_segments(limits, freq.freq_min_mhz, freq.freq_max_mhz, orbit)
-        limit_gaps = tuple((seg.freq_lo_mhz, seg.freq_hi_mhz) for seg in segments if not seg.covered)
+        limit_gaps = tuple(
+            (seg.freq_lo_mhz, seg.freq_hi_mhz) for seg in segments if not seg.covered
+        )
         screening: str | None = None
         computed = False
         psd = ific.emiss.get(freq.grp_id)

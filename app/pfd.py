@@ -80,7 +80,9 @@ def _parse_breakpoints(text: str) -> tuple[tuple[float, float], ...]:
             continue
         separator = "=" if "=" in part else ":"
         key, _, value = part.partition(separator)
-        points.append((float(key.strip().replace(",", ".")), float(value.strip().replace(",", "."))))
+        points.append(
+            (float(key.strip().replace(",", ".")), float(value.strip().replace(",", ".")))
+        )
     return tuple(points)
 
 
@@ -106,7 +108,9 @@ def load_limits(path: Path) -> list[LimitRow]:
         ]
     for row in rows:
         degs = [deg for deg, _ in row.breakpoints]
-        if row.breakpoints and (row.offset or degs != sorted(set(degs)) or degs[0] > 0 or degs[-1] < 90):
+        if row.breakpoints and (
+            row.offset or degs != sorted(set(degs)) or degs[0] > 0 or degs[-1] < 90
+        ):
             raise ValueError(f"bad breakpoints row: {row}")  # no X/Y offset, spans 0-90 deg
     return rows
 
@@ -125,7 +129,8 @@ def _applies(row: LimitRow, orbit: str, limits: list[LimitRow]) -> bool:
     if orbit != "HEO" or row.orbit != "NGSO":
         return False
     return not any(
-        other.orbit == "HEO" and _overlaps(other, row.freq_lo_mhz, row.freq_hi_mhz) for other in limits
+        other.orbit == "HEO" and _overlaps(other, row.freq_lo_mhz, row.freq_hi_mhz)
+        for other in limits
     )
 
 
@@ -149,7 +154,7 @@ def limit_segments(
             edges.add(row.freq_hi_mhz)
     ordered = sorted(edges)
     segments: list[LimitSegment] = []
-    for low, high in zip(ordered, ordered[1:]):
+    for low, high in zip(ordered, ordered[1:], strict=False):
         if high <= low:
             continue
         covering = tuple(

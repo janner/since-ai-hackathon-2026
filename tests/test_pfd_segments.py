@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 
 from app import gates, pfd
-from app.gates import Case
 
 RULES = Path(__file__).resolve().parent.parent / "rules" / "rr21_table21_4.csv"
 
@@ -43,7 +42,10 @@ TWO_ROWS = [
 def test_band_crossing_a_row_edge_is_split_and_a_part_with_no_row_is_a_gap():
     """Path 1: the band is computed part by part; the uncovered part is a fact, never clear."""
     segments = pfd.limit_segments(TWO_ROWS, 3998.0, 4202.0, "GSO")
-    assert [(s.freq_lo_mhz, s.freq_hi_mhz) for s in segments] == [(3998.0, 4200.0), (4200.0, 4202.0)]
+    assert [(s.freq_lo_mhz, s.freq_hi_mhz) for s in segments] == [
+        (3998.0, 4200.0),
+        (4200.0, 4202.0),
+    ]
     assert segments[0].covered and segments[0].rows[0].freq_lo_mhz == 3400.0
     assert segments[1].covered and segments[1].rows[0].freq_lo_mhz == 4200.0
 
@@ -101,7 +103,9 @@ def test_a_row_that_needs_a_footnote_formula_is_cannot_decide_named_by_the_footn
     )
     # A computable row and an X row without N >= 1000 stay computable.
     assert pfd.uncomputable_reason(_row(10700, 11700, "GSO", -150, 10, 4000)) is None
-    assert pfd.uncomputable_reason(_row(17700, 19300, "NGSO", -115, 10, 4000, "X", "7; 8; 13")) is None
+    assert (
+        pfd.uncomputable_reason(_row(17700, 19300, "NGSO", -115, 10, 4000, "X", "7; 8; 13")) is None
+    )
     # The X offset without Nv names footnote 13.
     assert pfd.x_missing_reason(_row(17700, 19300, "NGSO", -115, 10, 4000, "X", "7; 8; 13")) == (
         "footnote_13_nv_missing"
