@@ -8,8 +8,8 @@ an upper-bound PFD for every hit against the ITU RR Article 21, Table 21-4 limit
 from code. The language model writes the summary and the letter draft, and a numeric guard rejects a
 sentence that carries a number the card does not have. A human decides.
 
-**Not a developer?** [docs/kaytto.md](docs/kaytto.md): five steps, no command line (in Finnish).
-**A developer?** Install and run: [Run it](#run-it). Glossary: [docs/sanasto.md](docs/sanasto.md) (in Finnish).
+**Not a developer?** [docs/kaytto.md](docs/kaytto.md): five steps, no command line.
+**A developer?** Install and run: [Run it](#run-it). Glossary: [docs/sanasto.md](docs/sanasto.md).
 
 Since AI Hackathon 2026 · Challenge: Traficom, "Saving Earth from Space Interferers Using Radio
 Frequencies" · Team: Greedy Decoding (Janne Rosama, solo)

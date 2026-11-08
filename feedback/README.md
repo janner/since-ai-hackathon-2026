@@ -1,100 +1,101 @@
-# Palaute­lomake (Kaista-demo)
+# Feedback form (Kaista demo)
 
-Lomake on pieni käyttäjätesti, ei pelkkä palautelomake. Asiakas tekee tehtävät
-itse demo auki. Älä selitä demoa etukäteen. Lomake ohjaa; sinä istut vieressä ja
-kirjaat havainnot.
+The form is a small usability test, not just a feedback form. The customer does the tasks
+themselves with the demo open. Do not explain the demo beforehand. The form guides; you sit next to
+them and write down what you observe.
 
-Asiakas kirjoittaa vastaukset suoraan lomakkeeseen. Vastaukset tallentuvat
-Hermeksen kotihakemistoon, eivät repoon eivätkä kolmannelle osapuolelle.
+The customer writes the answers straight into the form. The answers are stored in Hermes' home
+directory, not in the repository and not with a third party.
 
-## Tehtävät
+## Tasks
 
-1. Tausta: miten työ tehdään tänään, kuka hakee IFIC:n ja kuinka kauan se kestää.
-2. Automaattihaku: mikä IFIC on viimeksi haettu ja montako ilmoitusta siinä oli.
-3. Tapaus: miksi jonon ylin tapaus on listalla ja mitä tietoa siitä puuttuu.
-4. Seuraava askel: mitä tapaukselle tehdään ja mistä kortin kohdasta sen näkee.
-5. Ei-päätettävät: etsi kaksi ilmoitusta, joita työkalu ei voi päättää.
-6. Laskelma ja luottamus: PFD, raja ja marginaali; luottamus 1–5.
+1. Background: how the work is done today, who fetches the IFIC and how long it takes.
+2. Automatic fetch: which IFIC was fetched last and how many notices it held.
+3. Case: why the top case in the queue is on the list and what information it is missing.
+4. Next step: what is done about the case and where on the card that is visible.
+5. Undecidables: find two notices the tool cannot decide.
+6. Calculation and trust: PFD, limit and margin; trust 1-5.
 
-Lopuksi: hyödyllisyys, ymmärrys, pilottihalukkuus, UI-kieli, "mitä työkalu ei
-tee", vapaa palaute ja yhteystieto. Lomakkeen pakolliset kentät ovat "Tehtävä 2:
-tapaus" ja "Tehtävä 3: seuraava askel"; muut ovat valinnaisia.
+At the end: usefulness, understanding, willingness to pilot, UI language, "what the tool does not
+do", free feedback and contact details. The required fields are "Task 2: case" and "Task 3: next
+step"; the rest are optional.
 
-## Osoite
+## Address
 
 `https://hermesagent.hamster-herring.ts.net:8452`
 
-Vain tailnetissä. Älä jaa osoitetta tailnetin ulkopuolelle.
+Tailnet only. Do not share the address outside the tailnet.
 
-## Käynnistys
+## Start
 
 ```bash
 cd ~/since-ai-hackathon-2026
 .venv/bin/python scripts/feedback_server.py
 ```
 
-Toisessa terminaalissa:
+In a second terminal:
 
 ```bash
 sudo tailscale serve --bg --https=8452 http://127.0.0.1:8322
 ```
 
-Tarkista:
+Check:
 
 ```bash
 tailscale serve status
 curl -s http://127.0.0.1:8322/health
 ```
 
-## Palautteet
+## Responses
 
-- `~/.hermes/hackathon-feedback/latest.md` — viimeisin palaute luettavana.
-- `~/.hermes/hackathon-feedback/feedback.md` — kaikki palautteet.
-- `~/.hermes/hackathon-feedback/feedback.jsonl` — sama koneellisesti.
-- `~/.hermes/hackathon-feedback/latest.json` — viimeisin JSON.
+- `~/.hermes/hackathon-feedback/latest.md` — the latest response, ready to read.
+- `~/.hermes/hackathon-feedback/feedback.md` — every response.
+- `~/.hermes/hackathon-feedback/feedback.jsonl` — the same, machine-readable.
+- `~/.hermes/hackathon-feedback/latest.json` — the latest as JSON.
 
-Hermes lukee palautteen pyytämällä esimerkiksi:
+Hermes reads a response by asking, for example:
 
 ```text
-lue ~/.hermes/hackathon-feedback/latest.md
+read ~/.hermes/hackathon-feedback/latest.md
 ```
 
-Jokaisesta palautteesta lähtee myös best-effort-viesti Matrixin kotikanavalle.
-Jos Matrix ei vastaa, palaute säilyy silti tiedostossa.
+Every response also sends a best-effort message to the Matrix home channel. If Matrix does not
+answer, the response is still in the file.
 
-## Testaus 7.11.2026
+## Test run 7 Nov 2026
 
-Kaksi testaajaa: asiantuntija (P) ja Traficomin erityisasiantuntija (O). Molemmat tekivät
-tehtävät itsenäisesti. Raakavastaukset ovat repon ulkopuolella:
-`~/.hermes/hackathon-feedback/feedback.md`.
+Two testers: a specialist (P) and a Traficom senior specialist (O). Both did the tasks on their own.
+The raw answers are outside the repository: `~/.hermes/hackathon-feedback/feedback.md`.
 
-- Hyödyllisyys 4/5 molemmilla, pilottihalukkuus kyllä molemmilla.
-- Tehtävä 1 onnistui: IFIC 3075, 129 ilmoitusta.
-- Luottamus lukuun: P 2/5, O 4/5. P haluaa tarkemmat viittaukset ennen luottamista.
-- P: yläpalkista ei näe, onko paketti Space vai Terrestrial.
-- O: kortista puuttuu julkaisun tyyppi (API, CRC, CRD, Part II) ja tieto siitä, missä
-  vaiheessa tapaus on. O painottaa suunnitteluvaiheessa olevia tapauksia.
-- Molemmat: ei-päätettäviä ei löydy listana, vain lukuna. Worst case -sijainti Suomessa puuttuu.
+- Usefulness 4/5 for both, willingness to pilot yes for both.
+- Task 1 succeeded: IFIC 3075, 129 notices.
+- Trust in the number: P 2/5, O 4/5. P wants more precise references before trusting it.
+- P: the top bar does not show whether the package is Space or Terrestrial.
+- O: the card lacks the publication type (API, CRC, CRD, Part II) and the stage the case is at.
+  O weights cases in the planning stage.
+- Both: the undecidables cannot be found as a list, only as a count. The worst-case location in
+  Finland is missing.
 
-Näiden pohjalta 7.11. tehdyt muutokset: hakuteksti kertoo dokumenttisarjan (space), kortti
-näyttää sääntelyvaiheen ITU-lyhenteellä, julkaisutyypin ja BR IFIC -session (API/A, API/B,
-CR/C, CR/D, CR/E, RES4, RES49; ilmoitus ilman pub_ssn-riviä on Part II-S), suojaavan aseman
-koordinaatit ja worst case -pisteen, suppilo listaa ei-päätettävät ilmoitukset syineen ja
-tarvittavine arvoineen, laskelman avaus näyttää kaavan, Table 21-4 -rivin (A, K,
-referenssikaista, sivu) ja lähtötiedot, kortti listaa aiemmat valitukset samalle hallinnolle
-tai verkolle vastausmuistiinpanoineen, ja kortin teksti on englanniksi.
+Changes made on 7 Nov on the basis of these: the search text names the document series (space), the
+card shows the regulatory stage with the ITU abbreviation, the publication type and the BR IFIC
+session (API/A, API/B, CR/C, CR/D, CR/E, RES4, RES49; a notice without a `pub_ssn` row is Part II-S),
+the coordinates of the protecting station and the worst-case point, the funnel lists the undecidable
+notices with their reasons and the values they would need, the calculation expands to the formula,
+the Table 21-4 row (A, K, reference band, page) and the input values, the card lists earlier
+complaints for the same administration or network with their reply notes, and the card text is in
+English.
 
-Avoinna: CEPT/ECC-vertailu. Q2:n mukaan Table 21-4 on ensisijainen raja eikä CEPT ole erillinen
-raja tässä buildissa; kortti sanoo tämän criterion-rivillä. P:n viittaustarkkuus on nyt
-Table 21-4 -rivin ja BR IFIC -session tasolla, O:n CRD/Part II -tarkennus on pub_ssn-taulussa,
-ja aiempien valitusten historia on kortin listassa.
+Open: the CEPT/ECC comparison. Per Q2, Table 21-4 is the primary limit and CEPT is not a separate
+limit in this build; the card says so on its criterion line. P's reference precision is now at the
+level of the Table 21-4 row and the BR IFIC session, O's CRD/Part II detail is in the `pub_ssn`
+table, and the earlier complaints are in the card's list.
 
-## Testi
+## Test
 
 ```bash
 curl -s -X POST http://127.0.0.1:8322/api/feedback \
-  --data-urlencode 'feedback=Testipalaute' \
+  --data-urlencode 'feedback=Test feedback' \
   --data-urlencode 'useful=5'
 ```
 
-Testipalaute kannattaa poistaa tiedostosta ennen asiakastilaisuutta.
+Delete the test response from the file before a customer session.

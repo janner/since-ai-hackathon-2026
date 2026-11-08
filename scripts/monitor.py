@@ -176,8 +176,8 @@ def ingest(ific: int, body: bytes) -> dict:
             "document": DOCUMENT,
             "last_ific": ific - 1,
             "checked_at": now(),
-            "message": f"uusi paketti ific{ific} haettiin, mutta putki epäonnistui "
-            f"(exit {code}); out/ säilyi ennallaan",
+            "message": f"new package ific{ific} was fetched but the pipeline failed "
+            f"(exit {code}); out/ was left unchanged",
         }
         write_status(control_dir(), status)
         return status
@@ -203,8 +203,8 @@ def check() -> dict:
             "status": "error",
             "document": DOCUMENT,
             "checked_at": checked_at,
-            "message": "viimeisintä IFIC-tunnistetta ei löydy "
-            "(runs/latest, out/run.log tai data/last_ific.txt)",
+            "message": "the latest IFIC identifier was not found "
+            "(runs/latest, out/run.log or data/last_ific.txt)",
         }
         write_status(control_dir(), status)
         return status
@@ -216,7 +216,7 @@ def check() -> dict:
             "document": DOCUMENT,
             "last_ific": last,
             "checked_at": checked_at,
-            "message": f"ITU ei vastannut: {error}",
+            "message": f"ITU did not answer: {error}",
         }
         write_status(control_dir(), status)
         return status
@@ -227,7 +227,7 @@ def check() -> dict:
             "last_ific": last,
             "checked_at": checked_at,
             "next_check": (datetime.now(UTC).astimezone() + CADENCE).isoformat(timespec="seconds"),
-            "message": f"uutta IFIC-pakettia ei ole vielä julkaistu (viimeisin {last})",
+            "message": f"a new IFIC package has not been published yet (latest {last})",
         }
         write_status(control_dir(), status)
         return status
@@ -241,7 +241,7 @@ def check() -> dict:
             "document": DOCUMENT,
             "last_ific": last,
             "checked_at": checked_at,
-            "message": f"uusi paketti ific{last + 1} oli rikki tai putki kaatui: {error}",
+            "message": f"new package ific{last + 1} was broken or the pipeline crashed: {error}",
         }
         write_status(control_dir(), status)
         return status
@@ -251,12 +251,12 @@ def render(status: dict) -> str:
     kind = status.get("status")
     when = status.get("run_at") or status.get("checked_at") or ""
     if kind == "new":
-        return f"uusi IFIC {status.get('ific')} haettu ja ajettu {when}"
+        return f"new IFIC {status.get('ific')} fetched and run {when}"
     if kind == "error":
-        return f"tarkistus epäonnistui {when}: {status.get('message', '')}"
+        return f"check failed {when}: {status.get('message', '')}"
     if kind == "no_new":
-        return f"ei uutta IFIC-pakettia (viimeisin {status.get('last_ific')}), tarkistettu {when}"
-    return status.get("message", "hakua ei ole vielä tarkistettu")
+        return f"no new IFIC package (latest {status.get('last_ific')}), checked {when}"
+    return status.get("message", "the check has not run yet")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -272,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         status = read_status(control_dir()) or {
             "status": "unknown",
-            "message": "hakua ei ole vielä tarkistettu",
+            "message": "the check has not run yet",
         }
     print(json.dumps(status, ensure_ascii=False, indent=2) if args.json else render(status))
     return 1 if args.check and status["status"] == "error" else 0

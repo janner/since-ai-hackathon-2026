@@ -42,8 +42,8 @@ def test_message_carries_numbers_and_link(tmp_path):
     counts, cases = notify.load(out)
     message = notify.build_message(counts, notify.top_cases(cases), "3074", "http://kaista.test")
     assert "196 → 41 → 19 → 18 + 1" in message
-    assert "9 ylittää · 5 lähellä" in message
-    assert "17 huomioitavaa" in message
+    assert "9 exceeds · 5 near" in message
+    assert "17 cases to note" in message
     assert "http://kaista.test" in message
     assert "60,44 dB" in message  # Finnish decimal comma
 
@@ -82,20 +82,20 @@ def test_dry_run_writes_markdown_json_and_html(tmp_path):
     page = (tmp_path / "teams_message.html").read_text(encoding="utf-8")
     assert page.startswith("<!DOCTYPE html>")
     assert "BR IFIC 3074" in page
-    assert "Kiireellisimmät" in page
+    assert "Most urgent" in page
 
 
 def test_html_preview_renders_headings_bold():
-    page = notify.build_html("# Otsikko\n\nrivi", "3074", "http://kaista.test")
-    assert "<p><b>Otsikko</b></p>" in page
-    assert "<p>rivi</p>" in page
+    page = notify.build_html("# Heading\n\nline", "3074", "http://kaista.test")
+    assert "<p><b>Heading</b></p>" in page
+    assert "<p>line</p>" in page
 
 
 def test_send_without_webhook_fails_cleanly(tmp_path, monkeypatch, capsys):
     write_out(tmp_path, COUNTS, [make_case("124545403", "exceeds", "No. 9.1", 60.44)])
     monkeypatch.delenv("TEAMS_WEBHOOK_URL", raising=False)
     assert notify.main(["--send", "--out", str(tmp_path)]) == 1
-    assert "TEAMS_WEBHOOK_URL puuttuu" in capsys.readouterr().err
+    assert "TEAMS_WEBHOOK_URL is not set" in capsys.readouterr().err
 
 
 def test_send_posts_the_card_to_the_webhook(tmp_path, monkeypatch):

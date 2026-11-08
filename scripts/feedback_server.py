@@ -45,8 +45,8 @@ FIELDS = (
     "contact_ok",
     "contact",
 )
-PILOT_LABEL = {"kylla": "Kyllä", "ehka": "Ehkä", "ei": "Ei"}
-LANG_LABEL = {"suomi": "Suomi", "englanti": "Englanti", "ei_valia": "Ei väliä"}
+PILOT_LABEL = {"kylla": "Yes", "ehka": "Maybe", "ei": "No"}
+LANG_LABEL = {"suomi": "Finnish", "englanti": "English", "ei_valia": "No preference"}
 CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
@@ -63,17 +63,17 @@ def entry_from(form: dict[str, list[str]]) -> tuple[dict | None, str | None]:
         for key in FIELDS
     }
     if not any(data[key] for key in ("t2_card", "t3_next", "feedback", "does_not")):
-        return None, "Täytä vähintään tehtävä 2 tai kerro vapaasti."
+        return None, "Fill in task 2 at least, or write something in the free fields."
     if data["useful"] and data["useful"] not in {"1", "2", "3", "4", "5"}:
-        return None, "Valitse hyödyllisyys asteikolla 1–5."
+        return None, "Choose usefulness on the scale 1-5."
     if data["understood"] and data["understood"] not in {"kylla", "osittain", "en"}:
-        return None, "Valitse ymmärsitkö työkalun käytön."
+        return None, "Choose whether you understood the tool."
     if data["pilot"] and data["pilot"] not in PILOT_LABEL:
-        return None, "Valitse pilottihalukkuus."
+        return None, "Choose the pilot answer."
     if data["language"] and data["language"] not in LANG_LABEL:
-        return None, "Valitse UI-kieli."
+        return None, "Choose the UI language."
     if data["trust"] and data["trust"] not in {"1", "2", "3", "4", "5"}:
-        return None, "Valitse luottamus asteikolla 1–5."
+        return None, "Choose trust on the scale 1-5."
     data["contact_ok"] = "yes" if data["contact_ok"] == "yes" else "no"
     data["id"] = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(2)
     data["received_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -81,34 +81,34 @@ def entry_from(form: dict[str, list[str]]) -> tuple[dict | None, str | None]:
 
 
 def markdown(entry: dict) -> str:
-    understood = {"kylla": "Kyllä", "osittain": "Osittain", "en": "En"}.get(
+    understood = {"kylla": "Yes", "osittain": "Partly", "en": "No"}.get(
         entry["understood"], entry["understood"]
     )
     lines = [f"## {entry['received_at']} · {entry['id']}", ""]
     pairs = [
-        ("Nimi", entry["name"]),
-        ("Organisaatio ja rooli", entry["org"]),
-        ("Hyödyllisyys", entry["useful"] + "/5" if entry["useful"] else ""),
-        ("Ymmärsikö", understood),
-        ("Pilottihalukkuus", PILOT_LABEL.get(entry["pilot"], entry["pilot"])),
-        ("UI-kieli", LANG_LABEL.get(entry["language"], entry["language"])),
-        ("Tehtävä 1: automaattihaku", entry["t1_status"]),
-        ("Tausta: nykytila", entry["baseline"]),
-        ("Tehtävä 2: tapaus", entry["t2_card"]),
-        ("Tehtävä 3: seuraava askel", entry["t3_next"]),
-        ("Tehtävä 4: ei-päätettävät", entry["t4_undecided"]),
-        ("Tehtävä 5: laskelma", entry["t5_calc"]),
-        ("Luottamus lukuun", entry["trust"] + "/5" if entry["trust"] else ""),
-        ("Mitä työkalu ei tee", entry["does_not"]),
-        ("Vapaa palaute", entry["feedback"]),
+        ("Name", entry["name"]),
+        ("Organisation and role", entry["org"]),
+        ("Usefulness", entry["useful"] + "/5" if entry["useful"] else ""),
+        ("Understood", understood),
+        ("Willingness to pilot", PILOT_LABEL.get(entry["pilot"], entry["pilot"])),
+        ("UI language", LANG_LABEL.get(entry["language"], entry["language"])),
+        ("Task 1: automatic fetch", entry["t1_status"]),
+        ("Background: how it is done today", entry["baseline"]),
+        ("Task 2: the case", entry["t2_card"]),
+        ("Task 3: next step", entry["t3_next"]),
+        ("Task 4: the undecidables", entry["t4_undecided"]),
+        ("Task 5: the calculation", entry["t5_calc"]),
+        ("Trust in the number", entry["trust"] + "/5" if entry["trust"] else ""),
+        ("What the tool does not do", entry["does_not"]),
+        ("Free feedback", entry["feedback"]),
     ]
     for label, value in pairs:
         if value:
             lines.append(f"- **{label}:** {value}")
     if entry["contact_ok"] == "yes":
-        lines.append("- **Saa ottaa yhteyttä:** kyllä")
+        lines.append("- **May be contacted:** yes")
         if entry["contact"]:
-            lines.append(f"- **Yhteystieto:** {entry['contact']}")
+            lines.append(f"- **Contact:** {entry['contact']}")
     return "\n".join(lines)
 
 
@@ -130,10 +130,10 @@ def notify(entry: dict) -> None:
     hermes = shutil.which("hermes")
     if not hermes:
         return
-    text = "Uusi palaute Kaista-demosta\n\n" + markdown(entry)
+    text = "New feedback on the Kaista demo\n\n" + markdown(entry)
     try:
         subprocess.run(
-            [hermes, "send", "--to", TARGET, "--subject", "Uusi palaute: Kaista", text],
+            [hermes, "send", "--to", TARGET, "--subject", "New feedback: Kaista", text],
             timeout=15,
             capture_output=True,
             text=True,
@@ -144,7 +144,7 @@ def notify(entry: dict) -> None:
 
 def page(title: str, body: str) -> bytes:
     return f"""<!doctype html>
-<html lang="fi">
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)}</title>
@@ -162,7 +162,7 @@ def page(title: str, body: str) -> bytes:
   code {{ font:400 14px/1.5 'IBM Plex Mono',ui-monospace,monospace; }}
   a {{ color:var(--accent); }}
 </style>
-<header><h1>Kaista</h1><p class="muted">Palaute demosta</p></header>
+<header><h1>Kaista</h1><p class="muted">Feedback on the demo</p></header>
 <main>{body}</main>
 </html>""".encode()
 
@@ -196,8 +196,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_body(
                 404,
                 page(
-                    "Ei löytynyt",
-                    '<h2>Ei löytynyt</h2><p class="muted">Tätä sivua ei ole.</p>',
+                    "Not found",
+                    '<h2>Not found</h2><p class="muted">There is no such page.</p>',
                 ),
             )
 
@@ -213,8 +213,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_body(
                 413,
                 page(
-                    "Liian suuri",
-                    '<h2>Liian suuri</h2><p class="muted">Palaute on liian pitkä.</p>',
+                    "Too large",
+                    '<h2>Too large</h2><p class="muted">The feedback is too long.</p>',
                 ),
             )
             return
@@ -222,21 +222,21 @@ class Handler(BaseHTTPRequestHandler):
         entry, error = entry_from(parse_qs(body, keep_blank_values=True))
         if error or entry is None:
             body = (
-                "<h2>Tarkista palaute</h2>"
+                "<h2>Check the feedback</h2>"
                 f"<p>{html.escape(error or '')}</p>"
-                '<p><a href="/">Takaisin lomakkeeseen</a></p>'
+                '<p><a href="/">Back to the form</a></p>'
             )
-            self.send_body(400, page("Tarkista palaute", body))
+            self.send_body(400, page("Check the feedback", body))
             return
         store(entry)
         threading.Thread(target=notify, args=(entry,), daemon=True).start()
         self.send_body(
             200,
             page(
-                "Kiitos palautteesta",
-                f"<h2>Kiitos palautteesta</h2><p>Palaute on tallennettu.</p>"
-                '<p class="muted">Viite: <code>'
-                f"{html.escape(entry['id'])}</code>. Voit sulkea tämän sivun.</p>",
+                "Thank you",
+                "<h2>Thank you</h2><p>The feedback has been stored.</p>"
+                '<p class="muted">Reference: <code>'
+                f"{html.escape(entry['id'])}</code>. You can close this page.</p>",
             ),
         )
 

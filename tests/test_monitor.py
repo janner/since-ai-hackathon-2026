@@ -117,7 +117,7 @@ def test_failed_run_keeps_out_and_runs_untouched(out, monkeypatch):
     monkeypatch.setattr(monitor, "run_pipeline", fake_pipeline({"notices": 42}, code=2))
     status = monitor.check()
     assert status["status"] == "error"
-    assert "putki" in status["message"]
+    assert "pipeline failed" in status["message"]
     assert monitor.main(["--check"]) == 1
     assert untouched(out)
     assert not (out.parent / "runs" / "latest").exists()
@@ -168,4 +168,4 @@ def test_missing_run_log_and_fallback_is_error(tmp_path, monkeypatch):
     monkeypatch.setenv("KAISTA_OUT", str(tmp_path / "empty"))
     status = monitor.check()
     assert status["status"] == "error"
-    assert "IFIC-tunnistetta" in status["message"]
+    assert "IFIC identifier was not found" in status["message"]

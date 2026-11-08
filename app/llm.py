@@ -1,4 +1,4 @@
-"""Yksi OpenAI-yhteensopiva chat-kutsu. Palvelu vaihdetaan .env:llä, ei koodilla."""
+"""One OpenAI-compatible chat call. The service is switched in .env, not in code."""
 
 import json
 import os

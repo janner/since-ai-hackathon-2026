@@ -10,7 +10,7 @@ def test_feedback_needs_words():
 
 
 def test_feedback_rejects_bad_rating():
-    entry, error = entry_from({"feedback": ["Toimii."], "useful": ["9"]})
+    entry, error = entry_from({"feedback": ["Works."], "useful": ["9"]})
     assert entry is None
     assert error
 
@@ -18,17 +18,17 @@ def test_feedback_rejects_bad_rating():
 def test_feedback_entry_and_markdown():
     entry, error = entry_from(
         {
-            "name": ["Testi Asiakas"],
-            "feedback": ["Lomake toimii."],
+            "name": ["Test Customer"],
+            "feedback": ["The form works."],
             "useful": ["5"],
             "understood": ["kylla"],
             "pilot": ["ehka"],
             "language": ["suomi"],
-            "t2_card": ["Kortti kertoo, että keilan geometria puuttuu."],
-            "t3_next": ["Kopioi kysymyksen ja lähettää sen."],
-            "baseline": ["Yksi henkilö hakee IFIC:n ja käy sen läpi päivässä."],
+            "t2_card": ["The card says the beam geometry is missing."],
+            "t3_next": ["Copy the question and send it."],
+            "baseline": ["One person fetches the IFIC and goes through it in a day."],
             "trust": ["4"],
-            "does_not": ["Ei kerro keilan geometriaa."],
+            "does_not": ["It does not show the beam geometry."],
             "contact_ok": ["yes"],
             "contact": ["testi@example.invalid"],
         }
@@ -38,12 +38,12 @@ def test_feedback_entry_and_markdown():
     assert entry["id"]
     assert entry["contact_ok"] == "yes"
     text = markdown(entry)
-    assert "Lomake toimii." in text
+    assert "The form works." in text
     assert "5/5" in text
-    assert "Kyllä" in text
-    assert "Ehkä" in text
-    assert "Suomi" in text
-    assert "Tehtävä 2: tapaus" in text
-    assert "Tausta: nykytila" in text
+    assert "Yes" in text
+    assert "Maybe" in text
+    assert "Finnish" in text
+    assert "Task 2: the case" in text
+    assert "Background: how it is done today" in text
     assert "4/5" in text
-    assert "Ei kerro keilan geometriaa." in text
+    assert "It does not show the beam geometry." in text

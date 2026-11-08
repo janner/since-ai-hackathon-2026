@@ -1,36 +1,35 @@
-# Kaista käyttäjän silmin
+# Kaista through the user's eyes
 
-Tämä sivu on Traficomin taajuusasiantuntijalle. Viisi askelta, ei yhtään komentoriviä.
+This page is for the Traficom frequency specialist. Five steps, no command line.
 
-**Ennen kuin alat.** Työkalu avataan selaimessa. Palvelu hakee uuden BR IFIC -paketin itse ITU:lta
-kahden viikon välein, joten sinun ei tarvitse tuoda tiedostoa. Yläpalkin "Check now" -nappi kysyy
-ITU:lta heti (komentoriviltä sama on `python scripts/monitor.py --check`). Jos automaattihaku ei
-toimi, kehittäjä ajaa putken käsin (`python -m app.pipeline --ific <mdb>`); sivulla ei ole tiedoston
-tuontia.
+**Before you start.** The tool opens in a browser. The service fetches the new BR IFIC package from
+ITU every two weeks, so you do not bring the file yourself. The "Check now" button in the top bar
+asks ITU right away (the same check from a command line is `python scripts/monitor.py --check`). If
+the automatic fetch does not work, the developer runs the pipeline by hand
+(`python -m app.pipeline --ific <mdb>`); the page has no file upload.
 
-## Viisi askelta
+## Five steps
 
-1. **Avaa osoite selaimessa.** Yläpalkki näyttää suppilon luvut ja jonon pituuden. Vasemman
-   sarakkeen "Funnel" (suppilo) kertoo, montako ilmoitusta seulottiin ja miksi loput putosivat pois.
-   Klikkaa mitä tahansa Funnel-riviä, niin jono suodattuu sen mukaan: vaiherivi näyttää ne
-   ilmoitukset, jotka pääsivät siihen vaiheeseen, luokkarivi rajaa luokkaan ja Drops-rivi näyttää
-   ne ilmoitukset, jotka putosivat sillä syyllä. Sama rivi uudelleen tai "Show all" palauttaa kaikki.
-2. **Tarkista uusi aineisto.** Palvelu hakee uuden BR IFIC -paketin ITU:lta itse; sinä et tuo
-   tiedostoa. Yläpalkin "Check now" -nappi kertoo, onko uutta pakettia, ja ajaa sen. Rekisteri ja
-   M4 eivät vaihdu joka paketissa, joten ne ovat palvelimella.
-3. **Katso "Queue" (jono).** Jono listaa jokaisen ilmoituksen kolmessa osiossa: "Needs attention"
-   (huomiota tarvitsevat), "Checked, nothing to note" (tarkistetut) ja "No effect on Finland"
-   (Suomeen vaikuttamattomat). Huomiota tarvitsevat tulevat ensin. Jono järjestää ensin
-   sääntelyvaiheen: "Advance publication" ja "Coordination request" tulevat ennen "Recorded in the
-   MIFR", koska niihin voi vielä vaikuttaa. Vaiheen sisällä järjestys on "Exceeds limit", "Near
-   limit", "No satellite use in Finland" (kaista, jolla ei ole Suomessa satelliittikäyttöä) ja
-   "Cannot decide". Marginaali ei järjestä jonoa.
-4. **Avaa tapaus.** Lue "What this means" ja "What information is missing". Laskelma on piilossa
-   "Show calculation" -painikkeen alla; avaa se, jos haluat tarkistaa luvun itse.
-5. **Kopioi kysymys kohdasta "Question to the other administration"** omaan viestiisi.
+1. **Open the address in a browser.** The top bar shows the funnel numbers and the queue length.
+   The "Funnel" column on the left says how many notices were screened and why the rest dropped out.
+   Click any funnel row and the queue filters to it: a stage row shows the notices that reached that
+   stage, a class row narrows to that class, and a Drops row shows the notices dropped for that
+   reason. The same row again, or "Show all", restores everything.
+2. **Check for new material.** The service fetches the new BR IFIC package from ITU itself; you do
+   not bring the file. The "Check now" button in the top bar says whether there is a new package and
+   runs it. The register and M4 do not change with every package, so they live on the server.
+3. **Look at the queue.** The queue lists every notice in three sections: "Needs attention",
+   "Checked, nothing to note" and "No effect on Finland". The ones that need attention come first.
+   The queue orders by regulatory stage first: "Advance publication" and "Coordination request" come
+   before "Recorded in the MIFR", because those can still be influenced. Inside a stage the order is
+   "Exceeds limit", "Near limit", "No satellite use in Finland" (a band with no satellite use in
+   Finland) and "Cannot decide". The margin does not order the queue.
+4. **Open a case.** Read "What this means" and "What information is missing". The calculation sits
+   behind "Show calculation"; open it if you want to check the number yourself.
+5. **Copy the question** from "Question to the other administration" into your own message.
 
-## Mitä työkalu ei tee
+## What the tool does not do
 
-Työkalu ei tee päätöstä: jokainen luku tulee koodista, ei kielimallista. Se ei lähetä kirjettä
-puolestasi, vaan antaa luonnoksen, jonka sinä luet ja lähetät. Se ei myöskään tallenna, mitä olet
-katsonut: ei "katsottu"-merkintää, ei kommentteja, ei omistajia.
+The tool makes no decision: every number comes from code, not from a language model. It does not
+send a letter for you; it gives you a draft that you read and send. It also does not record what you
+have looked at: no "seen" mark, no comments, no owners.

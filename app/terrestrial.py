@@ -1,44 +1,44 @@
-"""Terrestriaalinen sivutehtävä: BR IFIC -MDB Suomen rekisteriä vasten.
+"""Terrestrial side feature: BR IFIC MDB against the Finnish register.
 
-Sama ohjelma ja sama tulostekontrakti, eri laskentapolku. Jaettu ydin on
-`app.ingest`-moduulin provenienssi (`sha256`, `input_digest`) ja
-`app.config.RULES_VERSION`; tuloste kantaa samat kentät kuin avaruuspuolen kortti
-(`source`, `audit`, `missing`), mutta laskenta on ITU-R P.1546-6 eikä PFD-portit.
-Ajo tapahtuu samalla komennolla (`app.pipeline --terrestrial`); ilman lippua
-avaruusajo on ennallaan. Moduuli lukee omat syötteensä (BR IFIC -MDB
-`mdb-export`illa, kuten `scripts/fetch_data.py`) ja kirjoittaa omat kolme
-tulostetiedostonsa (päätös D7).
+Same program and same output contract, different calculation path. The shared core is
+the provenance of `app.ingest` (`sha256`, `input_digest`) and
+`app.config.RULES_VERSION`; the output carries the same fields as the space card
+(`source`, `audit`, `missing`), but the calculation is ITU-R P.1546-6 rather than PFD gates.
+It runs with the same command (`app.pipeline --terrestrial`); without the flag the
+space run is unchanged. The module reads its own inputs (BR IFIC MDB via
+`mdb-export`, as `scripts/fetch_data.py` does) and writes its own three
+output files (decision D7).
 
-Ilmoituksen tila tulee `fxm_terra.intent`-kentästä (ADD/MODIFY/SUPPRESS/RECORDED):
-IFIC ei ole kumulatiivinen kanta, joten kahden numeron avainvertailu ei kerro
-muutoksista. 3075 on trendien vertailupohja.
+The notice state comes from the `fxm_terra.intent` field (ADD/MODIFY/SUPPRESS/RECORDED):
+IFIC is not a cumulative database, so comparing keys across two numbers says nothing
+about changes. 3075 is the baseline for trends.
 
-Malli: ITU-R P.1546-6 maapolku, 10 % ajasta (sama aikaprosentti kuin T/R 25-08
-A1.2.3 -kynnyksellä), 50 % paikoista, ei maastoa, vastaanottoantenni 10 m. Taulukko
-`rules/p1546_land.csv` on generoitu ITU:n referenssitoteutuksella (eeveetza/Py1546,
-commit e235629) skriptillä `scripts/gen_p1546_table.py`:
+Model: ITU-R P.1546-6 land path, 10 % time (the same time percentage as the T/R 25-08
+A1.2.3 threshold), 50 % locations, no terrain, receiving antenna 10 m. The table
+`rules/p1546_land.csv` was generated with ITU's reference implementation (eeveetza/Py1546,
+commit e235629) by the script `scripts/gen_p1546_table.py`:
 
     bt_loss(f, 10, h1, 10, 10, "Rural", [d], ["Land"], 0, 50, 0, 1, h1)[0]
 
-taajuuksilla 100/600/2000 MHz, korkeuksilla 10/20/37.5/75/150/300/600/1200 m ja
-P.1546:n nimellisetäisyyksillä 1–1000 km. Taulukon arvot ovat 1 kW ERP
--referenssille, joten teho lisätään 10*log10(p). Interpolointi P.1546-6 Annex 5:n
-mukaan logaritmisena: etäisyys log d (eq. 15), korkeus log h1 (eq. 8) ja taajuus
-log f (eq. 14; alle 100 ja yli 2000 MHz ekstrapoloidaan kahdesta lähimmästä käyrästä).
-Korkeus alle 10 m kiinnitetään 10 m:iin (yliarvio, Annex 5 §4.2 eq. 9 jätetty
-toteuttamatta) ja korkeus yli 1200 m sekä etäisyys alle 1 tai yli 1000 km taulukon
-reunaan; nämä merkitään `extrapolated`-lipulla, kun maksimipiste osuu niihin.
+at 100/600/2000 MHz, heights 10/20/37.5/75/150/300/600/1200 m and
+P.1546 nominal distances 1-1000 km. The table values are for the 1 kW ERP
+reference, so power is added as 10*log10(p). Interpolation follows P.1546-6 Annex 5 in
+log space: distance log d (eq. 15), height log h1 (eq. 8) and frequency
+log f (eq. 14; below 100 and above 2000 MHz it is extrapolated from the two nearest curves).
+Height below 10 m is clamped to 10 m (an overestimate; Annex 5 §4.2 eq. 9 is left
+unimplemented) and height above 1200 m and distance below 1 or above 1000 km are clamped to the
+table edge; these are marked with the `extrapolated` flag when the maximum point hits them.
 
-Traficomin Q&A 7.11.2026: kenttävoimakkuus lasketaan **rajaviivan pisteissä**, ei
-neljässä kaupungissa, ja lisäksi merkitään ne rekisterin suomalaiset asemat, joiden
-kenttävoimakkuus ylittää koordinointikynnyksen. Rajaviiva on `rules/finland_border.csv`:
-maanrajat Ruotsin (SE), Norjan (NO) ja Venäjän (RU) kanssa sekä alueveden ulkoraja
-(TS, 12 mp:n viiva; Traficom 7.11.2026). Rantaviiva ei ole rajaviivaa. Pisteet
-jaetaan `section`-sarakkeella peräkkäisiin murtoviivoihin, jotta tuloksesta näkyy,
-**missä osassa** kenttävoimakkuus on suurin (Traficom 7.11.).
-Kynnys on CEPT/ECC T/R 25-08 A1.2.3
-(`rules/tr2508_thresholds.csv`); Traficomin 7.11.2026 mukaan sama kriteeri jatkuu
-yli 470 MHz:n, missä on 85 % aineiston maaliikenteen riveistä.
+Traficom Q&A 7.11.2026: field strength is computed at points on the border line, not
+at four cities, and the Finnish register stations whose field strength exceeds the
+coordination threshold are also marked. The border line is `rules/finland_border.csv`:
+the land borders with Sweden (SE), Norway (NO) and Russia (RU) and the territorial sea
+outer limit (TS, the 12 nautical mile line; Traficom 7.11.2026). The shoreline is not a border
+line. Points are split by the `section` column into consecutive polylines, so the result shows
+which section has the highest field strength (Traficom 7.11.).
+The threshold is CEPT/ECC T/R 25-08 A1.2.3
+(`rules/tr2508_thresholds.csv`); according to Traficom 7.11.2026 the same criterion continues
+above 470 MHz, which covers 85 % of the land mobile rows in the data.
 """
 
 import argparse
@@ -57,42 +57,42 @@ RULES = Path(__file__).resolve().parent.parent / "rules" / "p1546_land.csv"
 BORDER = Path(__file__).resolve().parent.parent / "rules" / "finland_border.csv"
 TR2508 = Path(__file__).resolve().parent.parent / "rules" / "tr2508_thresholds.csv"
 
-# BR IFIC 3076 -skeeman taulut, joista notice rakennetaan.
+# BR IFIC 3076 schema tables a notice is built from.
 TABLES = ("fxm_terra", "fxm_geo", "fxm_ant", "fxm_coord")
-# Tulosteen `source.keys`: mistä taulujen avaimista luku tuli (SCOPE 7, sama kontrakti
-# kuin avaruuskortin `ntc_id` / `grp_id` / `beam_name`).
+# Output `source.keys`: the table keys the record came from (SCOPE 7, same contract
+# as `ntc_id` / `grp_id` / `beam_name` on the space card).
 KEYS = ("terrakey", "adm_ref_id")
-# intent -> muutoksen nimi. RECORDED on kanta, ei muutos.
+# intent -> change name. RECORDED is the stock, not a change.
 INTENT_CHANGE = {"ADD": "new", "MODIFY": "modified", "SUPPRESS": "withdrawn"}
 
 MAX_DIST_KM = 1000.0
 RX_HEIGHT_M = 10.0
-# Kenttävoimakkuus lasketaan rajaviivan pisteissä: murtoviiva näytellään tällä
-# välein, jotta myös pitkät suorat rajaosat tulevat katetuiksi (Traficom 7.11.).
+# Field strength is computed at border line points: the polyline is sampled at this
+# interval so that long straight border stretches are covered too (Traficom 7.11.).
 BORDER_STEP_KM = 10.0
 KM_PER_DEG = 111.32
 TR2508_REF_BW_KHZ = 25.0
-# BR IFIC -asemaluokat: FB = tukiasema, ML = maaliikenne, FL = maaliikenne (kiinteä).
+# BR IFIC station classes: FB = base station, ML = land mobile, FL = land mobile (fixed).
 LAND_MOBILE_CLASSES = frozenset({"FB", "ML", "FL"})
-# Naapurihallinnot ITU-koodein (S = Ruotsi). Trendit ja poikkeamat rajataan näihin
-# sekä hallintoihin, joiden ilmoitus on < MAX_DIST_KM Suomen rajasta.
+# Neighbour administrations by ITU code (S = Sweden). Trends and anomalies are limited to
+# these and to administrations whose notice is < MAX_DIST_KM from the Finnish border.
 NEIGHBOURS = frozenset({"RUS", "S", "NOR", "EST", "LVA", "LTU"})
-# ML-asemalla ei ole antennikorkeutta. Oletus = taulukon matalin korkeus 10 m: se on
-# korkeampi kuin ajoneuvoantenni, joten arvo on yliarvio eikä kätke ylitystä.
+# An ML station has no antenna height. Default = the lowest table height, 10 m: it is
+# higher than a vehicle antenna, so the value is an overestimate and hides no exceedance.
 ASSUMED_H1_M = 10.0
-# Rajaosat (rules/finland_border.csv `section`): maanrajat Ruotsin, Norjan ja
-# Venäjän kanssa sekä aluevesiraja. Traficom 7.11.2026: arviointi tehdään maanrajoja
-# ja alueveden ulkorajaa pitkin, ei pelkkää mantereen rantaviivaa. Alueveden
-# ulkoraja on 12 mp:n viiva (Marine Regions, Finnish 12 NM).
+# Border sections (rules/finland_border.csv `section`): the land borders with Sweden,
+# Norway and Russia plus the territorial sea. Traficom 7.11.2026: the assessment follows
+# the land borders and the territorial sea outer limit, not just the mainland shoreline.
+# The territorial sea outer limit is the 12 nautical mile line (Marine Regions, Finnish 12 NM).
 SECTION_NAMES = {
-    "SE": "Ruotsi (Tornionlaakso, maanraja)",
-    "NO": "Norja (Käsivarsi, maanraja)",
-    "RU": "Venäjä (itäraja, maanraja)",
-    "TS": "Aluevesiraja (12 mp:n ulkoraja)",
+    "SE": "Sweden (Tornio valley, land border)",
+    "NO": "Norway (K\u00e4sivarsi, land border)",
+    "RU": "Russia (eastern border, land border)",
+    "TS": "Territorial sea (12 nautical mile outer limit)",
 }
-# Traficom 7.11.2026: T/R 25-08 päättyy 470 MHz:iin, ja sen yläpuolella sovelletaan
-# samaa kriteeriä kuin 400-470 MHz:n alueella (20 dB(uV/m) + kaistanleveyskorjaus).
-# Ilman tätä 85 % 3076:n maaliikenteen riveistä jäisi ilman kynnystä.
+# Traficom 7.11.2026: T/R 25-08 ends at 470 MHz, and above it the same criterion
+# applies as in the 400-470 MHz range (20 dB(uV/m) + bandwidth correction).
+# Without this, 85 % of the 3076 land mobile rows would have no threshold.
 CRITERION = (
     "protection framework in three tiers: "
     "ITU Radio Regulations terrestrial notification (Article 11, the notice's own "
@@ -102,7 +102,7 @@ CRITERION = (
     "CEPT/ECC T/R 25-08 A1.2.3 (coordination threshold at the border line, "
     "25 kHz reference bandwidth, 10 % time, 10 m receiving antenna; Traficom "
     "7.11.2026 applies the 400-470 MHz criterion above 470 MHz) applies here -> "
-    "national M4 / Traficomin taajuusjakotaulukko (national M4 value not confirmed)"
+    "national M4 / Traficom frequency allocation table (national M4 value not confirmed)"
 )
 TIME_PERCENT = 10
 
@@ -115,7 +115,7 @@ def _num(value):
 
 
 def _mhz(value):
-    """'87.900 MHz' / '300.000 kHz' / '1.5 GHz' -> MHz. None jos ei luettavissa."""
+    """'87.900 MHz' / '300.000 kHz' / '1.5 GHz' -> MHz. None if unreadable."""
     parts = str(value or "").split()
     if len(parts) != 2 or parts[1].lower() not in {"khz", "mhz", "ghz"}:
         return None
@@ -126,7 +126,7 @@ def _mhz(value):
 
 
 def _khz(value):
-    """'300.000 kHz' / '16 kHz' -> kHz. None jos ei luettavissa."""
+    """'300.000 kHz' / '16 kHz' -> kHz. None if unreadable."""
     parts = str(value or "").split()
     if len(parts) != 2 or parts[1].lower() not in {"hz", "khz", "mhz"}:
         return None
@@ -145,20 +145,20 @@ def haversine_km(lat1, lon1, lat2, lon2):
 
 @lru_cache(maxsize=1)
 def border_line():
-    """Suomen raja: maanrajat ja alueveden ulkoraja (lat, lon, section).
+    """The Finnish border: land borders and territorial sea outer limit (lat, lon, section).
 
-    `section` = rajaosa: SE (Tornionlaakso, Ruotsin maanraja), NO (Norjan
-    maanraja), RU (Venäjän maanraja), TS (alueveden ulkoraja, 12 mp:n viiva).
-    Traficom 7.11.2026: arviointi tehdään maanrajoja ja alueveden ulkorajaa
-    pitkin. Pisteet jaetaan peräkkäisiin murtoviivoihin `section`-arvon
-    vaihtuessa; TS on oma suljettu renkaansa. Rantaviiva ei ole rajaviivaa.
+    `section` = border section: SE (Tornio valley, Swedish land border), NO (Norwegian
+    land border), RU (Russian land border), TS (territorial sea outer limit, 12 nautical
+    mile line). Traficom 7.11.2026: the assessment follows the land borders and the
+    territorial sea outer limit. Points are split into consecutive polylines when the
+    `section` value changes; TS is its own closed ring. The shoreline is not a border line.
     """
     points = []
     with BORDER.open(encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
             points.append((float(row["lat"]), float(row["lon"]), row["section"]))
     if len(points) < 3:
-        raise ValueError(f"{BORDER}: rajaviiva tarvitsee vähintään 3 pistettä")
+        raise ValueError(f"{BORDER}: border line needs at least 3 points")
     lines, current = [], []
     for point in points:
         if current and point[2] != current[-1][2]:
@@ -172,11 +172,11 @@ def border_line():
 
 @lru_cache(maxsize=1)
 def border_samples():
-    """Rajaviiva tasavälein (`BORDER_STEP_KM`): kenttävoimakkuuden laskentapisteet.
+    """Border line at even spacing (`BORDER_STEP_KM`): the field strength calculation points.
 
-    Jokainen näyte kantaa sen janan rajaosan, jolla se on, joten maksimi voidaan
-    laskea rajaosittain. Murtoviivat ovat avoimia; TS sulkeutuu itsestään, koska
-    sen ensimmäinen ja viimeinen piste ovat samat.
+    Every sample carries the border section of the segment it lies on, so the maximum can be
+    computed per section. The polylines are open; TS closes on itself because its first and
+    last point are the same.
     """
     samples = []
     for line in border_line():
@@ -190,7 +190,7 @@ def border_samples():
 
 
 def _point_segment_km(lat, lon, a, b):
-    """Etäisyys pisteestä janan ab päälle: paikallinen taso (riittää 1 000 km:lle)."""
+    """Distance from a point to segment ab: local plane (good enough for 1 000 km)."""
     k = math.cos(math.radians(lat))
     ax, ay = (a[1] - lon) * k * KM_PER_DEG, (a[0] - lat) * KM_PER_DEG
     bx, by = (b[1] - lon) * k * KM_PER_DEG, (b[0] - lat) * KM_PER_DEG
@@ -203,7 +203,8 @@ def _point_segment_km(lat, lon, a, b):
 
 @cache
 def distance_to_border_km(lat, lon):
-    """Lyhin etäisyys Suomen rajaan: maanrajat ja alueveden ulkoraja (T2)."""
+    """Shortest distance to the Finnish border: land borders and the territorial sea
+    outer limit (T2)."""
     return min(
         _point_segment_km(lat, lon, line[i], line[i + 1])
         for line in border_line()
@@ -218,16 +219,16 @@ def tr2508_rows():
         for row in csv.DictReader(f):
             rows.append((float(row["f_min_mhz"]), float(row["f_max_mhz"]), float(row["dbuv_m"])))
     if not rows:
-        raise ValueError(f"{TR2508}: kynnystaulukko on tyhjä")
+        raise ValueError(f"{TR2508}: threshold table is empty")
     return tuple(rows)
 
 
 def tr2508_threshold(freq_mhz, bw_khz=TR2508_REF_BW_KHZ):
-    """T/R 25-08 A1.2.3 -koordinointikynnys dB(uV/m) 25 kHz vertailukaistalla.
+    """T/R 25-08 A1.2.3 coordination threshold in dB(uV/m) on the 25 kHz reference bandwidth.
 
-    None vain alle 29,7 MHz:n. Traficomin 7.11.2026 mukaan yli 470 MHz:llä
-    sovelletaan samaa kriteeriä kuin 400-470 MHz:n alueella (20 dB(uV/m)).
-    Kaistanleveydelle > 25 kHz lisätään A1.2.3:n korjaus 10*log10(bw/25) dB.
+    None only below 29.7 MHz. According to Traficom 7.11.2026, above 470 MHz the same
+    criterion applies as in the 400-470 MHz range (20 dB(uV/m)).
+    For bandwidth > 25 kHz the A1.2.3 correction 10*log10(bw/25) dB is added.
     """
     if freq_mhz is None:
         return None
@@ -247,7 +248,7 @@ def _grid():
             key = (float(row["f_mhz"]), float(row["h1_m"]), float(row["d_km"]))
             grid[key] = float(row["e_dbuv_m"])
     if not grid:
-        raise ValueError(f"{RULES}: P.1546-taulukko on tyhjä")
+        raise ValueError(f"{RULES}: P.1546 table is empty")
     return grid
 
 
@@ -262,10 +263,10 @@ def _axes():
 
 
 def _log_bracket(axis, x, extrapolate=False):
-    """(ala, ylä, paino) logaritmisella painolla log(x/ala)/log(ylä/ala) (Annex 5).
+    """(low, high, weight) with the log weight log(x/low)/log(high/low) (Annex 5).
 
-    Akselin ulkopuolella joko ekstrapoloidaan kahdesta lähimmästä pisteestä
-    (`extrapolate`, taajuus Annex 5:n mukaan) tai kiinnitytään reunapisteeseen.
+    Outside the axis it either extrapolates from the two nearest points
+    (`extrapolate`, frequency per Annex 5) or clamps to the edge point.
     """
     if x <= axis[0] or x >= axis[-1]:
         lo, hi = (axis[0], axis[1]) if x <= axis[0] else (axis[-2], axis[-1])
@@ -278,12 +279,12 @@ def _log_bracket(axis, x, extrapolate=False):
 
 
 def field_strength_p1546(freq_mhz, dist_km, h_ant_m, p_erp_kw):
-    """Kenttävoimakkuus dB(uV/m): P.1546-6 maapolku, 10 % ajasta, 50 % paikoista.
+    """Field strength dB(uV/m): P.1546-6 land path, 10 % time, 50 % locations.
 
-    Logaritminen interpolointi taajuudessa, antennikorkeudessa ja etäisyydessä
-    (P.1546-6 Annex 5 eq. 8, 14, 15); 1 kW -arvo rajataan vapaan tilan arvoon
-    Efs = 106.9 - 20 log d (Annex 5 eq. 2), jottei taajuusekstrapolointi ylitä sitä.
-    Palauttaa None, jos syöte ei ole fysikaalinen (esim. etäisyys 0).
+    Logarithmic interpolation in frequency, antenna height and distance
+    (P.1546-6 Annex 5 eq. 8, 14, 15); the 1 kW value is capped at the free space value
+    Efs = 106.9 - 20 log d (Annex 5 eq. 2) so that frequency extrapolation does not exceed it.
+    Returns None if the input is not physical (for example distance 0).
     """
     if None in (freq_mhz, dist_km, h_ant_m, p_erp_kw):
         return None
@@ -304,14 +305,14 @@ def field_strength_p1546(freq_mhz, dist_km, h_ant_m, p_erp_kw):
 
 
 def extrapolated(freq_mhz, dist_km, h_ant_m):
-    """Onko kysely taulukon ulkopuolella (kiinnitys tai Annex 5 -ekstrapolointi).
+    """Is the query outside the table (clamped or Annex 5 extrapolation).
 
-    Kaikki kolme akselia, molemmin puolin: taajuus alle 100 / yli 2000 MHz
-    (ekstrapoloitu), korkeus alle 10 m tai yli 1200 m ja etäisyys alle 1 km tai
-    yli 1000 km (kiinnitetty reunaan).
+    All three axes, both sides: frequency below 100 / above 2000 MHz
+    (extrapolated), height below 10 m or above 1200 m, and distance below 1 km or
+    above 1000 km (clamped to the edge).
     """
     if None in (freq_mhz, dist_km, h_ant_m):
-        return False  # ei arvoa, ei väitettä
+        return False  # no value, no claim
     f_ax, h_ax, d_ax = _axes()
     return not (
         f_ax[0] <= freq_mhz <= f_ax[-1]
@@ -321,10 +322,10 @@ def extrapolated(freq_mhz, dist_km, h_ant_m):
 
 
 def _notice(row, geo, antennas, coord=()):
-    """Yksi fxm_terra-rivi notice-rakenteeksi; (None, syy) kun pakollinen kenttä puuttuu.
+    """One fxm_terra row as a notice; (None, reason) when a required field is missing.
 
-    Teho: `pwr_dbw` on dBW. `pwr_eiv == "I"` on EIRP, joka muunnetaan ERP:iksi
-    -2,15 dB:llä. Antennirivi valitaan deterministisesti: TX ja pienin `ant_key`.
+    Power: `pwr_dbw` is dBW. `pwr_eiv == "I"` means EIRP, converted to ERP by
+    -2.15 dB. The antenna row is chosen deterministically: TX and the smallest `ant_key`.
     """
     terrakey = row.get("terrakey")
     freq_min, freq_max = _num(row.get("freq_min")), _num(row.get("freq_max"))
@@ -355,28 +356,28 @@ def _notice(row, geo, antennas, coord=()):
         "lon": lon,
         "p_erp_kw": 10 ** (pwr_dbw / 10) / 1000,
         "ant_h_m": _num(ant.get("hgt_agl")),
-        # fxm_terra.bdwdth on kHz (5000 = 5M00, 16.8 = 16K8).
+        # fxm_terra.bdwdth is kHz (5000 = 5M00, 16.8 = 16K8).
         "bdwdth_khz": _num(row.get("bdwdth")),
         "prov": row.get("prov") or "",
-        # fxm_coord-rivit: (coord_prov, adm, coord_st, src_status).
+        # fxm_coord rows: (coord_prov, adm, coord_st, src_status).
         "coord": [(c["coord_prov"], c["adm"], c["coord_st"], c["src_status"]) for c in coord],
     }, None
 
 
 def load_issue_mdb(path):
-    """Lukee yhden BR IFIC -MDB:n (fxm_terra + fxm_geo + fxm_ant + fxm_coord).
+    """Read one BR IFIC MDB (fxm_terra + fxm_geo + fxm_ant + fxm_coord).
 
-    Rivit, joilta puuttuu taajuus, sijainti tai teho, ohitetaan ja lasketaan
-    syyn mukaan (`skipped_invalid`); puuttuvaa arvoa ei arvata. `intent_counts`
-    lasketaan kaikista fxm_terra-riveistä: IFIC:n tila ei riipu siitä, pystyikö
-    työkalu laskemaan rivin.
+    Rows without a frequency, location or power are skipped and counted by
+    reason (`skipped_invalid`); a missing value is never guessed. `intent_counts`
+    covers all fxm_terra rows: the IFIC state does not depend on whether the
+    tool could compute the row.
 
-    Provenienssi (`file`, `sha256`, `path`) jaetaan `app.ingest`-moduulin kanssa:
-    sama hash-funktio kuin avaruuspuolen ingestillä.
+    Provenance (`file`, `sha256`, `path`) is shared with `app.ingest`:
+    the same hash function as the space side ingest.
     """
     mdb = Path(path)
     if not mdb.is_file():
-        raise ValueError(f"{mdb}: tiedostoa ei löytynyt")
+        raise ValueError(f"{mdb}: file not found")
     tables = {name: _export(mdb, name) for name in TABLES}
     geo = {row["geo_key"]: row for row in tables["fxm_geo"]}
     coord = {}
@@ -410,10 +411,10 @@ def band_label(notice):
 
 
 def register_frequencies(path):
-    """Suomen rekisterin taajuudet (MHz) molemmilta kanavanpuolilta.
+    """Finnish register frequencies (MHz) from both sides of the channel.
 
-    Molemmat suunnat, koska kanava on pari: RX 464.04 MHz ja TX 454.04 MHz
-    ovat sama lupa, ja ilmoituksen kaista voi osua kumpaan tahansa.
+    Both directions, because a channel is a pair: RX 464.04 MHz and TX 454.04 MHz
+    are the same licence, and the notice band can fall in either one.
     """
     freqs = []
     with Path(path).open(encoding="utf-8-sig", newline="") as f:
@@ -423,16 +424,16 @@ def register_frequencies(path):
                 if mhz:
                     freqs.append(mhz)
     if not freqs:
-        raise ValueError(f"{path}: RX/TX-taajuussaraketta ei löytynyt")
+        raise ValueError(f"{path}: RX/TX frequency column not found")
     return freqs
 
 
 def register_stations(path):
-    """Suomen rekisterin asemat: tunnus, sijainti ja kanavan taajuudet.
+    """Finnish register stations: identifier, location and channel frequencies.
 
-    RX ensisijainen, TX fallback (Traficom Q&A 7.11.: jokainen TX vastaanotetaan
-    Suomessa). Asemat, joilta puuttuu sijainti tai taajuus, ohitetaan; niitä ei
-    arvata. `bw_khz` on kanavanleveys kynnyskorjausta varten.
+    RX first, TX as fallback (Traficom Q&A 7.11.: every TX is received
+    in Finland). Stations without a location or frequency are skipped; they are never
+    guessed. `bw_khz` is the channel width used for the threshold correction.
     """
     stations = []
     with Path(path).open(encoding="utf-8-sig", newline="") as f:
@@ -457,16 +458,16 @@ def register_stations(path):
                 }
             )
     if not stations:
-        raise ValueError(f"{path}: rekisteristä ei löytynyt asemia, joilla on sijainti")
+        raise ValueError(f"{path}: no stations with a location found in the register")
     return stations
 
 
 def diff_intents(curr):
-    """Ilmoituksen tila `intent`-kentästä: IFIC ei ole kumulatiivinen kanta.
+    """Notice state from the `intent` field: IFIC is not a cumulative database.
 
-    Lukee `intent_counts`-kentän, joka lasketaan kaikista fxm_terra-riveistä,
-    myös niistä joita ei voitu laskea. Palauttaa raa'at lukumäärät (`counts`)
-    sekä muutosnimet (`new`/`modified`/`withdrawn`) ja kannan (`recorded`).
+    Reads the `intent_counts` field, which covers all fxm_terra rows,
+    including those that could not be computed. Returns the raw counts (`counts`)
+    plus the change names (`new`/`modified`/`withdrawn`) and the stock (`recorded`).
     """
     counts = Counter(curr["intent_counts"])
     summary = {change: counts[intent] for intent, change in INTENT_CHANGE.items()}
@@ -475,7 +476,7 @@ def diff_intents(curr):
 
 
 def coord_fin(notice):
-    """fxm_coord-rivit, joissa Suomi (FIN) on nimetty: 'provision status (src_status)'."""
+    """fxm_coord rows that name Finland (FIN): 'provision status (src_status)'."""
     return sorted(
         {
             f"{prov}: {status} ({src})"
@@ -486,11 +487,11 @@ def coord_fin(notice):
 
 
 def select(notices, register, max_km=MAX_DIST_KM):
-    """Pitää ulkomaiset land-mobile-ilmoitukset < 1000 km päässä, jotka osuvat rekisteriin.
+    """Keep foreign land mobile notices < 1000 km away that overlap the register.
 
-    Ilmoitus, jonka fxm_coord nimeää Suomen (FIN), pidetään aina: Suomi on silloin
-    ilmoituksen oma koordinoitava hallinto, eikä rekisterin vajaus saa pudottaa sitä.
-    Suomen omat ilmoitukset (adm FIN) jätetään pois.
+    A notice whose fxm_coord names Finland (FIN) is always kept: Finland is then
+    an administration the notice must coordinate with, and a gap in the register must not
+    drop it. Finland's own notices (adm FIN) are left out.
     """
     kept, dropped = [], {"own": 0, "far": 0, "class": 0, "no_band_overlap": 0}
     for notice in notices:
@@ -515,15 +516,15 @@ def select(notices, register, max_km=MAX_DIST_KM):
 
 
 def border_field_strength(freq_mhz, lat, lon, ant_h_m, p_erp_kw):
-    """Kenttävoimakkuuden maksimi rajaviivalla, piste ja rajaosakohtaiset maksimit.
+    """Maximum field strength along the border line, with the per-section maxima.
 
-    Palauttaa (max_dbuv_m, (lat, lon), näytteiden lkm, extrapolated, sections,
-    section, etäisyys maksimipisteeseen km). Kenttävoimakkuus lasketaan jokaisessa
-    rajapisteessä ja raportoidaan suurin: se on rajaviivan kohta, jossa ulkomainen
-    asema näkyy voimakkaimmin (Traficom 7.11.). `sections` on rajaosakohtainen
-    maksimi, `section` on osa, jossa kokonaismaksimi syntyy (None jos ei arvoa).
-    `extrapolated` koskee vain maksimipistettä: kaukainen näyte yli 1000 km ei
-    vaikuta maksimiin eikä siten lippuun.
+    Returns (max_dbuv_m, (lat, lon), sample count, extrapolated, sections,
+    section, distance to the maximum point km). Field strength is computed at every
+    border point and the largest is reported: that is the point on the border line where the
+    foreign station is strongest (Traficom 7.11.). `sections` holds the per-section
+    maximum, `section` the section where the overall maximum occurs (None if no value).
+    `extrapolated` concerns only the maximum point: a distant sample beyond 1000 km does not
+    affect the maximum and therefore not the flag either.
     """
     best, at, samples, best_dist, at_section = None, (None, None), 0, None, None
     sections = {}
@@ -556,7 +557,7 @@ def _height(notice):
 
 
 def _bandwidth(notice):
-    """(kaistanleveys kHz, lähde): fxm_terra.bdwdth, muuten freq_max - freq_min."""
+    """(bandwidth kHz, source): fxm_terra.bdwdth, otherwise freq_max - freq_min."""
     if notice.get("bdwdth_khz"):
         return notice["bdwdth_khz"], "fxm_terra.bdwdth"
     return (notice["freq_max_mhz"] - notice["freq_min_mhz"]) * 1000, "freq_max - freq_min"
@@ -581,7 +582,7 @@ def _notice_finding(notice, distance, issue, register=()):
         kept_because.append(
             "Finland listed as affected administration (fxm_coord: " + "; ".join(fin) + ")"
         )
-    # Tyhjän arvon syy näkyviin: tuntematon ei koskaan muutu 'ei koordinointia'.
+    # Show the reason for an empty value: unknown never becomes 'no coordination'.
     empty = {}
     if threshold is None:
         empty["threshold_dbuv_m"] = "no T/R 25-08 A1.2.3 row for this frequency (below 29.7 MHz)"
@@ -589,7 +590,7 @@ def _notice_finding(notice, distance, issue, register=()):
         empty["border.max_dbuv_m"] = "P.1546 field strength not computable (power or distance)"
     undecided = threshold is None or e_max is None
     return {
-        # Lähdeviite jokaiseen löydökseen: IFIC-numero, terrakey, adm, intent, taulut.
+        # Source reference on every finding: IFIC number, terrakey, adm, intent, tables.
         "ific": issue,
         "terrakey": notice["terrakey"],
         "adm_ref_id": notice["adm_ref_id"],
@@ -616,7 +617,7 @@ def _notice_finding(notice, distance, issue, register=()):
             "max_dbuv_m": None if e_max is None else round(e_max, 1),
             "at": at,
             "distance_km": None if at_km is None else round(at_km, 1),
-            # Suurin arvo rajaosittain ja se osa, jossa kokonaismaksimi on.
+            # The largest value per section and the section where the overall maximum is.
             "section": section,
             "sections": {
                 name: None if value is None else round(value, 1) for name, value in sections.items()
@@ -626,21 +627,21 @@ def _notice_finding(notice, distance, issue, register=()):
         "extrapolated": extra,
         "threshold_dbuv_m": threshold,
         "margin_db": None if (e_max is None or threshold is None) else round(e_max - threshold, 1),
-        # None = undecided (syy `empty_reason`-kentässä), ei koskaan False tuntemattomasta.
+        # None = undecided (reason in `empty_reason`), never False from an unknown.
         "coordination": None if undecided else e_max >= threshold,
         "empty_reason": empty,
     }
 
 
 def flag_stations(kept, stations):
-    """Rekisterin suomalaiset asemat ja ulkomaisen kenttävoimakkuuden marginaali.
+    """Finnish register stations against the foreign field strength margin.
 
-    Kenttävoimakkuus lasketaan aseman omassa sijainnissa (Traficom Q&A 7.11.), ei
-    rajalla: sama P.1546-arvo kuin rajalla, mutta aseman kohdalla, ja verrataan
-    T/R 25-08 -kynnykseen. Asemaa kohti raportoidaan voimakkain ilmoitus ja
-    `exceeds`, kun kenttävoimakkuus ylittää kynnyksen. Kynnys jatkuu yli 470 MHz:n
-    (Traficom 7.11.2026), joten yli 470 MHz:n ilmoitukset eivät enää ohita
-    vertailua; `tr2508_threshold()` palauttaa niille 20 dB(uV/m).
+    Field strength is computed at the station's own location (Traficom Q&A 7.11.), not at
+    the border: the same P.1546 value as at the border, but at the station, compared with
+    the T/R 25-08 threshold. For each station the strongest notice is reported, with
+    `exceeds` when the field strength passes the threshold. The threshold continues above
+    470 MHz (Traficom 7.11.2026), so notices above 470 MHz no longer bypass the
+    comparison; `tr2508_threshold()` returns 20 dB(uV/m) for them.
     """
     worst = {}
     for notice, _ in kept:
@@ -685,13 +686,13 @@ def _group_key(notice):
 
 
 def trends(prev_notices, curr_notices):
-    """Ryhmä (hallinto x kaista x luokka x kaistanleveys): muutokset vs. edellinen numero."""
+    """Group (adm x band x class x bandwidth): changes against the previous issue."""
     before = Counter(_group_key(n) for n in prev_notices)
     groups = {}
     for notice in curr_notices:
         change = INTENT_CHANGE.get(notice["intent"])
         if change is None:
-            continue  # RECORDED on kanta, ei muutos
+            continue  # RECORDED is the stock, not a change
         group = groups.setdefault(_group_key(notice), {"new": 0, "modified": 0, "withdrawn": 0})
         group[change] += 1
     near = Counter()
@@ -712,7 +713,7 @@ def trends(prev_notices, curr_notices):
         }
         for key, value in groups.items()
     ]
-    # Naapurit (NEIGHBOURS tai < 1000 km Suomen rajasta) ensin.
+    # Neighbours (NEIGHBOURS or < 1000 km from the Finnish border) first.
     rows.sort(
         key=lambda r: (
             not r["neighbour"],
@@ -726,9 +727,10 @@ def trends(prev_notices, curr_notices):
 
 
 def anomalies(rows, limit=5):
-    """Naapuriryhmät, joilla ei ollut edellisessä issuessa ilmoituksia mutta nyt >= 3.
+    """Neighbour groups with no notices in the previous issue but at least 3 now.
 
-    Vain naapurihallinnot / < 1000 km Suomen rajasta; enintään `limit`, syy rivillä.
+    Neighbour administrations / < 1000 km from the Finnish border only; at most `limit`,
+    with the reason on the row.
     """
     found = [r for r in rows if r["neighbour"] and r["prev_count"] == 0 and r["new"] >= 3]
     return [
@@ -742,7 +744,7 @@ def anomalies(rows, limit=5):
 
 
 def _source_block(issue):
-    """Yhden luvun provenienssi samassa muodossa kuin avaruuskortin `source`."""
+    """Provenance of one issue in the same shape as the space card `source`."""
     return {
         "file": issue["file"],
         "sha256": issue["sha256"],
@@ -781,7 +783,7 @@ def findings(prev, curr, register_path):
     # The missing block describes the issue under evaluation (3076), not the baseline.
     skipped = Counter(curr.get("skipped_invalid") or {})
     audit = {
-        # Sama provenienssi kuin avaruuskortilla: yksi tiiviste kaikista ajon syötteistä.
+        # Same provenance as the space card: one digest over all run inputs.
         "input_sha256": input_digest(
             [curr["path"], prev["path"], Path(register_path), RULES, BORDER, TR2508]
         ),
@@ -824,8 +826,8 @@ def findings(prev, curr, register_path):
             "lines": len(border_line()),
             "samples": len(border_samples()),
             "step_km": BORDER_STEP_KM,
-            # Rajaviiva on jaettu rajaosiin (`section`); nimet kertovat, minkä
-            # naapurin vastaista rajaa tai aluevesirajaa osa edustaa.
+            # The border line is split into sections (`section`); the names say which
+            # neighbour's border or which territorial sea limit the section represents.
             "sections": {
                 name: SECTION_NAMES.get(name, name)
                 for name in sorted({point[2] for line in border_line() for point in line})
@@ -849,8 +851,8 @@ def findings(prev, curr, register_path):
         },
         "trends": rows,
         "anomalies": anomalies(rows),
-        # Sama kontrakti kuin avaruuskortin `missing`: mitä jäi lukematta. Kortilla
-        # puuttuvat kenttänimet, täällä syyt ja rivimäärät, koska ilmoituksia on monta.
+        # Same contract as `missing` on the space card: what was left unread. There it is
+        # missing field names, here reasons and row counts, because there are many notices.
         "missing": dict(skipped),
         "missing_prev": dict(prev.get("skipped_invalid") or {}),
         "filter": {
@@ -864,29 +866,29 @@ def findings(prev, curr, register_path):
 def render_md(doc):
     sections_legend = ", ".join(f"{n} = {label}" for n, label in doc["border"]["sections"].items())
     lines = [
-        "# TERRESTRIAL: BR IFIC -land-mobile-ilmoitukset",
+        "# TERRESTRIAL: BR IFIC land mobile notices",
         "",
-        f"- lähde: `{doc['source']['file']}` sha256 `{doc['source']['sha256'][:16]}…` "
-        f"(issu {doc['issues']['curr']})",
-        f"- vertailupohja: `{doc['prev_source']['file']}` (issu {doc['issues']['prev']})",
-        f"- ajo: {doc['audit']['run_at']}, säännöt {doc['audit']['rules_version']}",
-        f"- taulut: {', '.join(TABLES)}",
-        f"- mallinnus: {doc['model']}",
-        f"- rajaviiva: {doc['border']['source']} ({doc['border']['points']} pistettä, "
-        f"näyte {doc['border']['step_km']:g} km välein)",
-        f"- rajaosat: {sections_legend}",
-        f"- kehys: {doc['criterion']}",
+        f"- source: `{doc['source']['file']}` sha256 `{doc['source']['sha256'][:16]}…` "
+        f"(issue {doc['issues']['curr']})",
+        f"- baseline: `{doc['prev_source']['file']}` (issue {doc['issues']['prev']})",
+        f"- run: {doc['audit']['run_at']}, rules {doc['audit']['rules_version']}",
+        f"- tables: {', '.join(TABLES)}",
+        f"- model: {doc['model']}",
+        f"- border: {doc['border']['source']} ({doc['border']['points']} points, "
+        f"sampled every {doc['border']['step_km']:g} km)",
+        f"- border sections: {sections_legend}",
+        f"- framework: {doc['criterion']}",
         "",
-        "## Koordinointikynnys (ECC T/R 25-08 A1.2.3)",
+        "## Coordination threshold (ECC T/R 25-08 A1.2.3)",
         "",
-        f"25 kHz vertailukaista, {doc['coordination_thresholds']['time_percent']} % ajasta, "
-        f"{doc['coordination_thresholds']['location_percent']} % paikoista, "
-        f"{doc['coordination_thresholds']['rx_height_m']:g} m vastaanottoantenni. "
-        "Kaistanleveyskorjaus 10*log10(bw/25 kHz), kun bw > 25 kHz; bw = fxm_terra.bdwdth "
-        "(varalla freq_max - freq_min). Ilmoituskohtainen sovellettu kynnys korjauksineen "
-        "on alla sarakkeessa 'kynnys'.",
+        f"25 kHz reference bandwidth, {doc['coordination_thresholds']['time_percent']} % time, "
+        f"{doc['coordination_thresholds']['location_percent']} % locations, "
+        f"{doc['coordination_thresholds']['rx_height_m']:g} m receiving antenna. "
+        "Bandwidth correction 10*log10(bw/25 kHz) when bw > 25 kHz; bw = fxm_terra.bdwdth "
+        "(fallback freq_max - freq_min). The per-notice threshold with its correction is "
+        "in the 'threshold' column below.",
         "",
-        "| taajuus MHz | kynnys dB(uV/m) |",
+        "| frequency MHz | threshold dB(uV/m) |",
         "|---|---|",
     ]
     for row in doc["coordination_thresholds"]["rows"]:
@@ -894,15 +896,15 @@ def render_md(doc):
     summary = doc["summary"]
     lines += [
         "",
-        "## Kenttävoimakkuus rajaviivalla, dB(uV/m)",
+        "## Field strength along the border, dB(uV/m)",
         "",
-        f"{summary['in_reach']} ilmoitusta ulottuvilla, {summary['above_threshold']} ylittää "
-        f"kynnyksen, {summary['undecided']} ratkaisematta, {summary['coord_fin_kept']} pidetty "
-        f"koska fxm_coord nimeää Suomen, {summary['with_assumptions']} oletuksella.",
+        f"{summary['in_reach']} notices in reach, {summary['above_threshold']} above the "
+        f"threshold, {summary['undecided']} undecided, {summary['coord_fin_kept']} kept "
+        f"because fxm_coord names Finland, {summary['with_assumptions']} with assumptions.",
         "",
-        "| terrakey | hallinto | luokka | tila | kaista | lähetin lat, lon | etäisyys rajaan km "
-        "| max rajalla | rajaosa | etäisyys maksimiin km | bw kHz (lähde) | kynnys | marginaali "
-        "| koordinointi | huomiot |",
+        "| terrakey | adm | class | intent | band | TX lat, lon | distance to border km "
+        "| max at border | section | distance to maximum km | bw kHz (source) | threshold | margin "
+        "| coordination | notes |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for notice in doc["notices"]:
@@ -913,12 +915,12 @@ def render_md(doc):
         threshold = notice["threshold_dbuv_m"]
         threshold = "-" if threshold is None else f"{threshold:.1f}"
         margin = "-" if notice["margin_db"] is None else f"{notice['margin_db']:+.1f}"
-        decision = {True: "kyllä", False: "ei", None: "ratkaisematta"}[notice["coordination"]]
+        decision = {True: "yes", False: "no", None: "undecided"}[notice["coordination"]]
         notes = [*notice["assumptions"], *notice["empty_reason"].values()]
         if notice["coord_fin"]:
-            notes.append("fxm_coord nimeää FIN: " + "; ".join(notice["coord_fin_rows"]))
+            notes.append("fxm_coord names FIN: " + "; ".join(notice["coord_fin_rows"]))
         if notice["extrapolated"]:
-            notes.append("maksimipiste taulukon ulkopuolella")
+            notes.append("maximum point outside the table")
         lines.append(
             f"| {notice['terrakey']} | {notice['adm']} | {notice['stn_cls']} "
             f"| {notice['intent']} | {notice['band']} "
@@ -931,13 +933,13 @@ def render_md(doc):
         lines.append("| - " * 15 + "|")
     lines += [
         "",
-        "## Kenttävoimakkuus rajaosittain",
+        "## Field strength by border section",
         "",
-        "Voimakkain kenttävoimakkuus kussakin rajaosassa ja niiden ilmoitusten määrä,",
-        "joiden maksimi osuu siihen (Traficom 7.11.2026: huomio rajaosiin, joissa",
-        "kenttävoimakkuus voi olla suurin).",
+        "Strongest field strength in each border section, and the number of notices",
+        "whose maximum falls in it (Traficom 7.11.2026: pay attention to the sections where",
+        "the field strength can be highest).",
         "",
-        "| rajaosa | ilmoituksia, joiden maksimi | voimakkain dB(uV/m) |",
+        "| section | notices with the maximum | strongest dB(uV/m) |",
         "|---|---|---|",
     ]
     strongest = dict.fromkeys(doc["border"]["sections"])
@@ -953,17 +955,17 @@ def render_md(doc):
         lines.append(f"| {name} | {peaks[name]} | {'-' if value is None else f'{value:.1f}'} |")
     lines += [
         "",
-        "## Rekisterin asemat ulkomaista kenttävoimakkuutta vasten",
+        "## Register stations against foreign field strength",
         "",
-        f"Arvioitu {doc['flagged_stations']['evaluated']} asemaa, "
-        f"{doc['flagged_stations']['count']} ylittää kynnyksen.",
+        f"{doc['flagged_stations']['evaluated']} stations evaluated, "
+        f"{doc['flagged_stations']['count']} above the threshold.",
         "",
     ]
     flagged = doc["flagged_stations"]["stations"]
     if flagged:
         lines += [
-            "| asema | luokka | kaista | ilmoitus | hallinto | etäisyys km "
-            "| kenttävoimakkuus | kynnys | marginaali | yli |",
+            "| station | class | band | notice | adm | distance km "
+            "| field strength | threshold | margin | above |",
             "|---|---|---|---|---|---|---|---|---|---|",
         ]
         for row in flagged:
@@ -971,23 +973,22 @@ def render_md(doc):
                 f"| {row['station']} | {row['stn_cls']} | {row['band']} | {row['terrakey']} "
                 f"| {row['adm']} | {row['distance_km']:.0f} | {row['e_dbuv_m']:.1f} "
                 f"| {row['threshold_dbuv_m']:.1f} | {row['margin_db']:+.1f} "
-                f"| {'kyllä' if row['exceeds'] else 'ei'} |"
+                f"| {'yes' if row['exceeds'] else 'no'} |"
             )
     else:
         lines.append(
-            "Ei arvioitavia asemia: yksikään ilmoitus ei osu rekisteriin T/R 25-08 -alueella."
+            "No stations to evaluate: no notice overlaps the register in the T/R 25-08 range."
         )
     neighbours = [row for row in doc["trends"] if row["neighbour"]]
     lines += [
         "",
-        "## Trendit (naapurihallinnot)",
+        "## Trends (neighbour administrations)",
         "",
-        f"Naapurit: {', '.join(sorted(NEIGHBOURS))} tai ilmoitus < {MAX_DIST_KM:g} km Suomen "
-        f"rajasta; {len(neighbours)} ryhmää {len(doc['trends'])}:sta, alla 10 suurinta. Kaikki "
-        "ryhmät: `terrestrial_trends.csv` (sarake `neighbour`, naapurit ensin).",
+        f"Neighbours: {', '.join(sorted(NEIGHBOURS))} or a notice < {MAX_DIST_KM:g} km from the "
+        f"Finnish border; {len(neighbours)} of {len(doc['trends'])} groups, the 10 largest below. "
+        "All groups: `terrestrial_trends.csv` (column `neighbour`, neighbours first).",
         "",
-        "| hallinto | kaista | luokka | kaistanleveys MHz | uusi | muutettu | poistettu "
-        "| edellinen |",
+        "| adm | band | class | bandwidth MHz | new | modified | withdrawn | previous |",
         "|---|---|---|---|---|---|---|---|",
     ]
     # shortcut: the headline shows the 10 largest neighbour groups; the CSV has every group.
@@ -996,19 +997,19 @@ def render_md(doc):
             f"| {row['adm']} | {row['band']} | {row['stn_cls']} | {row['bw_mhz']:g} "
             f"| {row['new']} | {row['modified']} | {row['withdrawn']} | {row['prev_count']} |"
         )
-    lines += ["", "## Poikkeamat", ""]
+    lines += ["", "## Anomalies", ""]
     if doc["anomalies"]:
         for row in doc["anomalies"]:
             lines.append(f"- {row['reason']}")
     else:
-        lines.append("Ei poikkeamia.")
-    lines += ["", "## Rajaus", ""]
+        lines.append("No anomalies.")
+    lines += ["", "## Scope", ""]
     lines.append(
-        "Kenttävoimakkuus on laskennallinen arvio, ei mitattu: P.1546-6 maapolku ilman "
-        "maastoa, 10 % ajasta ja 50 % paikoista, samat prosentit kuin T/R 25-08 A1.2.3 "
-        "-kynnyksellä. ML-asemalle ilman antennikorkeutta oletetaan 10 m (yliarvio). "
-        "Ilmoitus, jonka arvoa tai kynnystä ei voi laskea, on 'ratkaisematta', ei 'ei'. "
-        "Kansallinen M4-kynnys on vahvistamatta."
+        "Field strength is a calculated estimate, not a measurement: P.1546-6 land path "
+        "without terrain, 10 % time and 50 % locations, the same percentages as the T/R 25-08 "
+        "A1.2.3 threshold. An ML station without an antenna height is assumed to be 10 m (an "
+        "overestimate). A notice whose value or threshold cannot be computed is 'undecided', "
+        "not 'no'. The national M4 threshold is not confirmed."
     )
     return "\n".join(lines) + "\n"
 
@@ -1042,11 +1043,11 @@ def run(prev, curr, register_path, out_dir):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Terrestriaalinen diff ja P.1546-kenttävoimakkuus")
-    parser.add_argument("--prev", required=True, help="edellinen BR IFIC -MDB (3075)")
-    parser.add_argument("--curr", required=True, help="uusi BR IFIC -MDB (3076)")
-    parser.add_argument("--register", required=True, help="Suomen rekisteri (CSV)")
-    parser.add_argument("--out", default="out/", help="tulostehakemisto")
+    parser = argparse.ArgumentParser(description="Terrestrial diff and P.1546 field strength")
+    parser.add_argument("--prev", required=True, help="previous BR IFIC MDB (3075)")
+    parser.add_argument("--curr", required=True, help="new BR IFIC MDB (3076)")
+    parser.add_argument("--register", required=True, help="Finnish register (CSV)")
+    parser.add_argument("--out", default="out/", help="output directory")
     args = parser.parse_args(argv)
     try:
         doc = run(load_issue_mdb(args.prev), load_issue_mdb(args.curr), args.register, args.out)

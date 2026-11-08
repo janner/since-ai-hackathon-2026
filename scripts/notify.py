@@ -29,7 +29,7 @@ from pathlib import Path
 # still influence (9.1/9.6) outranks one already recorded (11.2), whatever the margin says.
 # shortcut: rank table copied from app/config.py, import it if the stage table starts growing.
 CLASS_ORDER = ("exceeds", "near", "cannot_decide", "clear")
-EMPTY_MESSAGE = "Käsitelty, ei uusia huomioitavia tapauksia."
+EMPTY_MESSAGE = "Processed, no new cases to note."
 
 # The HTML preview's CSS, kept as constants so the template lines stay readable.
 _TEAMS_STYLE = (
@@ -97,13 +97,13 @@ def build_message(counts: dict, top: list[dict], ific: str, url: str) -> str:
     if total == 0:
         return EMPTY_MESSAGE
     lines = [
-        f"# BR IFIC {ific} — {total} huomioitavaa",
+        f"# BR IFIC {ific} — {total} cases to note",
         "",
-        f"Suppilo: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
+        f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
         f"{counts['g3']} + {counts['cannot_decide']}",
-        f"Luokat: {counts['exceeds']} ylittää · {counts['near']} lähellä",
+        f"Classes: {counts['exceeds']} exceeds · {counts['near']} near",
         "",
-        "## Kiireellisimmät",
+        "## Most urgent",
     ]
     lines += [f"{index}. {case_line(case)}" for index, case in enumerate(top, start=1)]
     lines += ["", f"Kaista: {url}"]
@@ -121,23 +121,23 @@ def build_card(counts: dict, top: list[dict], ific: str, url: str) -> dict:
                 "type": "TextBlock",
                 "size": "Medium",
                 "weight": "Bolder",
-                "text": f"BR IFIC {ific} — {total} huomioitavaa",
+                "text": f"BR IFIC {ific} — {total} cases to note",
             },
             {
                 "type": "TextBlock",
                 "wrap": True,
-                "text": f"Suppilo: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
+                "text": f"Funnel: {counts['notices']} → {counts['g1']} → {counts['g2']} → "
                 f"{counts['g3']} + {counts['cannot_decide']}",
             },
             {
                 "type": "FactSet",
                 "facts": [
-                    {"title": "Ylittää", "value": str(counts["exceeds"])},
-                    {"title": "Lähellä", "value": str(counts["near"])},
-                    {"title": "Ei ratkaistavissa", "value": str(counts["cannot_decide"])},
+                    {"title": "Exceeds", "value": str(counts["exceeds"])},
+                    {"title": "Near", "value": str(counts["near"])},
+                    {"title": "Cannot decide", "value": str(counts["cannot_decide"])},
                 ],
             },
-            {"type": "TextBlock", "weight": "Bolder", "text": "Kiireellisimmät"},
+            {"type": "TextBlock", "weight": "Bolder", "text": "Most urgent"},
             {
                 "type": "TextBlock",
                 "wrap": True,
@@ -156,7 +156,7 @@ def build_card(counts: dict, top: list[dict], ific: str, url: str) -> dict:
                     "type": "AdaptiveCard",
                     "version": "1.4",
                     "body": body,
-                    "actions": [{"type": "Action.OpenUrl", "title": "Avaa Kaista", "url": url}],
+                    "actions": [{"type": "Action.OpenUrl", "title": "Open Kaista", "url": url}],
                 },
             }
         ],
@@ -174,15 +174,15 @@ def build_html(message: str, ific: str, url: str) -> str:
         for line in message.splitlines()
     )
     return f"""<!DOCTYPE html>
-<html lang="fi">
+<html lang="en">
 <meta charset="utf-8">
-<title>Teams-esikatselu — BR IFIC {html.escape(ific)}</title>
+<title>Teams preview — BR IFIC {html.escape(ific)}</title>
 <body style="{_TEAMS_STYLE}">
 <div style="{_CARD_STYLE}">
-<b>Kaista-botti</b> <span style="color:#616161">· esikatselu</span>
+<b>Kaista bot</b> <span style="color:#616161">· preview</span>
 {text}
 <a href="{html.escape(url)}" style="display:inline-block;margin-top:8px;padding:6px 14px;
-background:#5b5fc7;color:#fff;border-radius:4px;text-decoration:none">Avaa Kaista</a>
+background:#5b5fc7;color:#fff;border-radius:4px;text-decoration:none">Open Kaista</a>
 </div>
 </body>
 </html>
@@ -199,12 +199,12 @@ def send(url: str, payload: dict) -> int:
     )
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
-            print(f"Lähetetty: HTTP {response.status}")
+            print(f"Sent: HTTP {response.status}")
     except urllib.error.HTTPError as error:
-        print(f"Lähetys epäonnistui: HTTP {error.code}", file=sys.stderr)
+        print(f"Send failed: HTTP {error.code}", file=sys.stderr)
         return 1
     except urllib.error.URLError as error:
-        print(f"Lähetys epäonnistui: {error.reason}", file=sys.stderr)
+        print(f"Send failed: {error.reason}", file=sys.stderr)
         return 1
     return 0
 
@@ -219,10 +219,10 @@ def default_out() -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Yksi Teams-digest per IFIC-ajo.")
-    parser.add_argument("--dry-run", action="store_true", help="tulosta ja kirjoita tiedostot")
-    parser.add_argument("--send", action="store_true", help="POSTaa TEAMS_WEBHOOK_URLiin")
-    parser.add_argument("--html", action="store_true", help="kirjoita myös Teams-esikatselu")
+    parser = argparse.ArgumentParser(description="One Teams digest per IFIC run.")
+    parser.add_argument("--dry-run", action="store_true", help="print and write the files")
+    parser.add_argument("--send", action="store_true", help="POST to TEAMS_WEBHOOK_URL")
+    parser.add_argument("--html", action="store_true", help="also write the Teams preview")
     parser.add_argument("--out", default=default_out(), type=Path)
     parser.add_argument("--url", default=os.environ.get("KAISTA_URL", "http://localhost:8000"))
     args = parser.parse_args(argv)
@@ -247,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.send:
         webhook = os.environ.get("TEAMS_WEBHOOK_URL")
         if not webhook:
-            print("TEAMS_WEBHOOK_URL puuttuu: aseta se ennen --send.", file=sys.stderr)
+            print("TEAMS_WEBHOOK_URL is not set: set it before --send.", file=sys.stderr)
             return 1
         return send(webhook, card)
     return 0

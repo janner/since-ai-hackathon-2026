@@ -507,8 +507,8 @@ order. The digest's queue size is the needs-attention count (`exceeds`, `near`, 
 `--dry-run` writes `out/teams_message.md`
 and `out/teams_message.json` (the Adaptive Card envelope) and, with `--html`,
 `out/teams_message.html`; `--send` POSTs the card to `TEAMS_WEBHOOK_URL` and returns 1 with one line
-on stderr when the variable is unset. A run whose queue is empty gets the single line `Käsitelty, ei
-uusia huomioitavia tapauksia.`
+on stderr when the variable is unset. A run whose queue is empty gets the single line `Processed, no
+cases to note.`
 
 This is a wish, not a requirement: no bot, no chat surface, no cron, and no live Teams send (there
 was no test channel). The README section "Teams notification (optional)" carries the commands and

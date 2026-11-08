@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="fi">
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pieni käyttäjätesti – Kaista</title>
+<title>A small usability test – Kaista</title>
 <style>
   :root {
     --bg: #ffffff; --fg: #161616; --muted: #525252; --line: #e0e0e0;
@@ -58,112 +58,112 @@
 </style>
 <header>
   <h1>Kaista</h1>
-  <p>Pieni käyttäjätesti</p>
+  <p>A small usability test</p>
 </header>
 <main>
-  <h2>Pieni käyttäjätesti: Kaista-demo</h2>
-  <p class="note">Tämä ei ole koe. Haluamme nähdä, miten työkalu toimii ilman opastusta. Tee tehtävät itse. Älä lue dokumentaatiota. Minä en auta. Jos et löydä jotain, kirjoita se. Demo avautuu uuteen välilehteen; palaa tähän lomakkeeseen jokaisen tehtävän jälkeen.</p>
-  <p><a class="btn" href="https://hermesagent.hamster-herring.ts.net:8450" target="_blank" rel="noopener">Avaa demo uuteen välilehteen</a></p>
+  <h2>A small usability test: the Kaista demo</h2>
+  <p class="note">This is not an exam. We want to see how the tool works without guidance. Do the tasks yourself. Do not read the documentation. I will not help. If you cannot find something, write that down. The demo opens in a new tab; come back to this form after each task.</p>
+  <p><a class="btn" href="https://hermesagent.hamster-herring.ts.net:8450" target="_blank" rel="noopener">Open the demo in a new tab</a></p>
 
   <form method="post" action="/api/feedback">
     <fieldset>
-      <label for="name">Nimesi <span class="hint">Valinnainen.</span></label>
+      <label for="name">Your name <span class="hint">Optional.</span></label>
       <input id="name" name="name" type="text" autocomplete="name" maxlength="120">
-      <label for="org">Organisaatiosi ja roolisi <span class="hint">Valinnainen. Esimerkiksi Traficom, asiantuntija.</span></label>
+      <label for="org">Your organisation and role <span class="hint">Optional. For example Traficom, specialist.</span></label>
       <input id="org" name="org" type="text" maxlength="160">
     </fieldset>
 
-    <h3>Tausta</h3>
-    <p>Miten teette tämän työn tänään? Kuka hakee IFIC:n, kuinka kauan yhden paketin läpikäynti kestää ja montako pakettia viikossa?</p>
-    <label for="baseline">Vastaus</label>
+    <h3>Background</h3>
+    <p>How do you do this work today? Who fetches the IFIC, how long does one package take to go through, and how many packages a week?</p>
+    <label for="baseline">Answer</label>
     <textarea class="short" id="baseline" name="baseline" maxlength="2000"></textarea>
 
-    <h3>Tehtävä 1: automaattihaku</h3>
-    <p>Katso yläpalkkia. Mikä IFIC-paketti on viimeksi haettu, ja montako ilmoitusta siinä oli?</p>
-    <label for="t1_status">Vastaus</label>
+    <h3>Task 1: automatic fetch</h3>
+    <p>Look at the top bar. Which IFIC package was fetched last, and how many notices did it hold?</p>
+    <label for="t1_status">Answer</label>
     <textarea class="short" id="t1_status" name="t1_status" maxlength="2000"></textarea>
 
-    <h3>Tehtävä 2: tapaus</h3>
-    <p>Valitse jonon ylin tapaus. Kirjoita omin sanoin: miksi se on listalla ja mitä tietoa siitä puuttuu?</p>
-    <label for="t2_card">Vastaus <span class="hint">Pakollinen. Jos et löydä, kirjoita se.</span></label>
+    <h3>Task 2: the case</h3>
+    <p>Pick the top case in the queue. In your own words: why is it on the list, and what information is it missing?</p>
+    <label for="t2_card">Answer <span class="hint">Required. If you cannot find it, write that.</span></label>
     <textarea id="t2_card" name="t2_card" maxlength="2000" required></textarea>
 
-    <h3>Tehtävä 3: seuraava askel</h3>
-    <p>Mitä tekisit tälle tapaukselle seuraavaksi? Mistä kohdasta kortissa näet sen?</p>
-    <label for="t3_next">Vastaus <span class="hint">Pakollinen. Jos et löydä, kirjoita se.</span></label>
+    <h3>Task 3: next step</h3>
+    <p>What would you do about this case next? Where on the card do you see that?</p>
+    <label for="t3_next">Answer <span class="hint">Required. If you cannot find it, write that.</span></label>
     <textarea id="t3_next" name="t3_next" maxlength="2000" required></textarea>
 
-    <h3>Tehtävä 4: ei-päätettävät</h3>
-    <p>Etsi kaksi ilmoitusta, joita työkalu ei voi päättää. Missä ne näkyvät? Jos et löydä, kirjoita se.</p>
-    <label for="t4_undecided">Vastaus</label>
+    <h3>Task 4: the undecidables</h3>
+    <p>Find two notices the tool cannot decide. Where do they show up? If you cannot find them, write that.</p>
+    <label for="t4_undecided">Answer</label>
     <textarea class="short" id="t4_undecided" name="t4_undecided" maxlength="2000"></textarea>
 
-    <h3>Tehtävä 5: laskelma ja luottamus</h3>
-    <p>Avaa kortin "Show calculation". Onko PFD, raja ja marginaali mielestäsi oikein? Mistä tarkistaisit?</p>
-    <label for="t5_calc">Vastaus</label>
+    <h3>Task 5: the calculation and your trust</h3>
+    <p>Open "Show calculation" on the card. Do the PFD, the limit and the margin look right to you? Where would you check them?</p>
+    <label for="t5_calc">Answer</label>
     <textarea class="short" id="t5_calc" name="t5_calc" maxlength="2000"></textarea>
     <fieldset>
-      <legend>Kuinka paljon luottaisit tähän lukuun?</legend>
+      <legend>How much would you trust this number?</legend>
       <div class="choice">
-        <label><input type="radio" name="trust" value="1"> 1 – en lainkaan</label>
+        <label><input type="radio" name="trust" value="1"> 1 – not at all</label>
         <label><input type="radio" name="trust" value="2"> 2</label>
         <label><input type="radio" name="trust" value="3"> 3</label>
         <label><input type="radio" name="trust" value="4"> 4</label>
-        <label><input type="radio" name="trust" value="5"> 5 – täysin</label>
+        <label><input type="radio" name="trust" value="5"> 5 – completely</label>
       </div>
     </fieldset>
 
-    <h3>Lopuksi</h3>
+    <h3>Last</h3>
     <fieldset>
-      <legend>Miten hyödyllinen demo oli?</legend>
+      <legend>How useful was the demo?</legend>
       <div class="choice">
-        <label><input type="radio" name="useful" value="1"> 1 – ei lainkaan hyödyllinen</label>
+        <label><input type="radio" name="useful" value="1"> 1 – not useful at all</label>
         <label><input type="radio" name="useful" value="2"> 2</label>
         <label><input type="radio" name="useful" value="3"> 3</label>
         <label><input type="radio" name="useful" value="4"> 4</label>
-        <label><input type="radio" name="useful" value="5"> 5 – erittäin hyödyllinen</label>
+        <label><input type="radio" name="useful" value="5"> 5 – very useful</label>
       </div>
     </fieldset>
 
     <fieldset>
-      <legend>Ymmärsitkö, mitä työkalu tekee?</legend>
+      <legend>Did you understand what the tool does?</legend>
       <div class="choice">
-        <label><input type="radio" name="understood" value="kylla"> Kyllä</label>
-        <label><input type="radio" name="understood" value="osittain"> Osittain</label>
-        <label><input type="radio" name="understood" value="en"> En</label>
+        <label><input type="radio" name="understood" value="kylla"> Yes</label>
+        <label><input type="radio" name="understood" value="osittain"> Partly</label>
+        <label><input type="radio" name="understood" value="en"> No</label>
       </div>
     </fieldset>
 
     <fieldset>
-      <legend>Voisimmeko kokeilla tätä seuraavalla IFIC-paketilla?</legend>
+      <legend>Could we try this on the next IFIC package?</legend>
       <div class="choice">
-        <label><input type="radio" name="pilot" value="kylla"> Kyllä</label>
-        <label><input type="radio" name="pilot" value="ehka"> Ehkä</label>
-        <label><input type="radio" name="pilot" value="ei"> Ei</label>
+        <label><input type="radio" name="pilot" value="kylla"> Yes</label>
+        <label><input type="radio" name="pilot" value="ehka"> Maybe</label>
+        <label><input type="radio" name="pilot" value="ei"> No</label>
       </div>
     </fieldset>
 
     <fieldset>
-      <legend>Kumpi kieli UI:ssa olisi teille parempi?</legend>
+      <legend>Which language would be better for you in the UI?</legend>
       <div class="choice">
-        <label><input type="radio" name="language" value="suomi"> Suomi</label>
-        <label><input type="radio" name="language" value="englanti"> Englanti</label>
-        <label><input type="radio" name="language" value="ei_valia"> Ei väliä</label>
+        <label><input type="radio" name="language" value="suomi"> Finnish</label>
+        <label><input type="radio" name="language" value="englanti"> English</label>
+        <label><input type="radio" name="language" value="ei_valia"> No preference</label>
       </div>
     </fieldset>
 
-    <label for="feedback">Vapaa palaute <span class="hint">Valinnainen. Sana on vapaa.</span></label>
+    <label for="feedback">Free feedback <span class="hint">Optional. Anything you like.</span></label>
     <textarea id="feedback" name="feedback" maxlength="2000"></textarea>
 
-    <label for="does_not">Mitä työkalu ei mielestänne tee? <span class="hint">Valinnainen. Sana on vapaa.</span></label>
+    <label for="does_not">What does the tool not do, in your view? <span class="hint">Optional. Anything you like.</span></label>
     <textarea id="does_not" name="does_not" maxlength="2000"></textarea>
 
-    <label class="check"><input type="checkbox" name="contact_ok" value="yes"> Saa ottaa minuun yhteyttä</label>
-    <label for="contact">Sähköposti tai puhelin <span class="hint">Valinnainen. Vain jos haluat yhteydenoton.</span></label>
+    <label class="check"><input type="checkbox" name="contact_ok" value="yes"> You may contact me</label>
+    <label for="contact">Email or phone <span class="hint">Optional. Only if you want to be contacted.</span></label>
     <input id="contact" name="contact" type="text" autocomplete="email" maxlength="160">
 
-    <button type="submit">Lähetä vastaukset</button>
-    <p class="privacy">Vastaukset tallennetaan tälle laitteelle ja lähetetään Janne Rosaman omaan Matrix-viestiin. Älä kirjoita salaisuuksia.</p>
+    <button type="submit">Send the answers</button>
+    <p class="privacy">The answers are stored on this machine and sent to Janne Rosama's own Matrix message. Do not write secrets.</p>
   </form>
 </main>
 </html>

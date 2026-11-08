@@ -242,7 +242,7 @@ def test_a_notice_without_antenna_height_uses_the_stated_assumption(tmp_path):
     assert finding["ant_h_m"] is None and finding["ant_h_used_m"] == 10.0
     assert "hgt_agl missing" in finding["assumptions"][0]
     assert finding["border"]["max_dbuv_m"] is not None
-    assert "oletetaan 10 m" in t.render_md(doc)
+    assert "assumed to be 10 m" in t.render_md(doc)
 
 
 def test_an_uncomputable_notice_is_undecided_never_clear(tmp_path):
@@ -255,7 +255,7 @@ def test_an_uncomputable_notice_is_undecided_never_clear(tmp_path):
     assert finding["coordination"] is None
     assert "threshold_dbuv_m" in finding["empty_reason"]
     assert doc["summary"]["undecided"] == 1
-    assert "ratkaisematta" in t.render_md(doc)
+    assert "undecided" in t.render_md(doc)
 
 
 def test_bandwidth_comes_from_bdwdth_when_present():
@@ -290,7 +290,7 @@ def test_distance_to_border_is_a_line_not_four_points():
     assert t.distance_to_border_km(60.1699, 24.9384) < 20
     assert 700 < t.distance_to_border_km(55.7558, 37.6173) < 900  # Moscow
     assert t.distance_to_border_km(-33.9, 18.4) > 9000  # Cape Town
-    # Maarianhamina is inside the 12 nm line around Åland, ~25 km from it
+    # Mariehamn sits inside the 12 nm line around the islands, ~25 km from it
     assert 15 < t.distance_to_border_km(60.0971, 19.9348) < 40
 
 
@@ -321,7 +321,7 @@ def test_border_sections_cover_the_ring_and_pick_the_max_section(tmp_path):
     assert border["max_dbuv_m"] == max(v for v in border["sections"].values() if v is not None)
     # The section maxima are part of the output and the markdown shows them.
     markdown = t.render_md(t.findings(issue, issue, _register(tmp_path)))
-    assert "rajaosat" in markdown and "## Kenttävoimakkuus rajaosittain" in markdown
+    assert "border sections" in markdown and "## Field strength by border section" in markdown
 
 
 def test_flag_stations_reports_the_strongest_notice_per_station():
@@ -390,7 +390,7 @@ def test_run_writes_three_outputs(tmp_path):
 
 
 def test_load_issue_mdb_rejects_a_missing_file(tmp_path):
-    with pytest.raises(ValueError, match="löytynyt"):
+    with pytest.raises(ValueError, match="file not found"):
         t.load_issue_mdb(tmp_path / "none.mdb")
 
 
@@ -419,7 +419,7 @@ def test_register_counts_both_rx_and_tx_directions(tmp_path):
 def test_register_without_frequency_columns_is_rejected(tmp_path):
     path = tmp_path / "register.csv"
     path.write_text("Station number,Class of licence\n1,MVV\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="taajuussaraketta"):
+    with pytest.raises(ValueError, match="frequency column"):
         t.register_frequencies(path)
 
 

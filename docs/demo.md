@@ -313,17 +313,17 @@ terrestrial 3075→3076: 2905 new, 163 modified, 413 withdrawn, 32 notices in re
 samples, the trends and the anomalies.
 
 ```
-| terrakey | hallinto | tila | kaista | etäisyys km | max rajalla | kynnys | marginaali |
-|---|---|---|---|---|---|---|---|
-| 92817506 | POL | ADD | 801-806 MHz | 626 | -38.1 | 43.0 | -81.1 |
-| 93005609 | RUS | ADD | 791.14-798.34 MHz | 563 | -66.0 | 44.6 | -110.6 |
-| 93075637 | RUS | ADD | 152.892-152.908 MHz | 42 | 20.9 | 12.0 | +8.9 |
-| 93075638 | RUS | ADD | 152.892-152.908 MHz | 42 | 5.9 | 12.0 | -6.1 |
+| terrakey | adm | class | intent | band | TX lat, lon | distance to border km | max at border | section | distance to maximum km | bw kHz (source) | threshold | margin | coordination | notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 92817506 | POL | FB | ADD | 801-806 MHz | 53.8644, 20.9550 | 626 | -38.1 | TS | 625 | 5000 (fxm_terra.bdwdth) | 43.0 | -81.1 | no | - |
+| 93005609 | RUS | FB | ADD | 791.14-798.34 MHz | 54.4511, 22.5817 | 563 | -66.0 | TS | 562 | 7200 (fxm_terra.bdwdth) | 44.6 | -110.6 | no | - |
+| 93075637 | RUS | FB | ADD | 152.892-152.908 MHz | 61.7606, 30.9894 | 42 | 20.9 | RU | 42 | 16.8 (fxm_terra.bdwdth) | 12.0 | +8.9 | yes | - |
+| 93075638 | RUS | ML | ADD | 152.892-152.908 MHz | 61.7606, 30.9894 | 42 | 5.9 | RU | 42 | 16.8 (fxm_terra.bdwdth) | 12.0 | -6.1 | no | fxm_ant.hgt_agl missing: h1 assumed 10 m (lowest P.1546 table height, above a vehicle antenna, so the field strength is overestimated) |
 
-## Poikkeamat
+## Anomalies
 
-- RUS FB 791-796 MHz: ei ilmoituksia edellisessä issuessa, nyt 9.
-- RUS FB 791.14-798.34 MHz: ei ilmoituksia edellisessä issuessa, nyt 10.
+- RUS FB 791-796 MHz (5 MHz): no notices in this group in the previous issue, 9 new now
+- RUS FB 791.14-798.34 MHz (7.2 MHz): no notices in this group in the previous issue, 10 new now
 ```
 
 (Four of the 32 rows are shown; the same table covers all of them. A mobile station carries no
@@ -374,15 +374,15 @@ uv run python scripts/notify.py --dry-run --html
 The message of the auto-fetch run in section 2b:
 
 ```
-# BR IFIC 3075 — 9 huomioitavaa
+# BR IFIC 3075 — 9 cases to note
 
-Suppilo: 129 → 19 → 9 → 7 + 2
-Luokat: 3 ylittää · 4 lähellä
+Funnel: 129 → 19 → 9 → 7 + 2
+Classes: 3 exceeds · 4 near
 
-## Kiireellisimmät
-1. 108501259 — exceeds, No. 11.2, 0,43 dB
-2. 308501259 — exceeds, No. 11.2, 0,43 dB
-3. 125512025 — exceeds, No. 11.2, 0,05 dB
+## Most urgent
+1. 125520114 — near, No. 9.6, -0,26 dB
+2. 125520132 — near, No. 9.6, -0,25 dB
+3. 125520135 — near, No. 9.6, -0,86 dB
 
 Kaista: http://localhost:8000
 ```
@@ -416,7 +416,7 @@ unfinished prototype.
 | 1:05 | `runs/3075/letters/3075-108501259.md` | the draft letter: the number, the worst-case assumption, the question. The tool drafts; a human sends it from their own mailbox. |
 | 1:20 | "Show calculation" on the card | the calculation behind the number: max PSD −50,3 dBW/Hz, beam gain 26,0 dBi, slant range 41 222 km, free-space loss 163,29 dB, and the limit with its Article 21 Table 21-4 row. |
 | 1:35 | `out/TERRESTRIAL.md` | the same style for terrestrial notices: 2 905 new, 163 modified, 413 withdrawn and 32 notices in reach against BR IFIC 3076, six above the ECC T/R 25-08 trigger. That file comes from the offline run into `out/`; the monitor run is space-only. |
-| 1:50 | `runs/3075/queue.md`, rows 8 and 9 (`126590034`, `126590035`) | "ihminen päättää": the two notices the tool refuses to decide, with the level each would need (psd ≥ −22,29 and −24,75 dBW/Hz). Listing them instead of guessing is the point; the decision is left to a human. |
+| 1:50 | `runs/3075/queue.md`, rows 8 and 9 (`126590034`, `126590035`) | "Needs attention": the two notices the tool refuses to decide, with the level each would need (psd ≥ −22,29 and −24,75 dBW/Hz). Listing them instead of guessing is the point; the decision is left to a human. |
 
 **Why not to click.** The check fetches the number after `runs/latest`. On 7 Nov 2026 that was 3075
 and ITU had already published 3076; `https://www.itu.int/sns/ific10/ific3076.zip` answers 200 with
