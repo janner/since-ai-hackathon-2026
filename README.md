@@ -1,15 +1,15 @@
 # Kaista
 
-Seulontatyökalu ITU:n BR IFIC -ilmoituksille: mikä 196 ilmoituksesta voi osua Suomen taajuuksiin.
+A screening tool for ITU BR IFIC notices: which of the 196 notices can touch radio use in Finland.
 
-Kaista hakee uuden BR IFIC -paketin itse ITU:lta kahden viikon välein (`scripts/monitor.py`),
-johtaa suojellut kaistat Traficomin taajuusrekisteristä ja laskee jokaiselle osumalle PFD:n ylärajan
-ITU RR Art. 21 Table 21-4 -rajaa vasten. Jokainen luku tulee koodista. Kielimalli kirjoittaa
-selosteen ja kirjeluonnoksen, ja numerovartija hylkää lauseen, jossa on luku jota kortilla ei ole.
-Ihminen päättää.
+Kaista fetches the new BR IFIC package from ITU every two weeks (`scripts/monitor.py`), derives the
+bands that need protection from Finland's frequency allocation table (Regulation M4), and computes
+an upper-bound PFD for every hit against the ITU RR Article 21, Table 21-4 limit. Every number comes
+from code. The language model writes the summary and the letter draft, and a numeric guard rejects a
+sentence that carries a number the card does not have. A human decides.
 
-**Et ole kehittäjä?** [docs/kaytto.md](docs/kaytto.md): viisi askelta, ei komentoriviä.
-**Olet kehittäjä?** Asennus ja ajo: [Run it](#run-it). Sanasto: [docs/sanasto.md](docs/sanasto.md).
+**Not a developer?** [docs/kaytto.md](docs/kaytto.md): five steps, no command line (in Finnish).
+**A developer?** Install and run: [Run it](#run-it). Glossary: [docs/sanasto.md](docs/sanasto.md) (in Finnish).
 
 Since AI Hackathon 2026 · Challenge: Traficom, "Saving Earth from Space Interferers Using Radio
 Frequencies" · Team: Greedy Decoding (Janne Rosama, solo)
