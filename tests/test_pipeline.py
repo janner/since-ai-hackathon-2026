@@ -32,7 +32,7 @@ needs_terr = pytest.mark.skipif(
 def slice_out(tmp_path_factory) -> Path:
     """One demo-slice run of the real MDB, shared by the output-contract tests."""
     out = tmp_path_factory.mktemp("slice-out")
-    assert pipeline.run(SPACE_MDB, REGISTER, M4, out) == 0
+    assert pipeline.run(SPACE_MDB, REGISTER, M4, out, slice_bands=True) == 0
     return out
 
 
@@ -113,7 +113,7 @@ def test_letters_are_written_for_the_exceeds_cards(slice_out):
 @needs_data
 def test_out_directory_is_created(tmp_path):
     out = tmp_path / "deep" / "nested"
-    assert pipeline.run(SPACE_MDB, REGISTER, M4, out, all_bands=True) == 0
+    assert pipeline.run(SPACE_MDB, REGISTER, M4, out) == 0
     assert (out / "funnel.json").is_file()
     assert json.loads((out / "funnel.json").read_text(encoding="utf-8"))["mode"] == "all"
 
@@ -189,7 +189,7 @@ def test_the_register_is_only_a_reference(tmp_path):
     out = tmp_path / "out"
     assert pipeline.run(SPACE_MDB, empty, M4, out) == 0
     counts = json.loads((out / "funnel.json").read_text(encoding="utf-8"))["counts"]
-    assert (counts["g1"], counts["g2"], counts["g3"]) == (41, 21, 20)
+    assert (counts["g1"], counts["g2"], counts["g3"]) == (176, 138, 104)
     cards = json.loads((out / "cases.json").read_text(encoding="utf-8"))
     assert cards and all(card["victim"] is None for card in cards)
     assert "- **Reference:**" not in (out / "cases.md").read_text(encoding="utf-8")
@@ -235,5 +235,5 @@ def test_without_the_terrestrial_flag_the_space_run_is_unchanged(tmp_path):
     assert pipeline.run(SPACE_MDB, REGISTER, M4, out) == 0
     assert not (out / "terrestrial_findings.json").exists()
     counts = json.loads((out / "funnel.json").read_text(encoding="utf-8"))["counts"]
-    assert (counts["notices"], counts["g1"], counts["g2"]) == (196, 41, 21)
-    assert counts["exceeds"] == 11
+    assert (counts["notices"], counts["g1"], counts["g2"]) == (196, 176, 138)
+    assert counts["exceeds"] == 56

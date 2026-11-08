@@ -25,7 +25,7 @@ needs_data = pytest.mark.skipif(
 def real_run(tmp_path_factory) -> Path:
     """One demo-slice run of the real MDB that the content tests read back."""
     out = tmp_path_factory.mktemp("api-run")
-    assert pipeline.run(SPACE_MDB, REGISTER, M4, out) == 0
+    assert pipeline.run(SPACE_MDB, REGISTER, M4, out, slice_bands=True) == 0
     return out
 
 

@@ -167,9 +167,9 @@ def test_all_bands_funnel(challenge):
         "g2": 138,
         "g3": 104,
         "cannot_decide": 34,
-        "exceeds": 55,
+        "exceeds": 56,
         "near": 30,
-        "not_space": 3,
+        "not_space": 2,
         "clear": 16,
     }
     assert result.drops == {

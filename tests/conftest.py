@@ -51,6 +51,8 @@ def _run_pipeline(ific_mdb: Path, register: Path, m4: Path, all_bands: bool) -> 
         m4_rows,
         mode="all" if all_bands else "slice",
         today=RUN_DATE,
+        # The demo slice keeps G1's old band screen; the full run screens every E row.
+        screen_bands=not all_bands,
     )
     return SimpleNamespace(
         ific=ific,

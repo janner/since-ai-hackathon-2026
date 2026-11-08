@@ -20,7 +20,9 @@ STAGES = ("G1", "G2")
 
 # Plain-language reason for a notice that leaves the funnel, for the queue row a human reads.
 DROP_TEXT = {
-    "no_band_overlap": "no space-to-Earth row on the screened bands",
+    # The code name is historic: on the product run there is no band screen left to overlap,
+    # so the only notice with this reason has no space-to-Earth row at all.
+    "no_band_overlap": "no space-to-Earth row",
     "earth_station_notice": "earth station notice, not a downlink",
     "geo_below_horizon": "satellite below the horizon from Finland",
     "ngso_never_visible": "orbit never reaches Finland's latitude",
@@ -174,9 +176,11 @@ def run(
     m4_rows: list[dict],
     mode: str = "slice",
     today: date | None = None,
+    screen_bands: bool = False,
 ) -> GateResult:
+    """`screen_bands` is the demo slice's old narrow G1; the product run screens every row."""
     today = today or date.today()
-    found, g1_dropped, adjacent = gate1(ific, bands)
+    found, g1_dropped, adjacent = gate1(ific, bands if screen_bands else None)
     visible, g2_dropped = gate2(ific, found, places)
     deadlines = notice_deadlines(ific, today)
     cases, undecided, required = gate3(
@@ -224,37 +228,47 @@ def run(
     return result
 
 
-def gate1(ific: IficData, bands: list[Band]) -> tuple[dict[str, list[Freq]], dict, set[str]]:
-    """Does the notice's space-to-Earth row overlap a Finnish allocation at all?
+def gate1(
+    ific: IficData, bands: list[Band] | None = None
+) -> tuple[dict[str, list[Freq]], dict, set[str]]:
+    """Which notices carry a space-to-Earth row?
 
-    The bands are the run's scope. On the full run they are every Finnish allocation, so a
-    notice in a band with no satellite service still passes: G3 turns it into `not_space`.
-    With `GUARD_MHZ > 0` a row that only comes within that distance of a band also passes, and
-    the notice is returned in `adjacent` so its case can be capped at class `near`.
+    The product run passes no bands: every row with `emi_rcp = E` is screened, whatever its
+    frequency. A notice outside every Finnish allocation is a case (G3 reads it as `not_space`),
+    never a silent drop. Only the demo slice passes its bands and keeps the old narrow screen;
+    with `GUARD_MHZ > 0` a row that only comes within that distance of one of those bands also
+    passes and the notice is returned in `adjacent` so its case can be capped at class `near`.
+    An earth station notice (`ntc_type = "S"`) sending "E" is the station transmitting, not a
+    downlink, and is dropped either way.
     """
     guard = config.GUARD_MHZ
-    wanted = [(band.lo_mhz, band.hi_mhz) for band in bands]
+    wanted = None if bands is None else [(band.lo_mhz, band.hi_mhz) for band in bands]
     found: dict[str, list[Freq]] = {}
     strictly_matched: set[str] = set()
     for freq in ific.freqs:
         if freq.emi_rcp != "E":
             continue
-        overlap = any(freq.freq_min_mhz <= hi and freq.freq_max_mhz >= lo for lo, hi in wanted)
-        near = guard > 0 and any(
-            freq.freq_min_mhz <= hi + guard and freq.freq_max_mhz >= lo - guard for lo, hi in wanted
-        )
-        if not overlap and not near:
-            continue
+        if wanted is not None:
+            overlap = any(freq.freq_min_mhz <= hi and freq.freq_max_mhz >= lo for lo, hi in wanted)
+            near = guard > 0 and any(
+                freq.freq_min_mhz <= hi + guard and freq.freq_max_mhz >= lo - guard
+                for lo, hi in wanted
+            )
+            if not overlap and not near:
+                continue
+            if overlap:
+                strictly_matched.add(freq.ntc_id)
         found.setdefault(freq.ntc_id, []).append(freq)
-        if overlap:
-            strictly_matched.add(freq.ntc_id)
 
     earth_notices = {n for n in found if ific.notices[n].ntc_type == "S"}
     for ntc_id in earth_notices:
         # An earth station notice sending "E" is the station transmitting, not a downlink.
         del found[ntc_id]
 
-    adjacent = {ntc_id for ntc_id in found if ntc_id not in strictly_matched}
+    # Only a band screen can let a row in "adjacent only"; without one there is no such case.
+    adjacent = (
+        set() if wanted is None else {ntc_id for ntc_id in found if ntc_id not in strictly_matched}
+    )
     dropped: dict[str, tuple[str, str]] = {}
     for ntc_id in ific.notices:
         if ntc_id in found:

@@ -52,7 +52,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="screen every Finnish allocation instead of the 3,47-3,78 GHz demo slice",
+        help="every Finnish allocation (the default; kept so older commands still run)",
+    )
+    parser.add_argument(
+        "--slice",
+        action="store_true",
+        help="the 3,47-3,78 GHz demo slice, with G1's old narrow band screen (demo only)",
     )
     parser.add_argument(
         "--terrestrial",
@@ -80,7 +85,7 @@ def run(
     m4: Path,
     out: Path = Path("out"),
     limits: Path = DEFAULT_LIMITS,
-    all_bands: bool = False,
+    slice_bands: bool = False,
     terrestrial_path: Path | None = None,
     terrestrial_prev: Path | None = None,
     ledger_events: bool = False,
@@ -88,9 +93,10 @@ def run(
     started = time.monotonic()
     ific = ingest.load_ific(ific_mdb)
     m4_rows = ingest.load_m4(m4)
-    # The full run covers every Finnish allocation, not a hand-picked band list: a band with
-    # no satellite service is exactly where a satellite should not transmit (D18).
-    scope = tuple(finnish_bands(m4_rows)) if all_bands else (DEMO_SLICE_MHZ,)
+    # The default covers every Finnish allocation and G1 screens every space-to-Earth row,
+    # whatever its frequency: a band with no satellite service is exactly where a satellite
+    # should not transmit (D18). The demo slice stays a flag and keeps G1's old narrow screen.
+    scope = (DEMO_SLICE_MHZ,) if slice_bands else tuple(finnish_bands(m4_rows))
     # Only the register rows on the run's bands can be a reference; the rest never reach a gate.
     stations, _ = ingest.load_register(register, scope)
     try:
@@ -115,8 +121,9 @@ def run(
         bands,
         limits_rows,
         m4_rows,
-        mode="all" if all_bands else "slice",
+        mode="slice" if slice_bands else "all",
         today=now.date(),
+        screen_bands=slice_bands,
     )
     result.run_at = now.isoformat(timespec="seconds")
     result.rules_version = RULES_VERSION
@@ -247,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
             args.m4,
             args.out,
             args.limits,
-            args.all,
+            args.slice,
             args.terrestrial,
             args.terrestrial_prev,
             args.ledger,

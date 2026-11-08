@@ -131,6 +131,8 @@ def run_pipeline(ific_mdb: Path, out: Path) -> int:
         str(REPO_ROOT / "data" / "taajuusjakotaulukko.json"),
         "--out",
         str(out),
+        # The product scope: every space-to-Earth row, every frequency. --slice is the demo only.
+        "--all",
     ]
     return subprocess.run(command, cwd=REPO_ROOT).returncode
 
