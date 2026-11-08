@@ -228,12 +228,14 @@ def test_golden_case_103500417(challenge):
         "ITU RR 2024 Art. 21 Table 21-4, 3\u00a0400-4\u00a0200 MHz, "
         "FSS (space-to-Earth), GSO, p. 287"
     )
-    assert card["m4"] | {"gaps": None, "segments": None} == {
+    assert card["m4"] | {"gaps": None, "segments": None, "downlink_gaps": None} == {
         "rows": [4060, 4091],
         "band_mhz": [3400.0, 3800.0],
         "services_in_finland": "MOBILE AND FIXED",
         "satellite_use": False,
         "gaps": None,
+        "downlink_use": False,
+        "downlink_gaps": None,
         "segments": None,
         "source": "opendata.traficom.fi/api/v13/Taajuusjakotaulukko",
     }

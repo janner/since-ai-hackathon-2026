@@ -20,6 +20,17 @@ def satellite_use(service: str) -> bool:
     return "SATELLITE" in service.upper()
 
 
+def downlink_use(service: str) -> bool:
+    """Does this service name state a space-to-Earth direction?
+
+    The M4 rows carry no `allocation.space_to_earth` flag: the direction is in the service name
+    ("... (SPACE-TO-EARTH)"), and a downlink allocation is a pair of rows, the space station
+    transmitting (Direction TX) and the earth station receiving (RX). A row that names a
+    satellite service without a direction does not say downlink, so it is not one.
+    """
+    return "SPACE-TO-EARTH" in service.upper()
+
+
 def finnish_bands(m4_rows: list[dict]) -> list[tuple[float, float]]:
     """The whole Finnish allocation as merged (lo, hi) MHz intervals."""
     spans = sorted(
@@ -40,7 +51,8 @@ def segments(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> list[dict]:
     """The notified band split at every M4 sub-band edge, each piece with its own answer.
 
     A piece is covered by a row only when the row contains the whole piece, so a band edge
-    that merely touches a row does not borrow that row's services.
+    that merely touches a row does not borrow that row's services. `downlink` is the card's
+    question: does any covering row name a space-to-Earth allocation?
     """
     lo_hz, hi_hz = lo_mhz * 1e6, hi_mhz * 1e6
     cuts = {lo_hz, hi_hz}
@@ -65,6 +77,7 @@ def segments(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> list[dict]:
                 "hi_mhz": round(high / 1e6, 3),
                 "services": services,
                 "satellite": any(satellite_use(service) for service in services),
+                "downlink": any(downlink_use(service) for service in services),
                 "m4_row_ids": [row["ID"] for row in hits if "ID" in row][:8],
             }
         )
@@ -82,6 +95,7 @@ def m4_lookup(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> dict:
     parts = segments(m4_rows, lo_mhz, hi_mhz)
     services = sorted({service for part in parts for service in part["services"]})
     gaps = [(part["lo_mhz"], part["hi_mhz"]) for part in parts if not part["satellite"]]
+    downlink_gaps = [(part["lo_mhz"], part["hi_mhz"]) for part in parts if not part["downlink"]]
     if not parts:
         return {
             "rows": [],
@@ -89,6 +103,8 @@ def m4_lookup(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> dict:
             "services_in_finland": "not allocated",
             "satellite_use": False,
             "gaps": [(lo_mhz, hi_mhz)],
+            "downlink_use": False,
+            "downlink_gaps": [(lo_mhz, hi_mhz)],
             "segments": [],
             "source": M4_SOURCE,
         }
@@ -111,6 +127,8 @@ def m4_lookup(m4_rows: list[dict], lo_mhz: float, hi_mhz: float) -> dict:
         "services_in_finland": ", ".join(services) if services else "not allocated",
         "satellite_use": not gaps,
         "gaps": gaps,
+        "downlink_use": not downlink_gaps,
+        "downlink_gaps": downlink_gaps,
         "segments": parts,
         "source": M4_SOURCE,
     }
