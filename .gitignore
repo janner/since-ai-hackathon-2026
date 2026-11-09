@@ -14,7 +14,7 @@ runs/
 # The built submission zip (make submission-zip).
 dist/
 
-# Prep notes live in since-ai-hackathon-prep, not in the submission repo.
+# Local prep notes, not part of the repository.
 VALMISTELU.md
 IDEA.md
 HAASTEET.md

@@ -1,7 +1,7 @@
 # Features
 
-What each part of the pipeline does, how it is built, and which test file covers it. Verified on 7 Nov
-2026 with `make check` (208 passed) and a clean clone (152 passed, 56 skipped).
+What each part of the pipeline does, how it is built, and which test file covers it. Verified on 9 Nov
+2026 with `make check` (205 passed) and a clean clone (149 passed, 56 skipped).
 
 For a test count, quote the clean-clone number: it needs no challenge data.
 
@@ -620,10 +620,10 @@ Not built, in rough order of value. The estimate is effort, not a schedule.
 | AP30 / AP30A / AP30B | The customer ranked this below space-side trends. Open `SPS_ALL_IFIC3083.zip` (72 MB) and `30B_3083.zip` (22 MB) with `mdb-export` and build a plan path | Large |
 | RR Art. 22 / EPFD | A calculation and a criterion for protecting Finnish satellites; `epfd_param` is already read | Large |
 
-Scheduled cadence is installed: Hermes cron (profile `coder`) runs `uv run python scripts/monitor.py
---check` in the repo every 14 days (first run 21 Nov 2026). Error path: network failure → `status:
-error` in `out/fetch_status.json`, exit 1, `runs/latest` does not move, and the cron run is recorded
-as failed (`hermes cron runs`).
+Scheduled cadence: any scheduler (cron, a CI schedule) runs `uv run python scripts/monitor.py
+--check` in the repo every 14 days. Error path: network failure → `status: error` in
+`out/fetch_status.json`, exit 1, `runs/latest` does not move, and the scheduler records the run as
+failed.
 
 Register scale, measured 7 Nov 2026 with `load_register()` alone on a synthetic register (1 M rows,
 65 MB on disk, every 1000th row on the demo slice):
@@ -659,7 +659,7 @@ Tests (`tests/test_fetch_data.py`, 2): `test_html_instead_of_zip_is_rejected`,
 There are no committed data fixtures. The tests that need a real input are marked `data` and read
 `data/itu-ific-3074/ific3074.mdb`, `data/frequencies_of_interest.csv`, `data/taajuusjakotaulukko.json`
 and the two terrestrial BR IFIC MDBs; `tests/conftest.py` skips every one of them when
-`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (152 passed, 56 skipped).
+`data/itu-ific-3074/ific3074.mdb` is missing, so a clean clone runs green (149 passed, 56 skipped).
 The pure tests carry their own inputs in the test: the unit forms in `tests/test_ingest.py`, the band
 merging in `tests/test_bands.py`, the guard rows in `tests/test_gates.py`, the PFD vectors and the
 limit table in `tests/test_pfd.py`.

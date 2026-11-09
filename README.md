@@ -104,15 +104,14 @@ Two runs are on record and their numbers are not interchangeable. The auto-fetch
 the run the page shows (`runs/3075/`): `129 → 19 → 9 → 7 + 2`, 3 exceeds, 4 near, 2 `cannot_decide`,
 9 need attention out of 129 queue rows; the first queue row is `125520114`, a coordination-stage near case, and the APSTAR-92E
 exceedance is fifth because its filing is already in the MIFR. The accuracy dataset is the challenge's
-IFIC 3074 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 7 Nov 2026:
-`make check` 208 tests (152 passed, 56 skipped without `data/`). The deterministic pipeline is offline; the
+IFIC 3074 (`out/`): 196 notices, one row per notice in `3074_results.csv`. Measured 9 Nov 2026:
+`make check` 205 tests (149 passed, 56 skipped without `data/`). The deterministic pipeline is offline; the
 optional LLM prose step is the only part of the run that opens a connection, and only when
 `LLM_BASE_URL` is set. `scripts/monitor.py` is the one part that reaches the network on its own: it
 checks ITU's URL for the next BR IFIC on the two-week cadence and runs it into `runs/<ific>/`.
-On this host the check is installed in Hermes cron (profile `coder`, job `Kaista IFIC-monitori`,
-every 14 days, first run 21 Nov 2026), which runs `cd ~/since-ai-hackathon-2026 && uv run python
-scripts/monitor.py --check`. A failed check writes `status: error` to `out/fetch_status.json` and
-exits 1; `runs/latest` stays where it was, and `hermes cron runs` shows the run as failed.
+Any scheduler (cron, a CI schedule) can run `uv run python scripts/monitor.py --check` every 14
+days. A failed check writes `status: error` to `out/fetch_status.json` and exits 1; `runs/latest`
+stays where it was, so the scheduler records the run as failed.
 
 | | Accuracy slice 3 470–3 780 MHz (IFIC 3074) | Every Finnish allocation (`--all`) |
 |---|---|---|
@@ -229,10 +228,10 @@ under a `kaista/` prefix, plus the accuracy files from the last run under `resul
 (`3074_results.csv`, `terrestrial_findings.json`, `terrestrial_trends.csv`, `TERRESTRIAL.md`).
 `data/`, `out/`, `.venv/` and `dist/` never enter it.
 
-| Environment | Result (7 Nov 2026) |
+| Environment | Result (9 Nov 2026) |
 |---|---|
-| With `data/` | 196 passed |
-| Clean clone, no `data/` | 152 passed, 56 skipped |
+| With `data/` | 205 passed |
+| Clean clone, no `data/` | 149 passed, 56 skipped |
 
 There are no committed data fixtures. Every test that needs a real input is marked `data` and reads
 the 274 MB BR IFIC MDB, the Traficom register and the M4 table (and the two terrestrial BR IFIC MDBs
@@ -343,15 +342,18 @@ at all: open `out/teams_message.html`.
     decision band. Both classes are queued; the difference is the class and the letter set. No
     accuracy claim against Traficom follows. Not implemented: the LUMI run (R20). The OpenShift AI
     part (R19) was built and used: Granite 3.3 2B Instruct served by KServe and the vLLM CPU runtime
-    in the sandbox, called by the prose step (`deploy/openshift/README.md`); and the funnel itself ran
+    in a sandbox, called by the prose step (`deploy/openshift/README.md`); and the funnel itself ran
     in the cluster as an OpenShift AI Data Science Pipeline, a three-stage KFP v2 run
-    (`deploy/openshift/pipeline/README.md`). The demo video, the push and the rest of the submission
-    form are the owner's steps; `SUBMISSION.md` lists them under the final check.
+    (`deploy/openshift/pipeline/README.md`).
 12. The queue has no cap. The written challenge brief names no target number, and the job is to
     find the problems and report them, not to shorten the list. Everything stays in the files; the
     clear cases keep their row in `cases.json`, `queue.json` and `3074_results.csv`, and sit in the
     `checked` tier of the queue.
-13. `main` has been pushed before, but every new commit needs its own push, which is Janne's call.
+13. The accuracy file submitted for judging (`results/3074_results.csv` in the submission zip) came
+    from the one-band slice, not from the `--all` run. The slice was chosen early for speed and was
+    not revisited after Traficom's F5 answer widened the scope, so most of the notices Traficom
+    expected to see were dropped there for `no_band_overlap`. The code ran the full scope; the
+    shipped file did not. The `--all` column of the table above is what the tool produces.
 14. A notice that survives G1 and G2 but cannot be computed gets no case card. In the demo slice
     126590032 passes both gates and carries no emission power, so it lands in `queue.md`,
     `queue.json` and `3074_results.csv` under class `cannot_decide`, while `cases.json` holds the
@@ -458,7 +460,7 @@ Four published sources cover the same ground. None is a dependency; they are the
 arranged this way. Part 4 of `docs/decisions.md` records what each one changed, with the same links.
 
 - A spectrum regulator's own paper on LLMs. Ghasemi and Guinand (Communications Research Centre (CRC)
-  Canada, Ottawa; the authors' addresses are @ised-isde.gc.ca) list the failure modes in section III of *Accelerating Radio Spectrum Regulation Workflows
+  Canada, Ottawa) list the failure modes in section III of *Accelerating Radio Spectrum Regulation Workflows
   with Large Language Models*: "Inaccuracy" (III-B, output "appearing credible but being factually
   wrong" and able to "misinform policies or public communication") and "Automation Bias" (III-C,
   "automatically generated outputs are preferred even when faced with contradictory evidence").
@@ -467,7 +469,8 @@ arranged this way. Part 4 of `docs/decisions.md` records what each one changed, 
 - Selective classification, the literature name for `cannot_decide`. Heng and Soh define the two
   metrics a selective classifier is judged by, "Coverage" and "Selective Risk", and the trade-off
   between them. https://arxiv.org/html/2505.15008v3 `funnel.json` reports the same pair in its own
-  terms: 196 notices in, 21 that need attention, and a reason code for every abstention.
+  terms: on the accuracy slice, 196 notices in, 21 that need attention, and a reason code for every
+  abstention.
 - Technology-assisted review. Grossman and Cormack compared review with automated ranking against
   exhaustive manual review "as measured by recall, precision, and F1" (Richmond Journal of Law and
   Technology 17(3), Article 11, 2011). https://grossman.uwaterloo.ca/grossman-publications/jolt-2011/
@@ -483,11 +486,10 @@ arranged this way. Part 4 of `docs/decisions.md` records what each one changed, 
 ## AI tools used
 
 - Hermes Agent: the work was planned, implemented, documented and reviewed by agent roles on a
-  shared kanban board (planner, two coders, writer, reviewer). The human owner chose the challenge,
-  set the product framing, and makes the push decision.
+  shared kanban board (planner, two coders, writer, reviewer), under the direction of the human
+  owner, who chose the challenge, set the product framing, and made every push.
 - The drafting LLM inside `app/prose.py` is a component of the product rather than a build tool: it
   writes card prose, and the numeric guard rejects anything it invents.
-- Keep the GenAI field of the submission form consistent with this section.
 
 ## Pre-existing work
 
@@ -507,4 +509,3 @@ during the hackathon, 6 to 8 Nov 2026.
 | `deploy/openshift/README.md` | What runs in the cluster and what runs on the laptop, the apply and call commands, and the measured evidence from the served Granite |
 | `deploy/openshift/pipeline/README.md` | The funnel as an OpenShift AI Data Science Pipeline: the three KFP v2 stages, the manifests, and the measured cluster run |
 | `docs/pitch-deck.html` | The pitch deck: ten 16:9 slides, rendered to `dist/kaista-pitch.pdf` |
-| `SUBMISSION.md` | Draft of the sinceai.app submission form and the Red Hat award checklist |

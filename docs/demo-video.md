@@ -62,4 +62,4 @@ Block word counts: problem 42, solution 48, live demo 123, impact 59.
 - [ ] Someone outside the team watches it once and says back what the tool does.
 - [ ] The exported video is watched end to end before it is uploaded.
 - [ ] The YouTube link (public or unlisted) is pasted into the `Demo video` field of
-      `SUBMISSION.md`. Deadline Sun 8 Nov 10:00 EET, submit by 09:00.
+      the submission form.

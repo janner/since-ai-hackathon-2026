@@ -34,7 +34,7 @@ weights. The `READY` column read `False` for 8 minutes after the first apply, th
 ## Call it
 
 ```bash
-U=https://granite-janner-1-dev.apps.rm2.thpm.p1.openshiftapps.com
+U=$(oc get inferenceservice granite -o jsonpath='{.status.url}')
 curl $U/v1/models
 curl $U/v1/chat/completions -H 'Content-Type: application/json' \
   -d '{"model":"granite","messages":[{"role":"user","content":"Say hello in one short sentence."}]}'
@@ -43,7 +43,7 @@ curl $U/v1/chat/completions -H 'Content-Type: application/json' \
 ## Run the pipeline against it
 
 ```bash
-export LLM_BASE_URL=https://granite-janner-1-dev.apps.rm2.thpm.p1.openshiftapps.com/v1
+export LLM_BASE_URL=$(oc get inferenceservice granite -o jsonpath='{.status.url}')/v1
 export LLM_MODEL=granite
 uv run python -m app.pipeline --ific data/itu-ific-3074/ific3074.mdb \
   --register data/frequencies_of_interest.csv \
@@ -62,7 +62,7 @@ with a three-stage KFP v2 pipeline. See `deploy/openshift/pipeline/README.md`.
 
 ```
 NAME      URL                                                               READY   AGE
-granite   https://granite-janner-1-dev.apps.rm2.thpm.p1.openshiftapps.com   True    34m
+granite   https://granite-<project>.apps.<cluster-domain>   True    34m
 ```
 
 Conditions `IngressReady`, `PredictorReady` and `Ready` are all `True`; pod
@@ -182,7 +182,8 @@ the same run took 1.19 s. The current code also drafts the nine `exceeds` letter
    the card says so.
 4. **The route is unauthenticated.** The InferenceService carries
    `networking.kserve.io/visibility: exposed`, so anyone with the URL can call the model. That is
-   acceptable for a sandbox demo and is why no token is used here and none is stored in the repo.
+   acceptable for a short-lived sandbox demo; the route host is left out of this repository, and no
+   token is used or stored.
 5. **The guard checks numbers, not meaning.** All five kept drafts use numbers that are in the
    card, and some of them still put a correct number in the wrong role (an M4 antenna gain
    reported as the victim's gain, `PSD -42.8 dBW/Hz` for a PFD). The guard cannot catch that, and

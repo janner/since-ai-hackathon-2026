@@ -1,9 +1,8 @@
 # Traficom Q&A, 7 Nov 2026
 
-The challenge's Q&A point ran 9.00–12.00 and 14.30–18.00. The full question list and the answer form
-live in `~/hackathon-prep/KYSY-TRAFICOM.md`; this file is the repository's memory of what was asked,
+The challenge's Q&A point ran 9.00–12.00 and 14.30–18.00. This file is the repository's memory of what was asked,
 what was answered and what each answer changed. Questions are in English because the brief and the
-data are English. The respondent is named where the answer came from a person rather than a source.
+data are English. Answers from Traficom staff are attributed to Traficom, not to a named person.
 
 ## Answered in the Discord thread
 
@@ -191,7 +190,7 @@ the row.
 > 21-4. Is a PFD below the limit enough to clear a filing, and how far beyond the delivered Excel
 > list should the analysis reach?
 
-**Answer (Otto Julkunen, 7 Nov 2026, relayed by the team).** A PFD above the limit is not enough on
+**Answer (Traficom specialist, 7 Nov 2026).** A PFD above the limit is not enough on
 its own. If a frequency is, in Finland, one that does not relate to satellite use, and some
 satellite transmits on it, that is a problem they want to act on. The delivered Excel list is only a
 reference, and the analysis must consider more widely than the areas on that list. Not all use is
